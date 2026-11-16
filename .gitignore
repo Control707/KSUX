@@ -3,11 +3,15 @@
 
 # Dependencies & Build
 node_modules/
+.pnpm-store/
 .next/
+.convex/
 out/
 coverage/
 playwright-report/
 test-results/
+next-env.d.ts
+*.tsbuildinfo
 
 # Local env & secrets
 .env

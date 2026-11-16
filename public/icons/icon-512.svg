@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="96" fill="#111317"/>
+  <rect x="48" y="48" width="416" height="416" rx="76" fill="#FDBB30"/>
+  <circle cx="186" cy="224" r="56" fill="#111317"/>
+  <circle cx="326" cy="224" r="56" fill="#111317"/>
+  <circle cx="186" cy="224" r="22" fill="#FFF6DC"/>
+  <circle cx="326" cy="224" r="22" fill="#FFF6DC"/>
+  <polygon points="256,258 218,316 294,316" fill="#111317"/>
+  <text x="256" y="412" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="900" font-size="76" fill="#111317">KSUX</text>
+</svg>

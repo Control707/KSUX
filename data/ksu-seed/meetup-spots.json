@@ -1,0 +1,156 @@
+[
+  {
+    "slug": "carmichael-student-center-atrium",
+    "campus": "Kennesaw",
+    "name": "Carmichael Student Center Atrium",
+    "buildingCode": "SC",
+    "safetyNotes": "High-foot-traffic indoor hub beside Info Desk & security cameras.",
+    "latitude": 34.0391,
+    "longitude": -84.5822,
+    "sortOrder": 1,
+    "geoFeatureId": "meetup-carmichael-student-center-atrium"
+  },
+  {
+    "slug": "campus-green-plaza",
+    "campus": "Kennesaw",
+    "name": "Campus Green Flagpole Plaza",
+    "buildingCode": "CG",
+    "safetyNotes": "Open central walkway with emergency blue-light call tower.",
+    "latitude": 34.0385,
+    "longitude": -84.5828,
+    "sortOrder": 2,
+    "geoFeatureId": "meetup-campus-green-plaza"
+  },
+  {
+    "slug": "sturgis-library-entrance",
+    "campus": "Kennesaw",
+    "name": "Sturgis Library Main Entrance",
+    "buildingCode": "LB",
+    "safetyNotes": "Well-lit staffed entrance facing the Campus Green.",
+    "latitude": 34.0384,
+    "longitude": -84.5829,
+    "sortOrder": 3,
+    "geoFeatureId": "meetup-sturgis-library-entrance"
+  },
+  {
+    "slug": "talon-one-public-safety",
+    "campus": "Kennesaw",
+    "name": "Talon One & KSU Public Safety Lobby",
+    "buildingCode": "PS",
+    "safetyNotes": "Highest-security swap zone monitored directly by KSU Police.",
+    "latitude": 34.0395,
+    "longitude": -84.5815,
+    "sortOrder": 4,
+    "geoFeatureId": "meetup-talon-one-public-safety"
+  },
+  {
+    "slug": "social-sciences-lobby",
+    "campus": "Kennesaw",
+    "name": "Social Sciences Building Main Lobby",
+    "buildingCode": "SO",
+    "safetyNotes": "Busy ground-floor atrium adjacent to Starbucks.",
+    "latitude": 34.0372,
+    "longitude": -84.5838,
+    "sortOrder": 5,
+    "geoFeatureId": "meetup-social-sciences-lobby"
+  },
+  {
+    "slug": "burruss-building-atrium",
+    "campus": "Kennesaw",
+    "name": "Burruss Building Ground Atrium",
+    "buildingCode": "BB",
+    "safetyNotes": "Coles College main lobby with abundant seating and wall outlets.",
+    "latitude": 34.038,
+    "longitude": -84.5844,
+    "sortOrder": 6,
+    "geoFeatureId": "meetup-burruss-building-atrium"
+  },
+  {
+    "slug": "arc-recreation-lobby",
+    "campus": "Kennesaw",
+    "name": "Student Recreation & Activities Center Lobby",
+    "buildingCode": "SRAC",
+    "safetyNotes": "Staffed check-in desk with convenient curbside drop-off.",
+    "latitude": 34.0364,
+    "longitude": -84.5828,
+    "sortOrder": 7,
+    "geoFeatureId": "meetup-arc-recreation-lobby"
+  },
+  {
+    "slug": "wilson-student-center",
+    "campus": "Marietta",
+    "name": "Joe Mack Wilson Student Center Lobby",
+    "buildingCode": "A",
+    "safetyNotes": "Main Marietta student hub next to Dunkin' & Info Desk.",
+    "latitude": 33.9406,
+    "longitude": -84.5189,
+    "sortOrder": 1,
+    "geoFeatureId": "meetup-wilson-student-center"
+  },
+  {
+    "slug": "johnson-library-plaza",
+    "campus": "Marietta",
+    "name": "Lawrence V. Johnson Library Plaza",
+    "buildingCode": "C",
+    "safetyNotes": "Central Marietta brick plaza next to the iconic Globe sculpture.",
+    "latitude": 33.9401,
+    "longitude": -84.5195,
+    "sortOrder": 2,
+    "geoFeatureId": "meetup-johnson-library-plaza"
+  },
+  {
+    "slug": "atrium-building-lobby",
+    "campus": "Marietta",
+    "name": "Atrium Building (J) Main Lobby",
+    "buildingCode": "J",
+    "safetyNotes": "Bright indoor computing atrium with power outlets to test electronics.",
+    "latitude": 33.9394,
+    "longitude": -84.5204,
+    "sortOrder": 3,
+    "geoFeatureId": "meetup-atrium-building-lobby"
+  },
+  {
+    "slug": "engineering-lab-plaza",
+    "campus": "Marietta",
+    "name": "Engineering Technology Center Courtyard",
+    "buildingCode": "Q",
+    "safetyNotes": "Open daytime engineering quad with blue-light emergency phone.",
+    "latitude": 33.9412,
+    "longitude": -84.5209,
+    "sortOrder": 4,
+    "geoFeatureId": "meetup-engineering-lab-plaza"
+  },
+  {
+    "slug": "norton-hall-courtyard",
+    "campus": "Marietta",
+    "name": "Norton Hall Well-Lit Courtyard",
+    "buildingCode": "R",
+    "safetyNotes": "Well-lit paved walkway near Marietta residence life.",
+    "latitude": 33.9416,
+    "longitude": -84.5197,
+    "sortOrder": 5,
+    "geoFeatureId": "meetup-norton-hall-courtyard"
+  },
+  {
+    "slug": "marietta-public-safety",
+    "campus": "Marietta",
+    "name": "Marietta Campus Public Safety Precinct",
+    "buildingCode": "MPS",
+    "safetyNotes": "24/7 KSU Police Marietta precinct safe-exchange zone.",
+    "latitude": 33.9398,
+    "longitude": -84.5215,
+    "sortOrder": 6,
+    "geoFeatureId": "meetup-marietta-public-safety"
+  },
+  {
+    "slug": "design-ii-lobby",
+    "campus": "Marietta",
+    "name": "Design II Atrium Entrance",
+    "buildingCode": "I2",
+    "safetyNotes": "Architecture & Design studio lobby with wide tables.",
+    "latitude": 33.9385,
+    "longitude": -84.5201,
+    "sortOrder": 7,
+    "geoFeatureId": "meetup-design-ii-lobby"
+  }
+]

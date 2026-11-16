@@ -1,0 +1,191 @@
+[
+  {
+    "nutrisliceSlug": "the-commons",
+    "nutrisliceId": 6196,
+    "campus": "Kennesaw",
+    "venueKind": "dining_hall",
+    "name": "The Commons",
+    "buildingName": "The Commons Dining Hall",
+    "doorRatesJson": "{\"breakfast\":\"$9.75\",\"lunch\":\"$12.75\",\"dinner\":\"$14.00\"}",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":420,\"weekdayCloseMin\":1320,\"weekendOpenMin\":540,\"weekendCloseMin\":1260}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Apron Strings\",\"items\":[{\"name\":\"Herb-Roasted Chicken w/ Red Pepper Sauce\",\"calories\":410,\"dietaryTags\":[\"halal_friendly\",\"gluten_free\"],\"allergens\":[\"milk\"]},{\"name\":\"Garlic Mashed Potatoes\",\"calories\":220,\"dietaryTags\":[\"vegetarian\",\"gluten_free\"],\"allergens\":[\"milk\"]}]},{\"name\":\"Campus Green (Plant-Forward)\",\"items\":[{\"name\":\"Crispy Chickpea & Quinoa Harvest Bowl\",\"calories\":380,\"dietaryTags\":[\"vegan\",\"vegetarian\",\"gluten_free\"],\"allergens\":[]}]},{\"name\":\"Globe Trotters\",\"items\":[{\"name\":\"Halal Turmeric Chicken Shawarma Rice\",\"calories\":520,\"dietaryTags\":[\"halal_friendly\"],\"allergens\":[\"wheat\"]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Apron Strings\",\"items\":[{\"name\":\"Herb-Roasted Chicken w/ Red Pepper Sauce\",\"calories\":410,\"dietaryTags\":[\"halal_friendly\",\"gluten_free\"],\"allergens\":[\"milk\"]},{\"name\":\"Garlic Mashed Potatoes\",\"calories\":220,\"dietaryTags\":[\"vegetarian\",\"gluten_free\"],\"allergens\":[\"milk\"]}]},{\"name\":\"Campus Green (Plant-Forward)\",\"items\":[{\"name\":\"Crispy Chickpea & Quinoa Harvest Bowl\",\"calories\":380,\"dietaryTags\":[\"vegan\",\"vegetarian\",\"gluten_free\"],\"allergens\":[]}]},{\"name\":\"Globe Trotters\",\"items\":[{\"name\":\"Halal Turmeric Chicken Shawarma Rice\",\"calories\":520,\"dietaryTags\":[\"halal_friendly\"],\"allergens\":[\"wheat\"]}]}]}"
+  },
+  {
+    "nutrisliceSlug": "stingers",
+    "nutrisliceId": 6192,
+    "campus": "Marietta",
+    "venueKind": "dining_hall",
+    "name": "Stingers",
+    "buildingName": "Stingers Dining Hall",
+    "doorRatesJson": "{\"breakfast\":\"$9.75\",\"lunch\":\"$12.75\",\"dinner\":\"$14.00\"}",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":420,\"weekdayCloseMin\":1260,\"weekendOpenMin\":600,\"weekendCloseMin\":1200}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Down Home\",\"items\":[{\"name\":\"Creamy Mushroom Roasted Chicken\",\"calories\":430,\"dietaryTags\":[\"halal_friendly\"],\"allergens\":[\"milk\"]}]},{\"name\":\"Farm Basket\",\"items\":[{\"name\":\"Mediterranean Falafel & Roasted Veggie Plate\",\"calories\":390,\"dietaryTags\":[\"vegan\",\"vegetarian\",\"halal_friendly\"],\"allergens\":[\"sesame\"]}]},{\"name\":\"Slice of Pi\",\"items\":[{\"name\":\"Margherita Stone-Fired Pizza\",\"calories\":310,\"dietaryTags\":[\"vegetarian\"],\"allergens\":[\"wheat\",\"milk\"]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Down Home\",\"items\":[{\"name\":\"Creamy Mushroom Roasted Chicken\",\"calories\":430,\"dietaryTags\":[\"halal_friendly\"],\"allergens\":[\"milk\"]}]},{\"name\":\"Farm Basket\",\"items\":[{\"name\":\"Mediterranean Falafel & Roasted Veggie Plate\",\"calories\":390,\"dietaryTags\":[\"vegan\",\"vegetarian\",\"halal_friendly\"],\"allergens\":[\"sesame\"]}]},{\"name\":\"Slice of Pi\",\"items\":[{\"name\":\"Margherita Stone-Fired Pizza\",\"calories\":310,\"dietaryTags\":[\"vegetarian\"],\"allergens\":[\"wheat\",\"milk\"]}]}]}"
+  },
+  {
+    "nutrisliceSlug": "j-building",
+    "nutrisliceId": 6201,
+    "campus": "Marietta",
+    "venueKind": "retail",
+    "name": "Stacks (Atrium J)",
+    "buildingName": "Atrium Building (J)",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":450,\"weekdayCloseMin\":1080,\"weekendOpenMin\":null,\"weekendCloseMin\":null}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Deli & Espresso\",\"items\":[{\"name\":\"Mediterranean Hummus Veggie Wrap\",\"calories\":440,\"dietaryTags\":[\"vegan\",\"vegetarian\"],\"allergens\":[\"wheat\",\"sesame\"]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Deli & Espresso\",\"items\":[{\"name\":\"Mediterranean Hummus Veggie Wrap\",\"calories\":440,\"dietaryTags\":[\"vegan\",\"vegetarian\"],\"allergens\":[\"wheat\",\"sesame\"]}]}]}"
+  },
+  {
+    "nutrisliceSlug": "chick-fil-a",
+    "nutrisliceId": 6202,
+    "campus": "Kennesaw",
+    "venueKind": "retail",
+    "name": "Chick-fil-A",
+    "buildingName": "Carmichael Student Center",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":450,\"weekdayCloseMin\":1260,\"weekendOpenMin\":660,\"weekendCloseMin\":1080}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Entrees\",\"items\":[{\"name\":\"Spicy Chicken Sandwich\",\"calories\":450,\"dietaryTags\":[],\"allergens\":[\"wheat\",\"milk\",\"egg\"]},{\"name\":\"Kale Crunch Side\",\"calories\":170,\"dietaryTags\":[\"vegan\",\"vegetarian\",\"gluten_free\"],\"allergens\":[\"tree_nuts\"]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Entrees\",\"items\":[{\"name\":\"Spicy Chicken Sandwich\",\"calories\":450,\"dietaryTags\":[],\"allergens\":[\"wheat\",\"milk\",\"egg\"]},{\"name\":\"Kale Crunch Side\",\"calories\":170,\"dietaryTags\":[\"vegan\",\"vegetarian\",\"gluten_free\"],\"allergens\":[\"tree_nuts\"]}]}]}"
+  },
+  {
+    "nutrisliceSlug": "panda-express",
+    "nutrisliceId": 6203,
+    "campus": "Kennesaw",
+    "venueKind": "retail",
+    "name": "Panda Express",
+    "buildingName": "Carmichael Student Center",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":630,\"weekdayCloseMin\":1200,\"weekendOpenMin\":null,\"weekendCloseMin\":null}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Wok\",\"items\":[{\"name\":\"Super Greens & Eggplant Tofu Bowl\",\"calories\":430,\"dietaryTags\":[\"vegetarian\"],\"allergens\":[\"soy\",\"wheat\"]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Wok\",\"items\":[{\"name\":\"Super Greens & Eggplant Tofu Bowl\",\"calories\":430,\"dietaryTags\":[\"vegetarian\"],\"allergens\":[\"soy\",\"wheat\"]}]}]}"
+  },
+  {
+    "nutrisliceSlug": "moes",
+    "nutrisliceId": 6204,
+    "campus": "Kennesaw",
+    "venueKind": "retail",
+    "name": "Moe's Southwest Grill",
+    "buildingName": "Carmichael Student Center",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":630,\"weekdayCloseMin\":1200,\"weekendOpenMin\":null,\"weekendCloseMin\":null}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Burritos & Bowls\",\"items\":[{\"name\":\"Organic Tofu & Black Bean Homewrecker Bowl\",\"calories\":560,\"dietaryTags\":[\"vegan\",\"vegetarian\",\"gluten_free\"],\"allergens\":[\"soy\"]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Burritos & Bowls\",\"items\":[{\"name\":\"Organic Tofu & Black Bean Homewrecker Bowl\",\"calories\":560,\"dietaryTags\":[\"vegan\",\"vegetarian\",\"gluten_free\"],\"allergens\":[\"soy\"]}]}]}"
+  },
+  {
+    "nutrisliceSlug": "mcalisters-deli",
+    "nutrisliceId": 6205,
+    "campus": "Kennesaw",
+    "venueKind": "retail",
+    "name": "McAlister's Deli",
+    "buildingName": "Academic Learning Center",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":480,\"weekdayCloseMin\":1140,\"weekendOpenMin\":null,\"weekendCloseMin\":null}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Spuds & Sandwiches\",\"items\":[{\"name\":\"Veggie Spud & Sweet Tea\",\"calories\":590,\"dietaryTags\":[\"vegetarian\",\"gluten_free\"],\"allergens\":[\"milk\"]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Spuds & Sandwiches\",\"items\":[{\"name\":\"Veggie Spud & Sweet Tea\",\"calories\":590,\"dietaryTags\":[\"vegetarian\",\"gluten_free\"],\"allergens\":[\"milk\"]}]}]}"
+  },
+  {
+    "nutrisliceSlug": "dunkin",
+    "nutrisliceId": 6206,
+    "campus": "Marietta",
+    "venueKind": "retail",
+    "name": "Dunkin'",
+    "buildingName": "Joe Mack Wilson Student Center",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":420,\"weekdayCloseMin\":1080,\"weekendOpenMin\":540,\"weekendCloseMin\":900}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Coffee & Bakery\",\"items\":[{\"name\":\"Cold Brew w/ Oatmilk & Avocado Toast\",\"calories\":310,\"dietaryTags\":[\"vegan\",\"vegetarian\"],\"allergens\":[\"wheat\"]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Coffee & Bakery\",\"items\":[{\"name\":\"Cold Brew w/ Oatmilk & Avocado Toast\",\"calories\":310,\"dietaryTags\":[\"vegan\",\"vegetarian\"],\"allergens\":[\"wheat\"]}]}]}"
+  },
+  {
+    "nutrisliceSlug": "hissho",
+    "nutrisliceId": 6207,
+    "campus": "Marietta",
+    "venueKind": "retail",
+    "name": "Hissho Sushi",
+    "buildingName": "Joe Mack Wilson Student Center",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":630,\"weekdayCloseMin\":1140,\"weekendOpenMin\":null,\"weekendCloseMin\":null}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Sushi Bar\",\"items\":[{\"name\":\"Avocado Cucumber Roll\",\"calories\":290,\"dietaryTags\":[\"vegan\",\"vegetarian\"],\"allergens\":[\"sesame\",\"soy\"]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Sushi Bar\",\"items\":[{\"name\":\"Avocado Cucumber Roll\",\"calories\":290,\"dietaryTags\":[\"vegan\",\"vegetarian\"],\"allergens\":[\"sesame\",\"soy\"]}]}]}"
+  },
+  {
+    "nutrisliceSlug": "cinnabon",
+    "nutrisliceId": 6208,
+    "campus": "Kennesaw",
+    "venueKind": "retail",
+    "name": "Cinnabon",
+    "buildingName": "Carmichael Student Center",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":480,\"weekdayCloseMin\":1080,\"weekendOpenMin\":null,\"weekendCloseMin\":null}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Bakery\",\"items\":[{\"name\":\"Classic Cinnamon Roll\",\"calories\":880,\"dietaryTags\":[\"vegetarian\"],\"allergens\":[\"wheat\",\"milk\",\"egg\"]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Bakery\",\"items\":[{\"name\":\"Classic Cinnamon Roll\",\"calories\":880,\"dietaryTags\":[\"vegetarian\"],\"allergens\":[\"wheat\",\"milk\",\"egg\"]}]}]}"
+  },
+  {
+    "nutrisliceSlug": "high-point-cafe",
+    "nutrisliceId": 6209,
+    "campus": "Kennesaw",
+    "venueKind": "retail",
+    "name": "High Point Cafe",
+    "buildingName": "Austin Residence Complex",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":480,\"weekdayCloseMin\":1320,\"weekendOpenMin\":660,\"weekendCloseMin\":1260}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Late Night Grill\",\"items\":[{\"name\":\"Black Bean Burger & Seasoned Fries\",\"calories\":620,\"dietaryTags\":[\"vegetarian\"],\"allergens\":[\"wheat\",\"soy\"]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Late Night Grill\",\"items\":[{\"name\":\"Black Bean Burger & Seasoned Fries\",\"calories\":620,\"dietaryTags\":[\"vegetarian\"],\"allergens\":[\"wheat\",\"soy\"]}]}]}"
+  },
+  {
+    "nutrisliceSlug": "high-roller-sushi",
+    "nutrisliceId": 6210,
+    "campus": "Kennesaw",
+    "venueKind": "retail",
+    "name": "High Roller Sushi",
+    "buildingName": "Carmichael Student Center",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":630,\"weekdayCloseMin\":1140,\"weekendOpenMin\":null,\"weekendCloseMin\":null}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Poke & Rolls\",\"items\":[{\"name\":\"Spicy Salmon Poke Bowl\",\"calories\":540,\"dietaryTags\":[\"gluten_free\"],\"allergens\":[\"fish\",\"soy\"]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Poke & Rolls\",\"items\":[{\"name\":\"Spicy Salmon Poke Bowl\",\"calories\":540,\"dietaryTags\":[\"gluten_free\"],\"allergens\":[\"fish\",\"soy\"]}]}]}"
+  },
+  {
+    "nutrisliceSlug": "jamba",
+    "nutrisliceId": 6211,
+    "campus": "Kennesaw",
+    "venueKind": "retail",
+    "name": "Jamba",
+    "buildingName": "Student Recreation & Activities Center",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":480,\"weekdayCloseMin\":1200,\"weekendOpenMin\":660,\"weekendCloseMin\":1080}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Plant-Based Smoothies\",\"items\":[{\"name\":\"Apples 'n Greens Smoothie\",\"calories\":250,\"dietaryTags\":[\"vegan\",\"vegetarian\",\"gluten_free\"],\"allergens\":[]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Plant-Based Smoothies\",\"items\":[{\"name\":\"Apples 'n Greens Smoothie\",\"calories\":250,\"dietaryTags\":[\"vegan\",\"vegetarian\",\"gluten_free\"],\"allergens\":[]}]}]}"
+  },
+  {
+    "nutrisliceSlug": "on-the-fly",
+    "nutrisliceId": 6212,
+    "campus": "Marietta",
+    "venueKind": "retail",
+    "name": "On The Fly Market",
+    "buildingName": "Joe Mack Wilson Student Center",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":480,\"weekdayCloseMin\":1260,\"weekendOpenMin\":660,\"weekendCloseMin\":1140}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Grab & Go\",\"items\":[{\"name\":\"Halal Roasted Chicken Caesar Salad\",\"calories\":390,\"dietaryTags\":[\"halal_friendly\"],\"allergens\":[\"milk\",\"egg\"]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Grab & Go\",\"items\":[{\"name\":\"Halal Roasted Chicken Caesar Salad\",\"calories\":390,\"dietaryTags\":[\"halal_friendly\"],\"allergens\":[\"milk\",\"egg\"]}]}]}"
+  },
+  {
+    "nutrisliceSlug": "starbucks-social-sciences-building",
+    "nutrisliceId": 6213,
+    "campus": "Kennesaw",
+    "venueKind": "retail",
+    "name": "Starbucks (Social Sciences)",
+    "buildingName": "Social Sciences Building",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":450,\"weekdayCloseMin\":1140,\"weekendOpenMin\":null,\"weekendCloseMin\":null}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Espresso & Refreshers\",\"items\":[{\"name\":\"Iced Brown Sugar Oatmilk Shaken Espresso\",\"calories\":120,\"dietaryTags\":[\"vegan\",\"vegetarian\"],\"allergens\":[]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Espresso & Refreshers\",\"items\":[{\"name\":\"Iced Brown Sugar Oatmilk Shaken Espresso\",\"calories\":120,\"dietaryTags\":[\"vegan\",\"vegetarian\"],\"allergens\":[]}]}]}"
+  },
+  {
+    "nutrisliceSlug": "starbucks-student-center",
+    "nutrisliceId": 6214,
+    "campus": "Kennesaw",
+    "venueKind": "retail",
+    "name": "Starbucks (Student Center)",
+    "buildingName": "Carmichael Student Center",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":450,\"weekdayCloseMin\":1200,\"weekendOpenMin\":600,\"weekendCloseMin\":1080}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Espresso & Bakery\",\"items\":[{\"name\":\"Spinach, Feta & Egg White Wrap\",\"calories\":290,\"dietaryTags\":[\"vegetarian\"],\"allergens\":[\"wheat\",\"milk\",\"egg\"]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Espresso & Bakery\",\"items\":[{\"name\":\"Spinach, Feta & Egg White Wrap\",\"calories\":290,\"dietaryTags\":[\"vegetarian\"],\"allergens\":[\"wheat\",\"milk\",\"egg\"]}]}]}"
+  },
+  {
+    "nutrisliceSlug": "the-local-spot",
+    "nutrisliceId": 6215,
+    "campus": "Kennesaw",
+    "venueKind": "retail",
+    "name": "The Local Spot",
+    "buildingName": "Prillaman Health Sciences Hall",
+    "hoursScheduleJson": "{\"weekdayOpenMin\":480,\"weekdayCloseMin\":1020,\"weekendOpenMin\":null,\"weekendCloseMin\":null}",
+    "todayMenuJson": "{\"stations\":[{\"name\":\"Rotating Local Kitchen\",\"items\":[{\"name\":\"Tandoori Chickpea & Basmati Bowl\",\"calories\":480,\"dietaryTags\":[\"vegan\",\"vegetarian\",\"halal_friendly\",\"gluten_free\"],\"allergens\":[]}]}]}",
+    "tomorrowMenuJson": "{\"stations\":[{\"name\":\"Rotating Local Kitchen\",\"items\":[{\"name\":\"Tandoori Chickpea & Basmati Bowl\",\"calories\":480,\"dietaryTags\":[\"vegan\",\"vegetarian\",\"halal_friendly\",\"gluten_free\"],\"allergens\":[]}]}]}"
+  }
+]

@@ -1,0 +1,1035 @@
+[
+  {
+    "slug": "sturgis-114",
+    "campus": "Kennesaw",
+    "buildingName": "Horace W. Sturgis Library",
+    "roomNumber": "Room 114",
+    "roomKind": "libcal",
+    "libcalLid": 10524,
+    "libcalGid": 19509,
+    "libcalEid": 74084,
+    "capacity": 10,
+    "amenities": [
+      "Whiteboard",
+      "HDMI Display",
+      "Power Outlets"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/74084",
+    "todayHoursLabel": "7:30 AM – 11:00 PM",
+    "geoFeatureId": "bldg-k-1"
+  },
+  {
+    "slug": "sturgis-126",
+    "campus": "Kennesaw",
+    "buildingName": "Horace W. Sturgis Library",
+    "roomNumber": "Room 126",
+    "roomKind": "libcal",
+    "libcalLid": 10524,
+    "libcalGid": 19509,
+    "libcalEid": 74085,
+    "capacity": 6,
+    "amenities": [
+      "Whiteboard",
+      "HDMI Display",
+      "Power Outlets"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/74085",
+    "todayHoursLabel": "7:30 AM – 11:00 PM",
+    "geoFeatureId": "bldg-k-1"
+  },
+  {
+    "slug": "sturgis-127",
+    "campus": "Kennesaw",
+    "buildingName": "Horace W. Sturgis Library",
+    "roomNumber": "Room 127",
+    "roomKind": "libcal",
+    "libcalLid": 10524,
+    "libcalGid": 19509,
+    "libcalEid": 74086,
+    "capacity": 6,
+    "amenities": [
+      "Whiteboard",
+      "HDMI Display",
+      "Power Outlets"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/74086",
+    "todayHoursLabel": "7:30 AM – 11:00 PM",
+    "geoFeatureId": "bldg-k-1"
+  },
+  {
+    "slug": "sturgis-128",
+    "campus": "Kennesaw",
+    "buildingName": "Horace W. Sturgis Library",
+    "roomNumber": "Room 128",
+    "roomKind": "libcal",
+    "libcalLid": 10524,
+    "libcalGid": 19509,
+    "libcalEid": 74087,
+    "capacity": 6,
+    "amenities": [
+      "Whiteboard",
+      "HDMI Display",
+      "Power Outlets"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/74087",
+    "todayHoursLabel": "7:30 AM – 11:00 PM",
+    "geoFeatureId": "bldg-k-1"
+  },
+  {
+    "slug": "sturgis-129",
+    "campus": "Kennesaw",
+    "buildingName": "Horace W. Sturgis Library",
+    "roomNumber": "Room 129",
+    "roomKind": "libcal",
+    "libcalLid": 10524,
+    "libcalGid": 19509,
+    "libcalEid": 74088,
+    "capacity": 6,
+    "amenities": [
+      "Whiteboard",
+      "HDMI Display",
+      "Power Outlets"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/74088",
+    "todayHoursLabel": "7:30 AM – 11:00 PM",
+    "geoFeatureId": "bldg-k-1"
+  },
+  {
+    "slug": "sturgis-130",
+    "campus": "Kennesaw",
+    "buildingName": "Horace W. Sturgis Library",
+    "roomNumber": "Room 130",
+    "roomKind": "libcal",
+    "libcalLid": 10524,
+    "libcalGid": 19509,
+    "libcalEid": 74089,
+    "capacity": 6,
+    "amenities": [
+      "Whiteboard",
+      "HDMI Display",
+      "Power Outlets"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/74089",
+    "todayHoursLabel": "7:30 AM – 11:00 PM",
+    "geoFeatureId": "bldg-k-1"
+  },
+  {
+    "slug": "sturgis-131",
+    "campus": "Kennesaw",
+    "buildingName": "Horace W. Sturgis Library",
+    "roomNumber": "Room 131",
+    "roomKind": "libcal",
+    "libcalLid": 10524,
+    "libcalGid": 19509,
+    "libcalEid": 74090,
+    "capacity": 6,
+    "amenities": [
+      "Whiteboard",
+      "HDMI Display",
+      "Power Outlets"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/74090",
+    "todayHoursLabel": "7:30 AM – 11:00 PM",
+    "geoFeatureId": "bldg-k-1"
+  },
+  {
+    "slug": "sturgis-201a",
+    "campus": "Kennesaw",
+    "buildingName": "Horace W. Sturgis Library",
+    "roomNumber": "Room 201A",
+    "roomKind": "libcal",
+    "libcalLid": 10524,
+    "libcalGid": 19509,
+    "libcalEid": 74091,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "HDMI Display",
+      "Power Outlets"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/74091",
+    "todayHoursLabel": "7:30 AM – 11:00 PM",
+    "geoFeatureId": "bldg-k-1"
+  },
+  {
+    "slug": "sturgis-201b",
+    "campus": "Kennesaw",
+    "buildingName": "Horace W. Sturgis Library",
+    "roomNumber": "Room 201B",
+    "roomKind": "libcal",
+    "libcalLid": 10524,
+    "libcalGid": 19509,
+    "libcalEid": 74092,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "HDMI Display",
+      "Power Outlets"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/74092",
+    "todayHoursLabel": "7:30 AM – 11:00 PM",
+    "geoFeatureId": "bldg-k-1"
+  },
+  {
+    "slug": "sturgis-302a",
+    "campus": "Kennesaw",
+    "buildingName": "Horace W. Sturgis Library",
+    "roomNumber": "Room 302A",
+    "roomKind": "libcal",
+    "libcalLid": 10524,
+    "libcalGid": 19509,
+    "libcalEid": 74093,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "HDMI Display",
+      "Power Outlets"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/74093",
+    "todayHoursLabel": "7:30 AM – 11:00 PM",
+    "geoFeatureId": "bldg-k-1"
+  },
+  {
+    "slug": "sturgis-302b",
+    "campus": "Kennesaw",
+    "buildingName": "Horace W. Sturgis Library",
+    "roomNumber": "Room 302B",
+    "roomKind": "libcal",
+    "libcalLid": 10524,
+    "libcalGid": 19509,
+    "libcalEid": 74094,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "HDMI Display",
+      "Power Outlets"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/74094",
+    "todayHoursLabel": "7:30 AM – 11:00 PM",
+    "geoFeatureId": "bldg-k-1"
+  },
+  {
+    "slug": "sturgis-304",
+    "campus": "Kennesaw",
+    "buildingName": "Horace W. Sturgis Library",
+    "roomNumber": "Room 304",
+    "roomKind": "libcal",
+    "libcalLid": 10524,
+    "libcalGid": 19509,
+    "libcalEid": 74095,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "HDMI Display",
+      "Power Outlets"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/74095",
+    "todayHoursLabel": "7:30 AM – 11:00 PM",
+    "geoFeatureId": "bldg-k-1"
+  },
+  {
+    "slug": "sturgis-305",
+    "campus": "Kennesaw",
+    "buildingName": "Horace W. Sturgis Library",
+    "roomNumber": "Room 305",
+    "roomKind": "libcal",
+    "libcalLid": 10524,
+    "libcalGid": 19509,
+    "libcalEid": 74096,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "HDMI Display",
+      "Power Outlets"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/74096",
+    "todayHoursLabel": "7:30 AM – 11:00 PM",
+    "geoFeatureId": "bldg-k-1"
+  },
+  {
+    "slug": "sturgis-401a",
+    "campus": "Kennesaw",
+    "buildingName": "Horace W. Sturgis Library",
+    "roomNumber": "Room 401A",
+    "roomKind": "libcal",
+    "libcalLid": 10524,
+    "libcalGid": 19509,
+    "libcalEid": 74097,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "HDMI Display",
+      "Power Outlets"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/74097",
+    "todayHoursLabel": "7:30 AM – 11:00 PM",
+    "geoFeatureId": "bldg-k-1"
+  },
+  {
+    "slug": "sturgis-401b",
+    "campus": "Kennesaw",
+    "buildingName": "Horace W. Sturgis Library",
+    "roomNumber": "Room 401B",
+    "roomKind": "libcal",
+    "libcalLid": 10524,
+    "libcalGid": 19509,
+    "libcalEid": 74098,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "HDMI Display",
+      "Power Outlets"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/74098",
+    "todayHoursLabel": "7:30 AM – 11:00 PM",
+    "geoFeatureId": "bldg-k-1"
+  },
+  {
+    "slug": "johnson-130a-0",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 130A",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125186,
+    "capacity": 8,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125186",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-130b-1",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 130B",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125187,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125187",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-131a-2",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 131A",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125188,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125188",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-131b-3",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 131B",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125189,
+    "capacity": 8,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125189",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-132a-4",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 132A",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125190,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125190",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-132b-5",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 132B",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125191,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125191",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-133a-6",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 133A",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125192,
+    "capacity": 8,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125192",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-133b-7",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 133B",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125193,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125193",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-134a-8",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 134A",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125194,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125194",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-134b-9",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 134B",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125195,
+    "capacity": 8,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125195",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-230a-10",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 230A",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125196,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125196",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-230b-11",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 230B",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125197,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125197",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-231a-12",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 231A",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125198,
+    "capacity": 8,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125198",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-231b-13",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 231B",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125199,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125199",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-232a-14",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 232A",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125200,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125200",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-232b-15",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 232B",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125201,
+    "capacity": 8,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125201",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-233a-16",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 233A",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125202,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125202",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-233b-17",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 233B",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125203,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125203",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-234a-18",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 234A",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125204,
+    "capacity": 8,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125204",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-234b-19",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 234B",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125205,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125205",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-330a-20",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 330A",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125206,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125206",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-330b-21",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 330B",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125207,
+    "capacity": 8,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125207",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-331a-22",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 331A",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125208,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125208",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-331b-23",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 331B",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125209,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125209",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-332a-24",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 332A",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125210,
+    "capacity": 8,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125210",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-332b-25",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 332B",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125211,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125211",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-333a-26",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 333A",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125212,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125212",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-333b-27",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 333B",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125213,
+    "capacity": 8,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125213",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-334a-28",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 334A",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125214,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125214",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "johnson-334b-29",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "Room 334B",
+    "roomKind": "libcal",
+    "libcalLid": 10526,
+    "libcalGid": 19510,
+    "libcalEid": 125215,
+    "capacity": 4,
+    "amenities": [
+      "Whiteboard",
+      "Collaborative Monitor",
+      "USB-C Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/125215",
+    "todayHoursLabel": "8:00 AM – 10:00 PM",
+    "geoFeatureId": "bldg-m-1"
+  },
+  {
+    "slug": "marietta-ai-lab-1",
+    "campus": "Marietta",
+    "buildingName": "KSU AI Lab (Atrium Building)",
+    "roomNumber": "AI Pod 1",
+    "roomKind": "libcal",
+    "libcalLid": 24727,
+    "libcalGid": 39100,
+    "libcalEid": 190001,
+    "capacity": 8,
+    "amenities": [
+      "GPU Workstation Display",
+      "Glass Whiteboard",
+      "Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/190001",
+    "todayHoursLabel": "9:00 AM – 8:00 PM",
+    "geoFeatureId": "bldg-m-2"
+  },
+  {
+    "slug": "marietta-ai-lab-2",
+    "campus": "Marietta",
+    "buildingName": "KSU AI Lab (Atrium Building)",
+    "roomNumber": "AI Pod 2",
+    "roomKind": "libcal",
+    "libcalLid": 24727,
+    "libcalGid": 39100,
+    "libcalEid": 190002,
+    "capacity": 8,
+    "amenities": [
+      "GPU Workstation Display",
+      "Glass Whiteboard",
+      "Power"
+    ],
+    "bookingUrl": "https://kennesaw.libcal.com/space/190002",
+    "todayHoursLabel": "9:00 AM – 8:00 PM",
+    "geoFeatureId": "bldg-m-2"
+  },
+  {
+    "slug": "alc-2nd-floor-atrium",
+    "campus": "Kennesaw",
+    "buildingName": "Academic Learning Center (ALC)",
+    "roomNumber": "2nd Floor Open Atrium",
+    "roomKind": "walk_in",
+    "capacity": 40,
+    "amenities": [
+      "Open Walk-In",
+      "Wi-Fi",
+      "Power Strips"
+    ],
+    "todayHoursLabel": "7:00 AM – 11:00 PM"
+  },
+  {
+    "slug": "alc-4th-floor-pods",
+    "campus": "Kennesaw",
+    "buildingName": "Academic Learning Center (ALC)",
+    "roomNumber": "4th Floor Study Booths",
+    "roomKind": "walk_in",
+    "capacity": 24,
+    "amenities": [
+      "Open Walk-In",
+      "Wi-Fi",
+      "Power Strips"
+    ],
+    "todayHoursLabel": "7:00 AM – 11:00 PM"
+  },
+  {
+    "slug": "carmichael-study-lounge",
+    "campus": "Kennesaw",
+    "buildingName": "Carmichael Student Center",
+    "roomNumber": "2nd Floor Owl Lounge",
+    "roomKind": "walk_in",
+    "capacity": 30,
+    "amenities": [
+      "Open Walk-In",
+      "Wi-Fi",
+      "Power Strips"
+    ],
+    "todayHoursLabel": "7:00 AM – 11:00 PM"
+  },
+  {
+    "slug": "burruss-2nd-floor-nook",
+    "campus": "Kennesaw",
+    "buildingName": "A.L. Burruss Building",
+    "roomNumber": "2nd Floor Quiet Nook",
+    "roomKind": "walk_in",
+    "capacity": 18,
+    "amenities": [
+      "Open Walk-In",
+      "Wi-Fi",
+      "Power Strips"
+    ],
+    "todayHoursLabel": "7:00 AM – 11:00 PM"
+  },
+  {
+    "slug": "sturgis-3rd-floor-quiet",
+    "campus": "Kennesaw",
+    "buildingName": "Horace W. Sturgis Library",
+    "roomNumber": "3rd Floor Silent Reading Zone",
+    "roomKind": "walk_in",
+    "capacity": 36,
+    "amenities": [
+      "Open Walk-In",
+      "Wi-Fi",
+      "Power Strips"
+    ],
+    "todayHoursLabel": "7:00 AM – 11:00 PM"
+  },
+  {
+    "slug": "clendenin-cs-commons",
+    "campus": "Kennesaw",
+    "buildingName": "Clendenin Computer Science Building",
+    "roomNumber": "1st Floor CS Tutoring Commons",
+    "roomKind": "walk_in",
+    "capacity": 20,
+    "amenities": [
+      "Open Walk-In",
+      "Wi-Fi",
+      "Power Strips"
+    ],
+    "todayHoursLabel": "7:00 AM – 11:00 PM"
+  },
+  {
+    "slug": "atrium-j-collab-commons",
+    "campus": "Marietta",
+    "buildingName": "Atrium Building (J)",
+    "roomNumber": "Ground Collaborative Commons",
+    "roomKind": "walk_in",
+    "capacity": 32,
+    "amenities": [
+      "Open Walk-In",
+      "Wi-Fi",
+      "Power Strips"
+    ],
+    "todayHoursLabel": "7:00 AM – 11:00 PM"
+  },
+  {
+    "slug": "wilson-student-lounge",
+    "campus": "Marietta",
+    "buildingName": "Joe Mack Wilson Student Center",
+    "roomNumber": "Main Commuter Study Lounge",
+    "roomKind": "walk_in",
+    "capacity": 28,
+    "amenities": [
+      "Open Walk-In",
+      "Wi-Fi",
+      "Power Strips"
+    ],
+    "todayHoursLabel": "7:00 AM – 11:00 PM"
+  },
+  {
+    "slug": "johnson-2nd-floor-quiet",
+    "campus": "Marietta",
+    "buildingName": "Lawrence V. Johnson Library",
+    "roomNumber": "2nd Floor Quiet Carrels",
+    "roomKind": "walk_in",
+    "capacity": 30,
+    "amenities": [
+      "Open Walk-In",
+      "Wi-Fi",
+      "Power Strips"
+    ],
+    "todayHoursLabel": "7:00 AM – 11:00 PM"
+  },
+  {
+    "slug": "engineering-q-open-tables",
+    "campus": "Marietta",
+    "buildingName": "Engineering Technology Center (Q)",
+    "roomNumber": "Lobby Drafting & Study Tables",
+    "roomKind": "walk_in",
+    "capacity": 22,
+    "amenities": [
+      "Open Walk-In",
+      "Wi-Fi",
+      "Power Strips"
+    ],
+    "todayHoursLabel": "7:00 AM – 11:00 PM"
+  }
+]
