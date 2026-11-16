@@ -135,7 +135,7 @@ export function FeedView() {
   const toggleInteraction = useViewerMutation(api.feed.togglePostInteraction);
   const submitReport = useViewerMutation(api.moderation.submitReport);
   const retryScrappyMention = useViewerMutation(
-    (api as any).scrappy?.mentions?.retryFailedMention ?? (api.feed.editPost as any)
+    api.scrappy.mentions.retryFailedMention
   );
 
   const posts =

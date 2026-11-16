@@ -768,14 +768,10 @@ export const createPost = viewerMutation({
       }
     }
 
-    // Async @scrappy Feed mention hook (wired cleanly when scrappy mention handler is present)
-    if (
-      /\B@scrappy\b/i.test(trimmedBody) &&
-      "scrappy" in internal &&
-      "mentions" in (internal as any).scrappy
-    ) {
+    // Async @scrappy Feed mention hook
+    if (/(?:^|\W)@scrappy\b/i.test(trimmedBody)) {
       await ctx.runMutation(
-        (internal as any).scrappy.mentions.enqueueFeedMentionIfEligible,
+        internal.scrappy.mentions.enqueueFeedMentionIfEligible,
         {
           workspaceKey: viewer.workspaceKey,
           triggerPostId: postId,
