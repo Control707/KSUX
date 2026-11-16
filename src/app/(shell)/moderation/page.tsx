@@ -1,10 +1,6 @@
-import { ModulePlaceholder } from "@/components/shared/ModulePlaceholder";
+import React from "react";
+import { ModerationQueueView } from "@/components/moderation/ModerationQueueView";
 
 export default function ModerationPage() {
-  return (
-    <ModulePlaceholder
-      title="Moderation Queue"
-      description="Review Under Review items, Pending Officer Claims, restore false positives, or remove violations."
-    />
-  );
+  return <ModerationQueueView />;
 }
