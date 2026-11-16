@@ -1,0 +1,1770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PROTOTYPE · KSUX Unified Shell, Navigation & Campus Switcher</title>
+  <!--
+    PROTOTYPE PLAN (throwaway primary source for Wayfinder ticket "Prototype unified KSUX shell, navigation, and Campus switcher"):
+    Three structurally distinct variants of the KSUX mobile-first PWA shell (`?variant=A|B|C`), organizing all 10 capabilities and the `Kennesaw` / `Marietta` / `All KSU` `Campus` switcher, switchable via URL search param and the floating bottom bar.
+  -->
+  <style>
+    :root {
+      --ksu-gold: #FDBB30;
+      --ksu-gold-deep: #D99B00;
+      --ksu-gold-soft: #FFF6DC;
+      --ksu-black: #111317;
+      --ksu-ink: #1B1F27;
+      --ksu-muted: #5E6675;
+      --ksu-line: #E4E7EE;
+      --ksu-surface: #FFFFFF;
+      --ksu-bg: #F4F6FA;
+      --ok: #15803D;
+      --ok-bg: #DCFCE7;
+      --warn: #B45309;
+      --warn-bg: #FEF3C7;
+      --danger: #B91C1C;
+      --danger-bg: #FEE2E2;
+      --marietta-accent: #1E3A8A;
+      --marietta-soft: #DBEAFE;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+      background: #0F1218;
+      color: var(--ksu-ink);
+      min-height: 100vh;
+      padding-bottom: 84px;
+    }
+
+    /* Outer Prototype Chrome (distinct from KSUX app) */
+    .proto-banner {
+      background: #181C25;
+      border-bottom: 1px solid #2B3242;
+      color: #E5E9F2;
+      padding: 12px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .proto-banner-left {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      max-width: 780px;
+    }
+    .proto-tag-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--ksu-gold);
+    }
+    .proto-badge {
+      background: rgba(253, 187, 48, 0.16);
+      border: 1px solid rgba(253, 187, 48, 0.45);
+      color: var(--ksu-gold);
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+    }
+    .proto-question {
+      font-size: 13px;
+      color: #B9C2D3;
+      line-height: 1.4;
+    }
+    .proto-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .proto-seg {
+      display: inline-flex;
+      background: #0F1218;
+      border: 1px solid #2F374A;
+      border-radius: 8px;
+      padding: 3px;
+      gap: 3px;
+    }
+    .proto-seg button {
+      background: transparent;
+      color: #A9B3C6;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .proto-seg button.active {
+      background: var(--ksu-gold);
+      color: #111317;
+    }
+
+    /* Workspace Layout: Device Frame + Live State Inspector */
+    .proto-stage {
+      max-width: 1520px;
+      margin: 18px auto;
+      padding: 0 18px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 370px;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 1080px) {
+      .proto-stage {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .device-host {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    /* App Viewport Shell (Mobile PWA vs Desktop Responsive) */
+    .app-viewport {
+      background: var(--ksu-bg);
+      color: var(--ksu-ink);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: width 0.2s ease, height 0.2s ease;
+    }
+    .app-viewport.mode-mobile {
+      width: 402px;
+      height: 824px;
+      border-radius: 38px;
+      border: 10px solid #232936;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    }
+    .app-viewport.mode-desktop {
+      width: 100%;
+      max-width: 1100px;
+      height: 760px;
+      border-radius: 16px;
+      border: 2px solid #2C3446;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    }
+
+    /* State Inspector Panel (Prototype Rule 5: Surface the state) */
+    .inspector {
+      background: #161A23;
+      border: 1px solid #2A3142;
+      border-radius: 14px;
+      padding: 16px;
+      color: #E2E8F0;
+      font-size: 12.5px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .inspector h3 {
+      margin: 0;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--ksu-gold);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .inspector-card {
+      background: #0F1218;
+      border: 1px solid #252C3C;
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .inspector-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: baseline;
+    }
+    .inspector-label {
+      color: #8E9BAE;
+      font-weight: 500;
+    }
+    .inspector-val {
+      color: #F8FAFC;
+      font-weight: 600;
+      text-align: right;
+    }
+    .inspector-highlight {
+      background: rgba(253, 187, 48, 0.13);
+      border-left: 3px solid var(--ksu-gold);
+      padding: 8px 10px;
+      border-radius: 6px;
+      color: #FDE68A;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .tap-depth-grid {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 4px 8px;
+      font-size: 11.5px;
+    }
+    .depth-pill {
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 10.5px;
+    }
+    .depth-0 { background: #14532D; color: #86EFAC; }
+    .depth-1 { background: #1E3A8A; color: #93C5FD; }
+    .depth-2 { background: #3F3F46; color: #D4D4D8; }
+
+    /* Shared KSUX UI Primitives inside variants */
+    .ksux-top-header {
+      background: var(--ksu-black);
+      color: #FFFFFF;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .ksux-brand-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .ksux-logo {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: 800;
+      font-size: 16px;
+      letter-spacing: -0.02em;
+    }
+    .owl-mark {
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      background: var(--ksu-gold);
+      color: var(--ksu-black);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      font-weight: 900;
+    }
+    .persona-pill {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid #374151;
+      background: #1F2430;
+      color: #E5E7EB;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .persona-pill.demo {
+      background: rgba(253, 187, 48, 0.18);
+      border-color: var(--ksu-gold);
+      color: var(--ksu-gold);
+    }
+
+    /* Campus Switcher Styles */
+    .campus-seg {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      background: #1E232E;
+      padding: 3px;
+      border-radius: 10px;
+      gap: 3px;
+    }
+    .campus-seg button {
+      border: none;
+      background: transparent;
+      color: #9CA3AF;
+      font-size: 11.5px;
+      font-weight: 700;
+      padding: 6px 4px;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 0.12s ease;
+    }
+    .campus-seg button.active {
+      background: var(--ksu-gold);
+      color: var(--ksu-black);
+    }
+    .campus-seg button.active-marietta {
+      background: #60A5FA;
+      color: #0B132B;
+    }
+
+    /* Sub-navigation & Chips */
+    .sub-pills {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 8px 12px;
+      background: var(--ksu-surface);
+      border-bottom: 1px solid var(--ksu-line);
+      flex-shrink: 0;
+      scrollbar-width: none;
+    }
+    .sub-pills::-webkit-scrollbar { display: none; }
+    .sub-pill {
+      border: 1px solid var(--ksu-line);
+      background: var(--ksu-bg);
+      color: var(--ksu-muted);
+      padding: 5px 11px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .sub-pill.active {
+      background: var(--ksu-black);
+      color: var(--ksu-gold);
+      border-color: var(--ksu-black);
+    }
+
+    /* Content Cards */
+    .scroll-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .card {
+      background: var(--ksu-surface);
+      border: 1px solid var(--ksu-line);
+      border-radius: 12px;
+      padding: 11px 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 1px 2px rgba(17, 19, 23, 0.04);
+    }
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 11.5px;
+      color: var(--ksu-muted);
+    }
+    .card-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--ksu-ink);
+      margin: 0;
+    }
+    .card-body {
+      font-size: 12.5px;
+      color: #374151;
+      line-height: 1.42;
+      margin: 0;
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 10.5px;
+      font-weight: 700;
+    }
+    .tag-kennesaw { background: var(--ksu-gold-soft); color: #855A00; }
+    .tag-marietta { background: var(--marietta-soft); color: var(--marietta-accent); }
+    .tag-global { background: #F3E8FF; color: #6B21A8; }
+    .tag-ok { background: var(--ok-bg); color: var(--ok); }
+    .tag-warn { background: var(--warn-bg); color: var(--warn); }
+    .tag-danger { background: var(--danger-bg); color: var(--danger); }
+
+    .btn-inline {
+      border: 1px solid var(--ksu-line);
+      background: var(--ksu-bg);
+      color: var(--ksu-ink);
+      font-size: 11.5px;
+      font-weight: 700;
+      padding: 5px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .btn-inline.primary {
+      background: var(--ksu-gold);
+      border-color: var(--ksu-gold-deep);
+      color: var(--ksu-black);
+    }
+    .btn-inline:hover { filter: brightness(0.97); }
+
+    .scope-banner {
+      background: #EEF2FF;
+      border: 1px solid #C7D2FE;
+      color: #3730A3;
+      border-radius: 9px;
+      padding: 7px 10px;
+      font-size: 11.5px;
+      line-height: 1.35;
+    }
+
+    /* Bottom Navigation Bars */
+    .bottom-tabs {
+      background: var(--ksu-surface);
+      border-top: 1px solid var(--ksu-line);
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      padding: 6px 4px 10px;
+      flex-shrink: 0;
+    }
+    .tab-btn {
+      border: none;
+      background: transparent;
+      color: var(--ksu-muted);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 4px 2px;
+      cursor: pointer;
+      position: relative;
+    }
+    .tab-btn .icon { font-size: 17px; line-height: 1.1; }
+    .tab-btn.active { color: var(--ksu-black); }
+    .tab-btn.active::after {
+      content: "";
+      width: 18px;
+      height: 3px;
+      border-radius: 99px;
+      background: var(--ksu-gold);
+      margin-top: 2px;
+    }
+    .tab-btn.owl-center .icon {
+      background: var(--ksu-black);
+      color: var(--ksu-gold);
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid var(--ksu-gold);
+      margin-top: -10px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+    }
+    .badge-dot {
+      position: absolute;
+      top: 1px;
+      right: 18%;
+      background: #DC2626;
+      color: #FFF;
+      font-size: 9px;
+      padding: 1px 4px;
+      border-radius: 999px;
+      font-weight: 800;
+    }
+
+    /* Desktop Layouts per Variant */
+    .desktop-shell-a {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr) 290px;
+      flex: 1;
+      min-height: 0;
+    }
+    .desktop-rail {
+      background: var(--ksu-surface);
+      border-right: 1px solid var(--ksu-line);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .rail-btn {
+      border: none;
+      background: transparent;
+      padding: 9px 11px;
+      border-radius: 9px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ksu-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+    .rail-btn.active {
+      background: var(--ksu-black);
+      color: var(--ksu-gold);
+    }
+    .desktop-aside {
+      background: var(--ksu-bg);
+      border-left: 1px solid var(--ksu-line);
+      padding: 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Variant B Specifics: Bento Grid & Rings & Quick Sheet */
+    .bento-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 9px;
+    }
+    .bento-tile {
+      background: var(--ksu-surface);
+      border: 1px solid var(--ksu-line);
+      border-radius: 13px;
+      padding: 11px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 7px;
+      transition: transform 0.1s ease, border-color 0.1s ease;
+    }
+    .bento-tile:hover {
+      border-color: var(--ksu-gold-deep);
+      transform: translateY(-1px);
+    }
+    .bento-tile.wide {
+      grid-column: span 2;
+    }
+    .bento-metric {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--ksu-black);
+    }
+    .rings-strip {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding: 10px 12px;
+      background: var(--ksu-surface);
+      border-bottom: 1px solid var(--ksu-line);
+      flex-shrink: 0;
+    }
+    .ring-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      min-width: 62px;
+    }
+    .ring-circle {
+      width: 44px;
+      height: 44px;
+      border-radius: 999px;
+      padding: 2px;
+      background: linear-gradient(135deg, var(--ksu-gold), #111317);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ring-circle.active {
+      background: linear-gradient(135deg, #2563EB, var(--ksu-gold));
+      box-shadow: 0 0 0 2px var(--ksu-gold);
+    }
+    .ring-inner {
+      width: 100%;
+      height: 100%;
+      border-radius: 999px;
+      background: var(--ksu-surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--ksu-black);
+    }
+    .ring-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--ksu-ink);
+      max-width: 64px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Quick Action & Module Sheet Overlay (Variant B) */
+    .sheet-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(17, 19, 23, 0.55);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      z-index: 40;
+    }
+    .quick-sheet {
+      background: var(--ksu-surface);
+      border-radius: 20px 20px 0 0;
+      padding: 14px;
+      max-height: 82%;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.25);
+    }
+    .module-grid-10 {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 7px;
+    }
+    .mod-cell {
+      border: 1px solid var(--ksu-line);
+      background: var(--ksu-bg);
+      border-radius: 10px;
+      padding: 8px 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-align: center;
+      cursor: pointer;
+    }
+    .mod-cell:hover {
+      border-color: var(--ksu-gold-deep);
+      background: var(--ksu-gold-soft);
+    }
+
+    /* Variant C Specifics: Spatial Campus Map + Sliding Sheet + Omnipresent Scrappy */
+    .spatial-canvas {
+      position: relative;
+      background: #E6EEF4;
+      flex-shrink: 0;
+      overflow: hidden;
+      border-bottom: 1px solid #CBD5E1;
+      transition: height 0.2s ease;
+    }
+    .map-layer-chips {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      right: 8px;
+      display: flex;
+      gap: 5px;
+      overflow-x: auto;
+      z-index: 5;
+      scrollbar-width: none;
+    }
+    .map-layer-chips::-webkit-scrollbar { display: none; }
+    .layer-chip {
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid #CBD5E1;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+    }
+    .layer-chip.active {
+      background: var(--ksu-black);
+      color: var(--ksu-gold);
+      border-color: var(--ksu-black);
+    }
+    .scrappy-omnibar {
+      background: #161A23;
+      color: #FFF;
+      padding: 7px 10px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      border-top: 1px solid #2D3548;
+      flex-shrink: 0;
+    }
+    .scrappy-omnibar input {
+      flex: 1;
+      background: #232938;
+      border: 1px solid #384156;
+      color: #FFF;
+      border-radius: 999px;
+      padding: 6px 11px;
+      font-size: 12px;
+      outline: none;
+    }
+    .scrappy-omnibar input:focus {
+      border-color: var(--ksu-gold);
+    }
+
+    /* UI.md Floating Prototype Switcher Bar */
+    .prototype-switcher {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      background: #111317;
+      color: #FFFFFF;
+      border: 2px solid var(--ksu-gold);
+      border-radius: 999px;
+      padding: 6px 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
+      user-select: none;
+    }
+    .prototype-switcher button.arrow {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      border: 1px solid #374151;
+      background: #1F2430;
+      color: var(--ksu-gold);
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .prototype-switcher button.arrow:hover {
+      background: var(--ksu-gold);
+      color: #111317;
+    }
+    .prototype-switcher .variant-label {
+      font-size: 12.5px;
+      font-weight: 700;
+      padding: 0 4px;
+      white-space: nowrap;
+    }
+    .prototype-switcher .variant-dots {
+      display: inline-flex;
+      gap: 4px;
+    }
+    .prototype-switcher .v-dot {
+      border: 1px solid #374151;
+      background: #1F2430;
+      color: #9CA3AF;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 8px;
+      cursor: pointer;
+    }
+    .prototype-switcher .v-dot.active {
+      background: var(--ksu-gold);
+      color: #111317;
+      border-color: var(--ksu-gold);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Outer Prototype Context Header -->
+  <header class="proto-banner">
+    <div class="proto-banner-left">
+      <div class="proto-tag-row">
+        <span class="proto-badge">THROW-AWAY UI PROTOTYPE</span>
+        <span>Wayfinder Ticket · Prototype unified KSUX shell, navigation, and Campus switcher</span>
+      </div>
+      <div class="proto-question">
+        <strong>Question:</strong> How should KSUX organize all 10 capabilities + the <code>Kennesaw</code> / <code>Marietta</code> / <code>All KSU</code> <code>Campus</code> switcher in one mobile-first PWA shell so daily tasks feel effortless instead of buried in 10 tabs?
+      </div>
+    </div>
+    <div class="proto-controls">
+      <div class="proto-seg" aria-label="Viewport mode">
+        <button id="vp-mobile" class="active" onclick="setViewport('mobile')">📱 Mobile PWA (402px)</button>
+        <button id="vp-desktop" onclick="setViewport('desktop')">🖥️ Desktop Web</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Stage: App Shell + Live State Inspector -->
+  <main class="proto-stage">
+    <div class="device-host">
+      <div id="app-viewport" class="app-viewport mode-mobile"></div>
+    </div>
+
+    <aside id="state-inspector" class="inspector" aria-live="polite"></aside>
+  </main>
+
+  <!-- UI.md Floating Bottom Switcher -->
+  <nav class="prototype-switcher" aria-label="Prototype Variant Switcher">
+    <button class="arrow" onclick="cycleVariant(-1)" title="Previous variant (←)">←</button>
+    <div class="variant-dots">
+      <button id="vdot-A" class="v-dot" onclick="setVariant('A')">A</button>
+      <button id="vdot-B" class="v-dot" onclick="setVariant('B')">B</button>
+      <button id="vdot-C" class="v-dot" onclick="setVariant('C')">C</button>
+    </div>
+    <span id="switcher-label" class="variant-label">A (5-Tab Clustered Super-App)</span>
+    <button class="arrow" onclick="cycleVariant(1)" title="Next variant (→)">→</button>
+  </nav>
+
+  <script>
+    // =========================================================================
+    // KSUX IN-MEMORY PROTOTYPE DATA (sourced from closed KSU Public Feeds audit)
+    // Strictly uses GLOSSARY.md domain language.
+    // =========================================================================
+    const VARIANTS = {
+      A: {
+        key: "A",
+        name: "5-Tab Clustered Super-App",
+        thesis: "5 permanent bottom tabs (Feed · Campus · Scrappy · Spaces · Chats) with horizontal sub-pills inside multi-capability tabs + sticky 3-way Campus header.",
+        tapDepth: {
+          "Feed": 0,
+          "Chats (DM / Group / Deal)": 1,
+          "Scrappy": 1,
+          "Parking": 1,
+          "Study Rooms": 2,
+          "Shuttle Routes (Transit)": 2,
+          "Dining": 2,
+          "Marketplace": 1,
+          "Course Hubs & Clubs": 2,
+          "Events": 2
+        }
+      },
+      B: {
+        key: "B",
+        name: "\"Now\" Bento HUD + Quick Sheet",
+        thesis: "Launch into a 0-tap Campus 'Now' Bento HUD (Parking, Shuttle Routes, Study Rooms, Dining, Events), Course Hub/Club rings atop Feed, dedicated Market & Chats tabs, and a center ⚡ Scrappy + 10-Module Sheet.",
+        tapDepth: {
+          "Parking": 0,
+          "Shuttle Routes (Transit)": 0,
+          "Study Rooms": 0,
+          "Dining": 0,
+          "Events": 0,
+          "Feed": 1,
+          "Course Hubs & Clubs": 1,
+          "Scrappy": 1,
+          "Marketplace": 1,
+          "Chats (DM / Group / Deal)": 1
+        }
+      },
+      C: {
+        key: "C",
+        name: "Spatial Map + Sliding Deck & Scrappy Bar",
+        thesis: "Interactive Kennesaw/Marietta Campus Map with live pin layers (Parking Lots, Shuttle Routes, Study Rooms, Meetup Spots, Dining, Events) behind a sliding 3-mode sheet and persistent Ask Scrappy omnibar.",
+        tapDepth: {
+          "Shuttle Routes & Map": 0,
+          "Parking": 0,
+          "Scrappy": 0,
+          "Study Rooms": 1,
+          "Dining": 1,
+          "Events": 1,
+          "Feed": 1,
+          "Marketplace": 1,
+          "Course Hubs & Clubs": 2,
+          "Chats (DM / Group / Deal)": 1
+        }
+      }
+    };
+
+    const DATA = {
+      posts: [
+        { id: "p1", campus: "Kennesaw", author: "Maya Patel · CS '27", tag: "Course Hub · CS 1302", time: "4m", text: "Anyone in Prof. Murphy's CS 1302 down for a Study Session in Sturgis Room 204 before Friday's trees quiz?", replies: 6, scrappyTip: null },
+        { id: "p2", campus: "Marietta", author: "Devon Brooks · ME '26", tag: "Club · KSU Motorsports", time: "11m", text: "@scrappy when does the next Kennesaw–Marietta Shuttle Route leave the Marietta Student Center?", replies: 2, scrappyTip: "🦉 Scrappy: Next Big Owl Bus (Kennesaw–Marietta Route) departs Joe Mack Wilson Student Center in 6 mins (bus #412, ~42% full)." },
+        { id: "p3", campus: "Kennesaw", author: "Elena Gomez · BIO '28", tag: "Campus Pulse", time: "19m", text: "Heads up owls: Central Deck Level 3 & 4 are completely packed right now, East Deck still has plenty on L5.", replies: 9, scrappyTip: null },
+        { id: "p4", campus: "Marietta", author: "Liam Chen · SWE '27", tag: "Study Session", time: "28m", text: "Grabbed Johnson Library Study Room 112B on Marietta until 3:00 PM for SWE 3313 sprint planning — 2 seats open!", replies: 4, scrappyTip: null }
+      ],
+      parkingLots: [
+        { id: "lot-central", campus: "Kennesaw", name: "Central Deck", permit: "Central Residential / Commuter", fullness: 94, status: "Almost Full", lastReport: "2 spots opening near L4 elevator · 2m ago", reportsCount: 14 },
+        { id: "lot-east", campus: "Kennesaw", name: "East Deck", permit: "East Economy / Commuter", fullness: 58, status: "Open Spaces", lastReport: "Wide open on Level 5 ramp · 6m ago", reportsCount: 8 },
+        { id: "lot-north", campus: "Kennesaw", name: "North Deck", permit: "North Commuter", fullness: 76, status: "Filling Up", lastReport: "L3 steady flow after 11am classes · 9m ago", reportsCount: 5 },
+        { id: "lot-p22", campus: "Marietta", name: "Lot P22 (Engineering)", permit: "Marietta Commuter", fullness: 64, status: "Open Spaces", lastReport: "Back two rows near Q Building open · 4m ago", reportsCount: 7 },
+        { id: "lot-atrium", campus: "Marietta", name: "West Deck (Marietta)", permit: "Marietta West / Residential", fullness: 88, status: "Filling Up", lastReport: "Top deck only right now · 5m ago", reportsCount: 11 }
+      ],
+      studyRooms: [
+        { id: "sr-1", campus: "Kennesaw", building: "Sturgis Library (15 rooms)", room: "Study Room 204 (6 seats)", slots: "Open 1:30–3:00 PM · LibCal verified", session: "CS 1302 Midterm Prep (4/6 Students)" },
+        { id: "sr-2", campus: "Kennesaw", building: "Sturgis Library (15 rooms)", room: "Study Room 311 (4 seats)", slots: "Open Now – 2:30 PM · LibCal verified", session: null },
+        { id: "sr-3", campus: "Marietta", building: "Johnson Library (32 rooms)", room: "Study Room 112B (8 seats)", slots: "Active Study Session until 3:00 PM", session: "SWE 3313 Group Architecture (6/8 Students)" },
+        { id: "sr-4", campus: "Marietta", building: "Marietta AI Lab (lid=24727)", room: "Collab Pod B (6 seats)", slots: "Open Now – 4:30 PM · LibCal verified", session: null }
+      ],
+      shuttles: [
+        { id: "sh-inter", campus: "Both", name: "Kennesaw–Marietta Intercampus", nextStop: "Carmichael ↔ Joe Mack Wilson", eta: "4 min", vehicles: "3 active buses (GTFS-RT)" },
+        { id: "sh-busbee", campus: "Kennesaw", name: "Busbee Drive Park & Ride", nextStop: "Town Point → Campus Green", eta: "3 min", vehicles: "2 active buses (GTFS-RT)" },
+        { id: "sh-mloop", campus: "Marietta", name: "Marietta Campus Loop", nextStop: "Hornet Village → Atrium (J)", eta: "7 min", vehicles: "1 active bus (GTFS-RT)" }
+      ],
+      dining: [
+        { id: "dn-commons", campus: "Kennesaw", venue: "The Commons (10 Stations Open)", highlight: "Globowl: Korean BBQ Beef · Apron Strings: Hot Honey Chicken", hours: "Open until 9:00 PM · Nutrislice live" },
+        { id: "dn-cfa", campus: "Kennesaw", venue: "Carmichael Student Center Retail", highlight: "Chick-fil-A, Panda Express, Moe's, Starbucks", hours: "Open · Moderate line (~8m)" },
+        { id: "dn-stingers", campus: "Marietta", venue: "Stingers Dining Hall (8 Stations Open)", highlight: "True Balance: Herb Salmon · Brick Oven Flatbreads", hours: "Open until 8:00 PM · Nutrislice live" },
+        { id: "dn-jmw", campus: "Marietta", venue: "Joe Mack Wilson Retail", highlight: "Dunkin' & Hissho Sushi", hours: "Open until 5:00 PM" }
+      ],
+      listings: [
+        { id: "ls-1", campus: "Kennesaw", item: "TI-84 Plus CE Python Graphing Calculator", price: "$65", seller: "Jordan K. · Sophomore", meetup: "Carmichael Student Center Atrium", dealChats: 2 },
+        { id: "ls-2", campus: "Marietta", item: "Arduino Mega + Sensors Kit (ENGR 1311)", price: "$30", seller: "Priya R. · Junior", meetup: "Joe Mack Wilson Student Center Lobby", dealChats: 1 },
+        { id: "ls-3", campus: "Kennesaw", item: "Mini Fridge (clean, fits ARC dorm)", price: "$45", seller: "Marcus T. · Senior", meetup: "KSU Police Safe Exchange Zone", dealChats: 3 }
+      ],
+      hubsAndClubs: [
+        { id: "hc-1", kind: "Course Hub", code: "CS 1302", campus: "Kennesaw", title: "Programming Principles II (Banner CRN 14829)", members: "84 Students · 2 Study Sessions today" },
+        { id: "hc-2", kind: "Course Hub", code: "SWE 3313", campus: "Marietta", title: "Intro to Software Engineering (CRN 19204)", members: "61 Students · 1 Study Session live" },
+        { id: "hc-3", kind: "Club", code: "Motorsports", campus: "Marietta", title: "KSU Motorsports (Formula SAE · Engage Verified)", members: "142 Students · Shop Night Thu 6 PM" },
+        { id: "hc-4", kind: "Club", code: "AI Club", campus: "Kennesaw", title: "KSU Artificial Intelligence Club (Engage Verified)", members: "218 Students · Hackathon Kickoff Fri" }
+      ],
+      events: [
+        { id: "ev-1", campus: "Kennesaw", title: "OwlHack Hardware & AI Mixer", host: "KSU AI Club · Clendenin 1009", when: "Today · 5:30 PM", rsvps: 74 },
+        { id: "ev-2", campus: "Marietta", title: "Formula SAE Aero Testing Watch Party", host: "KSU Motorsports · Engineering Lab G", when: "Today · 6:00 PM", rsvps: 39 },
+        { id: "ev-3", campus: "Kennesaw", title: "Late Night Pancakes on the Green", host: "KAB (Localist Verified) · Campus Green", when: "Tonight · 8:00 PM", rsvps: 192 }
+      ],
+      chats: [
+        { id: "ch-1", type: "Deal Chat", title: "TI-84 Plus CE ($65) · Jordan K.", preview: "Meetup Spot set: Carmichael Atrium at 2:15 PM?", unread: 2, scopeNote: "Student-scoped (persists across Campus switch)" },
+        { id: "ch-2", type: "Group Chat", title: "CS 1302 · Sturgis Study Crew", preview: "Maya: Room 204 unlocked, whiteboard markers here", unread: 4, scopeNote: "Linked to CS 1302 Course Hub" },
+        { id: "ch-3", type: "Direct Message", title: "Devon Brooks", preview: "Hopping on the Marietta shuttle now!", unread: 0, scopeNote: "Private 1:1 DM · Hidden from Scrappy" },
+        { id: "ch-4", type: "Group Chat", title: "KSU Motorsports Aero Subteam", preview: "CAD freeze tonight at 9 PM", unread: 0, scopeNote: "Linked to KSU Motorsports Club" }
+      ]
+    };
+
+    // =========================================================================
+    // RUNTIME STATE
+    // =========================================================================
+    const params = new URLSearchParams(window.location.search);
+    const initialVariant = ["A", "B", "C"].includes((params.get("variant") || "").toUpperCase())
+      ? params.get("variant").toUpperCase()
+      : "A";
+
+    const state = {
+      variant: initialVariant,
+      viewport: "mobile", // "mobile" | "desktop"
+      campus: "Kennesaw", // "Kennesaw" | "Marietta" | "All KSU"
+      judgeDemoMode: true,
+      lastAction: "Loaded prototype in Judge Demo Mode scoped to Kennesaw Campus.",
+
+      // Variant A navigation state
+      aTab: "Feed",       // "Feed" | "Campus" | "Scrappy" | "Spaces" | "Chats"
+      aCampusSub: "Parking", // "Parking" | "Study Rooms" | "Shuttle Routes" | "Dining"
+      aSpacesSub: "Marketplace", // "Marketplace" | "Course Hubs" | "Clubs" | "Events"
+      aChatFilter: "All",
+
+      // Variant B navigation state
+      bTab: "Now",        // "Now" | "Feed" | "Market" | "Chats"
+      bDrillModule: null, // null | "Parking" | "Study Rooms" | "Shuttle Routes" | "Dining" | "Events" | "Scrappy"
+      bRingFilter: "All", // "All" | "CS 1302" | "SWE 3313" | "Motorsports" | "AI Club"
+      bSheetOpen: false,
+
+      // Variant C navigation state
+      cMode: "Explore",   // "Explore" | "Pulse" | "Chats"
+      cLayer: "All",      // "All" | "Parking" | "Shuttle Routes" | "Study Rooms" | "Meetup Spots" | "Dining" | "Events"
+      cPulseSub: "Feed",  // "Feed" | "Marketplace" | "Course Hubs & Clubs"
+      cSheetExpanded: false,
+      cSelectedPin: "Central Deck (94% full)",
+
+      // Shared Scrappy simulation
+      scrappyAnswer: "🦉 Scrappy: On Kennesaw right now, East Deck (58% full) has open L5 spaces, Sturgis Study Room 311 is open until 2:30 PM, and Globowl at The Commons is serving Korean BBQ Beef."
+    };
+
+    function matchesCampus(itemCampus) {
+      if (state.campus === "All KSU") return true;
+      if (itemCampus === "Both") return true;
+      return itemCampus === state.campus;
+    }
+
+    // =========================================================================
+    // MUTATIONS & ACTIONS
+    // =========================================================================
+    function setVariant(v) {
+      if (!VARIANTS[v]) return;
+      state.variant = v;
+      state.lastAction = `Switched shell architecture to Variant ${v} (${VARIANTS[v].name}).`;
+      const url = new URL(window.location.href);
+      url.searchParams.set("variant", v);
+      window.history.replaceState({}, "", url.toString());
+      renderAll();
+    }
+
+    function cycleVariant(delta) {
+      const keys = ["A", "B", "C"];
+      const idx = keys.indexOf(state.variant);
+      const next = keys[(idx + delta + keys.length) % keys.length];
+      setVariant(next);
+    }
+
+    function setViewport(mode) {
+      state.viewport = mode;
+      state.lastAction = `Switched preview viewport to ${mode === "mobile" ? "Mobile PWA (402×824)" : "Desktop Responsive Web"}.`;
+      document.getElementById("vp-mobile").classList.toggle("active", mode === "mobile");
+      document.getElementById("vp-desktop").classList.toggle("active", mode === "desktop");
+      const vp = document.getElementById("app-viewport");
+      vp.classList.toggle("mode-mobile", mode === "mobile");
+      vp.classList.toggle("mode-desktop", mode === "desktop");
+      renderAll();
+    }
+
+    function setCampus(c) {
+      state.campus = c;
+      state.cSelectedPin = c === "Marietta" ? "Lot P22 (64% full)" : "Central Deck (94% full)";
+      state.lastAction = `Switched Campus scope to "${c}". Campus utilities & Feed updated; Student Chats & Course Hubs preserved.`;
+      renderAll();
+    }
+
+    function togglePersona() {
+      state.judgeDemoMode = !state.judgeDemoMode;
+      state.lastAction = state.judgeDemoMode
+        ? "Activated one-click Judge Demo Mode (pre-seeded Student persona, no .edu OTP needed)."
+        : "Switched to verified @students.kennesaw.edu Student session.";
+      renderAll();
+    }
+
+    function fileParkingReport(lotId) {
+      const lot = DATA.parkingLots.find(l => l.id === lotId);
+      if (!lot) return;
+      lot.fullness = Math.max(20, lot.fullness - 6);
+      lot.reportsCount += 1;
+      lot.status = lot.fullness > 85 ? "Almost Full" : lot.fullness > 70 ? "Filling Up" : "Open Spaces";
+      lot.lastReport = `Spot just opened (reported by ${state.judgeDemoMode ? "Judge Demo Owl" : "you"} · just now)`;
+      state.lastAction = `Filed live Parking Report on ${lot.name} (${lot.campus}) → fullness updated to ${lot.fullness}%.`;
+      renderAll();
+    }
+
+    function startDealChat(listingId) {
+      const ls = DATA.listings.find(x => x.id === listingId);
+      if (!ls) return;
+      ls.dealChats += 1;
+      DATA.chats.unshift({
+        id: "ch-new-" + Date.now(),
+        type: "Deal Chat",
+        title: `${ls.item} (${ls.price})`,
+        preview: `Proposed Meetup Spot: ${ls.meetup}`,
+        unread: 1,
+        scopeNote: "Created from Marketplace Listing"
+      });
+      if (state.variant === "A") { state.aTab = "Chats"; state.aChatFilter = "Deal Chat"; }
+      if (state.variant === "B") { state.bTab = "Chats"; state.bSheetOpen = false; }
+      if (state.variant === "C") { state.cMode = "Chats"; }
+      state.lastAction = `Opened Deal Chat for "${ls.item}" with Meetup Spot "${ls.meetup}".`;
+      renderAll();
+    }
+
+    function askScrappyPrompt(q) {
+      const answers = {
+        parking: state.campus === "Marietta"
+          ? "🦉 Scrappy: On Marietta, Lot P22 is 64% full with back rows open near Q Building (4m ago); West Deck is 88% full."
+          : "🦉 Scrappy: On Kennesaw, skip Central Deck (94% full) — East Deck is 58% full with wide-open Level 5 spaces.",
+        shuttle: "🦉 Scrappy: Next Big Owl Bus on the Kennesaw–Marietta Shuttle Route arrives in 4 min (3 active buses on GTFS-RT).",
+        study: state.campus === "Marietta"
+          ? "🦉 Scrappy: Marietta AI Lab Collab Pod B is open until 4:30 PM, or join SWE 3313's Study Session in Johnson 112B!"
+          : "🦉 Scrappy: Sturgis Library Study Room 311 is open right now until 2:30 PM, and CS 1302 has a Study Session in 204.",
+        dining: state.campus === "Marietta"
+          ? "🦉 Scrappy: Stingers on Marietta has 8 stations open until 8 PM — Herb Salmon at True Balance & Brick Oven Flatbreads."
+          : "🦉 Scrappy: The Commons on Kennesaw has 10 stations open — Korean BBQ Beef at Globowl & Hot Honey Chicken."
+      };
+      state.scrappyAnswer = answers[q] || `🦉 Scrappy (${state.campus}): Checked public KSU feeds — East Deck (58%), BOB Intercampus (4m), and Sturgis 311 open! (Zero private DMs/Deal Chats accessed.)`;
+      state.lastAction = `Queried Scrappy in ${state.campus} context (strictly public KSUX data + active view).`;
+      renderAll();
+    }
+
+    // Keyboard ← / → support per UI.md
+    window.addEventListener("keydown", (e) => {
+      const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
+      if (tag === "input" || tag === "textarea" || (e.target && e.target.isContentEditable)) return;
+      if (e.key === "ArrowLeft") { e.preventDefault(); cycleVariant(-1); }
+      if (e.key === "ArrowRight") { e.preventDefault(); cycleVariant(1); }
+    });
+
+    // =========================================================================
+    // SHARED MODULE RENDERERS (used inside variants' distinct shells)
+    // =========================================================================
+    function renderCampusBadge(campus) {
+      if (campus === "Both") return `<span class="tag tag-global">Kennesaw ↔ Marietta</span>`;
+      return campus === "Marietta"
+        ? `<span class="tag tag-marietta">Marietta</span>`
+        : `<span class="tag tag-kennesaw">Kennesaw</span>`;
+    }
+
+    function renderHeaderBlock(subtitle) {
+      const mariettaActive = state.campus === "Marietta";
+      return `
+        <div class="ksux-top-header">
+          <div class="ksux-brand-row">
+            <div class="ksux-logo">
+              <span class="owl-mark">🦉</span>
+              <span>KSUX</span>
+              <span style="font-size:11px;font-weight:600;color:#9CA3AF;">${subtitle}</span>
+            </div>
+            <button class="persona-pill ${state.judgeDemoMode ? "demo" : ""}" onclick="togglePersona()" title="Click to toggle Judge Demo Mode">
+              ${state.judgeDemoMode ? "⚡ Judge Demo Mode" : "✓ Verified Student"}
+            </button>
+          </div>
+          <div class="campus-seg" role="tablist" aria-label="Campus switcher">
+            <button class="${state.campus === "Kennesaw" ? "active" : ""}" onclick="setCampus('Kennesaw')">Kennesaw</button>
+            <button class="${state.campus === "Marietta" ? "active-marietta" : ""}" onclick="setCampus('Marietta')">Marietta</button>
+            <button class="${state.campus === "All KSU" ? "active" : ""}" onclick="setCampus('All KSU')">All KSU</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderFeedCards(ringFilter) {
+      let posts = DATA.posts.filter(p => matchesCampus(p.campus));
+      if (ringFilter && ringFilter !== "All") {
+        posts = posts.filter(p => p.tag.includes(ringFilter));
+      }
+      if (!posts.length) {
+        return `<div class="card"><p class="card-body">No Posts matching <strong>${ringFilter}</strong> on <strong>${state.campus}</strong> yet — switch to <em>All KSU</em> or clear filter.</p></div>`;
+      }
+      return posts.map(p => `
+        <div class="card">
+          <div class="card-top">
+            <span><strong>${p.author}</strong> · ${p.time}</span>
+            ${renderCampusBadge(p.campus)}
+          </div>
+          <div><span class="tag tag-global">${p.tag}</span></div>
+          <p class="card-body">${p.text}</p>
+          ${p.scrappyTip ? `<div class="scope-banner" style="background:#FFFBEB;border-color:#FDE68A;color:#78350F;">${p.scrappyTip}</div>` : ""}
+          <div class="card-top" style="margin-top:2px;">
+            <span>💬 ${p.replies} replies · 🔁 Repost</span>
+            <button class="btn-inline" onclick="askScrappyPrompt('shuttle')">Mention @scrappy</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function renderParkingCards() {
+      const lots = DATA.parkingLots.filter(l => matchesCampus(l.campus));
+      return `
+        <div class="scope-banner">Crowdsourced Student <strong>Parking Reports</strong> + KSU GIS lot polygons (${state.campus}).</div>
+        ${lots.map(l => {
+          const badgeCls = l.fullness > 85 ? "tag-danger" : l.fullness > 70 ? "tag-warn" : "tag-ok";
+          return `
+            <div class="card">
+              <div class="card-top">
+                <span>${l.permit}</span>
+                ${renderCampusBadge(l.campus)}
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <h4 class="card-title">${l.name}</h4>
+                <span class="tag ${badgeCls}">${l.fullness}% · ${l.status}</span>
+              </div>
+              <p class="card-body">📍 ${l.lastReport} (${l.reportsCount} reports)</p>
+              <div>
+                <button class="btn-inline primary" onclick="fileParkingReport('${l.id}')">+ Leaving Spot (Parking Report)</button>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      `;
+    }
+
+    function renderStudyRoomCards() {
+      const rooms = DATA.studyRooms.filter(r => matchesCampus(r.campus));
+      return `
+        <div class="scope-banner">Live LibCal 30-min grid + Student <strong>Study Sessions</strong> (${state.campus}).</div>
+        ${rooms.map(r => `
+          <div class="card">
+            <div class="card-top">
+              <span>${r.building}</span>
+              ${renderCampusBadge(r.campus)}
+            </div>
+            <h4 class="card-title">${r.room}</h4>
+            <p class="card-body">🕒 ${r.slots}</p>
+            ${r.session ? `<div class="tag tag-ok">Active Study Session: ${r.session}</div>` : `<div><button class="btn-inline primary" onclick="state.lastAction='Started Study Session in ${r.room}';renderAll()">+ Host Study Session</button></div>`}
+          </div>
+        `).join("")}
+      `;
+    }
+
+    function renderShuttleCards() {
+      const routes = DATA.shuttles.filter(s => matchesCampus(s.campus));
+      return `
+        <div class="scope-banner">Passio GO GTFS + GTFS-RT live Big Owl Bus <strong>Shuttle Routes</strong>.</div>
+        ${routes.map(s => `
+          <div class="card">
+            <div class="card-top">
+              <span>${s.vehicles}</span>
+              ${renderCampusBadge(s.campus)}
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <h4 class="card-title">🚌 ${s.name}</h4>
+              <span class="tag tag-ok">ETA ${s.eta}</span>
+            </div>
+            <p class="card-body">Next: ${s.nextStop}</p>
+          </div>
+        `).join("")}
+      `;
+    }
+
+    function renderDiningCards() {
+      const venues = DATA.dining.filter(d => matchesCampus(d.campus));
+      return venues.map(d => `
+        <div class="card">
+          <div class="card-top">
+            <span>${d.hours}</span>
+            ${renderCampusBadge(d.campus)}
+          </div>
+          <h4 class="card-title">🍽️ ${d.venue}</h4>
+          <p class="card-body">${d.highlight}</p>
+        </div>
+      `).join("");
+    }
+
+    function renderMarketplaceCards() {
+      const items = DATA.listings.filter(x => matchesCampus(x.campus));
+      return `
+        <div class="scope-banner">Peer-to-peer Student <strong>Listings</strong> settled in-person at a campus <strong>Meetup Spot</strong> via <strong>Deal Chat</strong>.</div>
+        ${items.map(x => `
+          <div class="card">
+            <div class="card-top">
+              <span>${x.seller} · ${x.dealChats} active Deal Chats</span>
+              ${renderCampusBadge(x.campus)}
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <h4 class="card-title">${x.item}</h4>
+              <span class="tag tag-ok" style="font-size:12px;">${x.price}</span>
+            </div>
+            <p class="card-body">🤝 Meetup Spot: <strong>${x.meetup}</strong></p>
+            <div>
+              <button class="btn-inline primary" onclick="startDealChat('${x.id}')">💬 Open Deal Chat</button>
+            </div>
+          </div>
+        `).join("")}
+      `;
+    }
+
+    function renderHubsClubsCards(filterKind) {
+      let list = DATA.hubsAndClubs.filter(h => h.kind === "Course Hub" || matchesCampus(h.campus));
+      if (filterKind) list = list.filter(h => h.kind === filterKind);
+      return `
+        <div class="scope-banner">Enrolled <strong>Course Hubs</strong> stay visible regardless of Campus toggle; <strong>Clubs</strong> filter by ${state.campus}.</div>
+        ${list.map(h => `
+          <div class="card">
+            <div class="card-top">
+              <span class="tag tag-global">${h.kind} · ${h.code}</span>
+              ${renderCampusBadge(h.campus)}
+            </div>
+            <h4 class="card-title">${h.title}</h4>
+            <p class="card-body">${h.members}</p>
+          </div>
+        `).join("")}
+      `;
+    }
+
+    function renderEventCards() {
+      const evs = DATA.events.filter(e => matchesCampus(e.campus));
+      return evs.map(e => `
+        <div class="card">
+          <div class="card-top">
+            <span>${e.when} · ${e.rsvps} RSVPs</span>
+            ${renderCampusBadge(e.campus)}
+          </div>
+          <h4 class="card-title">🎉 ${e.title}</h4>
+          <p class="card-body">${e.host}</p>
+        </div>
+      `).join("");
+    }
+
+    function renderChatCards(filterType) {
+      const list = (!filterType || filterType === "All")
+        ? DATA.chats
+        : DATA.chats.filter(c => c.type === filterType);
+      return `
+        <div class="scope-banner">🔒 <strong>Student-Global Inbox:</strong> Switching Campus never hides your active <strong>Direct Messages</strong>, <strong>Group Chats</strong>, or <strong>Deal Chats</strong>. Private threads are off-limits to <strong>Scrappy</strong>.</div>
+        ${list.map(c => `
+          <div class="card">
+            <div class="card-top">
+              <span class="tag tag-global">${c.type}</span>
+              <span>${c.unread ? `<span class="tag tag-danger">${c.unread} new</span>` : "Read"}</span>
+            </div>
+            <h4 class="card-title">${c.title}</h4>
+            <p class="card-body">${c.preview}</p>
+            <div style="font-size:11px;color:var(--ksu-muted);">${c.scopeNote}</div>
+          </div>
+        `).join("")}
+      `;
+    }
+
+    function renderScrappyPanel() {
+      return `
+        <div class="card" style="background:#161A23;color:#FFF;border-color:#2D3548;">
+          <div class="card-top" style="color:#9CA3AF;">
+            <span>🦉 <strong style="color:var(--ksu-gold);">Ask Scrappy</strong> · Context: ${state.campus}</span>
+            <span class="tag tag-ok">Privacy Guard Active</span>
+          </div>
+          <p class="card-body" style="color:#F3F4F6;">${state.scrappyAnswer}</p>
+          <div style="font-size:11px;color:#9CA3AF;">Reads public KSUX modules (${state.campus}) · Never accesses private Direct Messages, closed Group Chats, or Deal Chats.</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          <button class="btn-inline primary" onclick="askScrappyPrompt('parking')">🅿️ Best Parking Lot now?</button>
+          <button class="btn-inline" onclick="askScrappyPrompt('shuttle')">🚌 Next Shuttle Route?</button>
+          <button class="btn-inline" onclick="askScrappyPrompt('study')">📚 Open Study Room?</button>
+          <button class="btn-inline" onclick="askScrappyPrompt('dining')">🍽️ Dining menu?</button>
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // VARIANT A: 5-Tab Clustered Super-App
+    // =========================================================================
+    function VariantA() {
+      let subBar = "";
+      let body = "";
+
+      if (state.aTab === "Feed") {
+        subBar = `<div class="sub-pills">
+          <button class="sub-pill active">Campus Feed (${state.campus})</button>
+          <button class="sub-pill" onclick="state.aTab='Spaces';state.aSpacesSub='Events';renderAll()">Upcoming Events ↗</button>
+        </div>`;
+        body = renderFeedCards("All");
+      } else if (state.aTab === "Campus") {
+        const subs = ["Parking", "Study Rooms", "Shuttle Routes", "Dining"];
+        subBar = `<div class="sub-pills">${subs.map(s =>
+          `<button class="sub-pill ${state.aCampusSub === s ? "active" : ""}" onclick="state.aCampusSub='${s}';state.lastAction='Variant A → Campus cluster → ${s}';renderAll()">${s}</button>`
+        ).join("")}</div>`;
+        if (state.aCampusSub === "Parking") body = renderParkingCards();
+        if (state.aCampusSub === "Study Rooms") body = renderStudyRoomCards();
+        if (state.aCampusSub === "Shuttle Routes") body = renderShuttleCards();
+        if (state.aCampusSub === "Dining") body = renderDiningCards();
+      } else if (state.aTab === "Scrappy") {
+        body = renderScrappyPanel();
+      } else if (state.aTab === "Spaces") {
+        const subs = ["Marketplace", "Course Hubs", "Clubs", "Events"];
+        subBar = `<div class="sub-pills">${subs.map(s =>
+          `<button class="sub-pill ${state.aSpacesSub === s ? "active" : ""}" onclick="state.aSpacesSub='${s}';state.lastAction='Variant A → Spaces cluster → ${s}';renderAll()">${s}</button>`
+        ).join("")}</div>`;
+        if (state.aSpacesSub === "Marketplace") body = renderMarketplaceCards();
+        if (state.aSpacesSub === "Course Hubs") body = renderHubsClubsCards("Course Hub");
+        if (state.aSpacesSub === "Clubs") body = renderHubsClubsCards("Club");
+        if (state.aSpacesSub === "Events") body = renderEventCards();
+      } else if (state.aTab === "Chats") {
+        const subs = ["All", "Direct Message", "Group Chat", "Deal Chat"];
+        subBar = `<div class="sub-pills">${subs.map(s =>
+          `<button class="sub-pill ${state.aChatFilter === s ? "active" : ""}" onclick="state.aChatFilter='${s}';renderAll()">${s === "All" ? "All Chats" : s + "s"}</button>`
+        ).join("")}</div>`;
+        body = renderChatCards(state.aChatFilter);
+      }
+
+      if (state.viewport === "desktop") {
+        const tabs = [
+          ["Feed", "🏠 Feed"],
+          ["Campus", "🅿️ Campus Daily Life"],
+          ["Scrappy", "🦉 Ask Scrappy"],
+          ["Spaces", "🛍️ Spaces & Market"],
+          ["Chats", "💬 Chats (6)"]
+        ];
+        return `
+          ${renderHeaderBlock("Variant A · 5-Cluster Desktop Rail")}
+          <div class="desktop-shell-a">
+            <nav class="desktop-rail">
+              ${tabs.map(([k, label]) => `<button class="rail-btn ${state.aTab === k ? "active" : ""}" onclick="state.aTab='${k}';renderAll()">${label}</button>`).join("")}
+            </nav>
+            <div style="display:flex;flex-direction:column;min-height:0;">
+              ${subBar}
+              <div class="scroll-area">${body}</div>
+            </div>
+            <aside class="desktop-aside">
+              <strong style="font-size:12px;text-transform:uppercase;color:var(--ksu-muted);">Live ${state.campus} Pulse</strong>
+              ${renderShuttleCards()}
+              ${renderParkingCards()}
+            </aside>
+          </div>
+        `;
+      }
+
+      return `
+        ${renderHeaderBlock("Clustered 5-Tab")}
+        ${subBar}
+        <div class="scroll-area">${body}</div>
+        <nav class="bottom-tabs">
+          <button class="tab-btn ${state.aTab === "Feed" ? "active" : ""}" onclick="state.aTab='Feed';renderAll()"><span class="icon">🏠</span><span>Feed</span></button>
+          <button class="tab-btn ${state.aTab === "Campus" ? "active" : ""}" onclick="state.aTab='Campus';renderAll()"><span class="icon">🧭</span><span>Campus</span></button>
+          <button class="tab-btn owl-center ${state.aTab === "Scrappy" ? "active" : ""}" onclick="state.aTab='Scrappy';renderAll()"><span class="icon">🦉</span><span>Scrappy</span></button>
+          <button class="tab-btn ${state.aTab === "Spaces" ? "active" : ""}" onclick="state.aTab='Spaces';renderAll()"><span class="icon">🏛️</span><span>Spaces</span></button>
+          <button class="tab-btn ${state.aTab === "Chats" ? "active" : ""}" onclick="state.aTab='Chats';renderAll()"><span class="badge-dot">6</span><span class="icon">💬</span><span>Chats</span></button>
+        </nav>
+      `;
+    }
+
+    // =========================================================================
+    // VARIANT B: "Now" Bento HUD + Story Rings + Quick Sheet
+    // =========================================================================
+    function renderBentoNow() {
+      if (state.bDrillModule) {
+        let detail = "";
+        if (state.bDrillModule === "Parking") detail = renderParkingCards();
+        if (state.bDrillModule === "Study Rooms") detail = renderStudyRoomCards();
+        if (state.bDrillModule === "Shuttle Routes") detail = renderShuttleCards();
+        if (state.bDrillModule === "Dining") detail = renderDiningCards();
+        if (state.bDrillModule === "Events") detail = renderEventCards();
+        if (state.bDrillModule === "Scrappy") detail = renderScrappyPanel();
+        if (state.bDrillModule === "Course Hubs & Clubs") detail = renderHubsClubsCards();
+        return `
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <button class="btn-inline" onclick="state.bDrillModule=null;renderAll()">← Back to ${state.campus} Now HUD</button>
+            <span class="tag tag-kennesaw">${state.bDrillModule}</span>
+          </div>
+          ${detail}
+        `;
+      }
+
+      const topLot = DATA.parkingLots.find(l => matchesCampus(l.campus)) || DATA.parkingLots[0];
+      const topBus = DATA.shuttles.find(s => matchesCampus(s.campus)) || DATA.shuttles[0];
+      const topStudy = DATA.studyRooms.find(r => matchesCampus(r.campus)) || DATA.studyRooms[0];
+      const topDining = DATA.dining.find(d => matchesCampus(d.campus)) || DATA.dining[0];
+      const topEvent = DATA.events.find(e => matchesCampus(e.campus)) || DATA.events[0];
+
+      return `
+        <div class="scope-banner"><strong>0-Tap Commuter HUD (${state.campus}):</strong> Every daily utility is live on launch. Tap any tile to drill in, or tap <strong>⚡</strong> for all 10 modules + Scrappy.</div>
+        <div class="bento-grid">
+          <div class="bento-tile" onclick="state.bDrillModule='Parking';state.lastAction='Drilled into Parking from Now Bento HUD';renderAll()">
+            <div class="card-top"><span>🅿️ Parking Lots</span><span class="tag ${topLot.fullness > 85 ? "tag-danger" : "tag-ok"}">${topLot.fullness}%</span></div>
+            <div class="bento-metric">${topLot.name}</div>
+            <div style="font-size:11px;color:var(--ksu-muted);">${topLot.status} · Tap for all lots & Report</div>
+          </div>
+
+          <div class="bento-tile" onclick="state.bDrillModule='Shuttle Routes';state.lastAction='Drilled into Shuttle Routes from Now Bento HUD';renderAll()">
+            <div class="card-top"><span>🚌 Shuttle Route</span><span class="tag tag-ok">${topBus.eta}</span></div>
+            <div class="bento-metric">Big Owl Bus</div>
+            <div style="font-size:11px;color:var(--ksu-muted);">${topBus.name}</div>
+          </div>
+
+          <div class="bento-tile" onclick="state.bDrillModule='Study Rooms';state.lastAction='Drilled into Study Rooms from Now Bento HUD';renderAll()">
+            <div class="card-top"><span>📚 Study Rooms</span><span class="tag tag-ok">Open</span></div>
+            <div class="bento-metric">${state.campus === "Marietta" ? "Johnson + AI Lab" : "Sturgis Library"}</div>
+            <div style="font-size:11px;color:var(--ksu-muted);">${topStudy.room}</div>
+          </div>
+
+          <div class="bento-tile" onclick="state.bDrillModule='Dining';state.lastAction='Drilled into Dining from Now Bento HUD';renderAll()">
+            <div class="card-top"><span>🍽️ Dining</span><span class="tag tag-ok">Live</span></div>
+            <div class="bento-metric">${state.campus === "Marietta" ? "Stingers" : "The Commons"}</div>
+            <div style="font-size:11px;color:var(--ksu-muted);">${topDining.highlight.slice(0, 38)}…</div>
+          </div>
+
+          <div class="bento-tile wide" onclick="state.bDrillModule='Events';renderAll()">
+            <div class="card-top"><span>🎉 Next Campus Event (${topEvent.when})</span><span>${topEvent.rsvps} RSVPs →</span></div>
+            <div style="font-weight:800;font-size:13.5px;">${topEvent.title} · <span style="font-weight:500;color:var(--ksu-muted);">${topEvent.host}</span></div>
+          </div>
+
+          <div class="bento-tile wide" style="background:#161A23;color:#FFF;border-color:#2D3548;" onclick="state.bDrillModule='Scrappy';renderAll()">
+            <div class="card-top" style="color:var(--ksu-gold);"><span>🦉 Ask Scrappy Quick Brief</span><span>Tap to ask →</span></div>
+            <div style="font-size:12px;color:#E5E7EB;">${state.scrappyAnswer}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderVariantBSheet() {
+      if (!state.bSheetOpen) return "";
+      const cells = [
+        ["🏠", "Feed", () => "state.bTab='Feed';state.bSheetOpen=false;renderAll()"],
+        ["💬", "Chats", () => "state.bTab='Chats';state.bSheetOpen=false;renderAll()"],
+        ["🦉", "Scrappy", () => "state.bTab='Now';state.bDrillModule='Scrappy';state.bSheetOpen=false;renderAll()"],
+        ["🅿️", "Parking", () => "state.bTab='Now';state.bDrillModule='Parking';state.bSheetOpen=false;renderAll()"],
+        ["📚", "Study Rooms", () => "state.bTab='Now';state.bDrillModule='Study Rooms';state.bSheetOpen=false;renderAll()"],
+        ["🛍️", "Marketplace", () => "state.bTab='Market';state.bSheetOpen=false;renderAll()"],
+        ["🎉", "Events", () => "state.bTab='Now';state.bDrillModule='Events';state.bSheetOpen=false;renderAll()"],
+        ["🎓", "Course Hubs", () => "state.bTab='Now';state.bDrillModule='Course Hubs & Clubs';state.bSheetOpen=false;renderAll()"],
+        ["🚌", "Shuttle Map", () => "state.bTab='Now';state.bDrillModule='Shuttle Routes';state.bSheetOpen=false;renderAll()"],
+        ["🍽️", "Dining", () => "state.bTab='Now';state.bDrillModule='Dining';state.bSheetOpen=false;renderAll()"]
+      ];
+      return `
+        <div class="sheet-backdrop" onclick="if(event.target===this){state.bSheetOpen=false;renderAll();}">
+          <div class="quick-sheet">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <strong style="font-size:13.5px;">⚡ KSUX Command & 10-Module Launcher</strong>
+              <button class="btn-inline" onclick="state.bSheetOpen=false;renderAll()">Close ✕</button>
+            </div>
+            ${renderScrappyPanel()}
+            <div style="font-size:11px;font-weight:700;color:var(--ksu-muted);text-transform:uppercase;">Jump directly to any of the 10 capabilities</div>
+            <div class="module-grid-10">
+              ${cells.map(([ic, name, fn]) => `<button class="mod-cell" onclick="${fn()}"><span style="font-size:18px;">${ic}</span><span>${name}</span></button>`).join("")}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function VariantB() {
+      let centerBody = "";
+      let topExtra = "";
+
+      if (state.bTab === "Now") {
+        centerBody = renderBentoNow();
+      } else if (state.bTab === "Feed") {
+        const rings = [
+          ["All", "All Feed"],
+          ["CS 1302", "CS 1302"],
+          ["SWE 3313", "SWE 3313"],
+          ["Motorsports", "Motorsports"],
+          ["AI Club", "AI Club"]
+        ];
+        topExtra = `
+          <div class="rings-strip" aria-label="Course Hubs and Clubs rings">
+            ${rings.map(([key, label]) => `
+              <div class="ring-item" onclick="state.bRingFilter='${key}';state.lastAction='Filtered Feed via Course Hub / Club ring: ${label}';renderAll()">
+                <div class="ring-circle ${state.bRingFilter === key ? "active" : ""}">
+                  <div class="ring-inner">${key === "All" ? "🦉" : key.slice(0, 4)}</div>
+                </div>
+                <span class="ring-label">${label}</span>
+              </div>
+            `).join("")}
+            <div class="ring-item" onclick="state.bTab='Now';state.bDrillModule='Course Hubs & Clubs';renderAll()">
+              <div class="ring-circle"><div class="ring-inner">+544</div></div>
+              <span class="ring-label">Browse All</span>
+            </div>
+          </div>
+        `;
+        centerBody = renderFeedCards(state.bRingFilter);
+      } else if (state.bTab === "Market") {
+        centerBody = renderMarketplaceCards();
+      } else if (state.bTab === "Chats") {
+        centerBody = renderChatCards("All");
+      }
+
+      if (state.viewport === "desktop") {
+        return `
+          ${renderHeaderBlock("Variant B · Bento HUD + Rings")}
+          <div class="desktop-shell-a">
+            <nav class="desktop-rail">
+              <button class="rail-btn ${state.bTab === "Now" ? "active" : ""}" onclick="state.bTab='Now';state.bDrillModule=null;renderAll()">⚡ Campus Now HUD</button>
+              <button class="rail-btn ${state.bTab === "Feed" ? "active" : ""}" onclick="state.bTab='Feed';renderAll()">🏠 Feed + Hub Rings</button>
+              <button class="rail-btn ${state.bTab === "Market" ? "active" : ""}" onclick="state.bTab='Market';renderAll()">🛍️ Marketplace</button>
+              <button class="rail-btn ${state.bTab === "Chats" ? "active" : ""}" onclick="state.bTab='Chats';renderAll()">💬 Chats (6)</button>
+              <button class="rail-btn" style="margin-top:8px;border:1px dashed var(--ksu-gold-deep);" onclick="state.bSheetOpen=true;renderAll()">🦉 Open ⚡ Launcher</button>
+            </nav>
+            <div style="display:flex;flex-direction:column;min-height:0;">
+              ${topExtra}
+              <div class="scroll-area">${centerBody}</div>
+            </div>
+            <aside class="desktop-aside">
+              <strong style="font-size:12px;text-transform:uppercase;color:var(--ksu-muted);">Always-On ${state.campus} Bento</strong>
+              ${renderShuttleCards()}
+              ${renderStudyRoomCards()}
+            </aside>
+          </div>
+          ${renderVariantBSheet()}
+        `;
+      }
+
+      return `
+        ${renderHeaderBlock("Bento HUD + Sheet")}
+        ${topExtra}
+        <div class="scroll-area">${centerBody}</div>
+        <nav class="bottom-tabs">
+          <button class="tab-btn ${state.bTab === "Now" ? "active" : ""}" onclick="state.bTab='Now';state.bDrillModule=null;renderAll()"><span class="icon">🧭</span><span>Now</span></button>
+          <button class="tab-btn ${state.bTab === "Feed" ? "active" : ""}" onclick="state.bTab='Feed';renderAll()"><span class="icon">🏠</span><span>Feed</span></button>
+          <button class="tab-btn owl-center" onclick="state.bSheetOpen=!state.bSheetOpen;state.lastAction='Opened ⚡ Scrappy + 10-Module Quick Sheet';renderAll()"><span class="icon">⚡</span><span>Launcher</span></button>
+          <button class="tab-btn ${state.bTab === "Market" ? "active" : ""}" onclick="state.bTab='Market';renderAll()"><span class="icon">🛍️</span><span>Market</span></button>
+          <button class="tab-btn ${state.bTab === "Chats" ? "active" : ""}" onclick="state.bTab='Chats';renderAll()"><span class="badge-dot">6</span><span class="icon">💬</span><span>Chats</span></button>
+        </nav>
+        ${renderVariantBSheet()}
+      `;
+    }
+
+    // =========================================================================
+    // VARIANT C: Spatial Campus Map + Sliding Deck & Omnipresent Scrappy Bar
+    // =========================================================================
+    function renderInteractiveMapSVG(heightPx) {
+      const isMarietta = state.campus === "Marietta";
+      const isAll = state.campus === "All KSU";
+      const pins = isMarietta ? [
+        { x: 95, y: 78, icon: "🅿️", label: "Lot P22 (64%)", layer: "Parking" },
+        { x: 280, y: 66, icon: "📚", label: "Johnson Lib (32)", layer: "Study Rooms" },
+        { x: 195, y: 122, icon: "🚌", label: "BOB → Kennesaw 4m", layer: "Shuttle Routes" },
+        { x: 120, y: 158, icon: "🍽️", label: "Stingers (8 open)", layer: "Dining" },
+        { x: 295, y: 152, icon: "🤝", label: "JMW Meetup Spot", layer: "Meetup Spots" }
+      ] : isAll ? [
+        { x: 88, y: 85, icon: "🅿️", label: "Kennesaw Decks", layer: "Parking" },
+        { x: 195, y: 112, icon: "🚌", label: "BOB I-75 Corridor (3)", layer: "Shuttle Routes" },
+        { x: 305, y: 140, icon: "🅿️", label: "Marietta P22/West", layer: "Parking" },
+        { x: 125, y: 155, icon: "📚", label: "Sturgis (15)", layer: "Study Rooms" },
+        { x: 275, y: 75, icon: "📚", label: "Johnson (32)", layer: "Study Rooms" }
+      ] : [
+        { x: 82, y: 74, icon: "🅿️", label: "Central (94%)", layer: "Parking" },
+        { x: 302, y: 70, icon: "🅿️", label: "East Deck (58%)", layer: "Parking" },
+        { x: 192, y: 105, icon: "📚", label: "Sturgis Lib (15)", layer: "Study Rooms" },
+        { x: 132, y: 154, icon: "🍽️", label: "The Commons", layer: "Dining" },
+        { x: 265, y: 152, icon: "🤝", label: "Carmichael Meetup", layer: "Meetup Spots" },
+        { x: 205, y: 58, icon: "🚌", label: "BOB Shuttle 4m", layer: "Shuttle Routes" }
+      ];
+
+      const visiblePins = pins.filter(p => state.cLayer === "All" || p.layer === state.cLayer);
+      const layers = ["All", "Parking", "Shuttle Routes", "Study Rooms", "Meetup Spots", "Dining"];
+
+      return `
+        <div class="spatial-canvas" style="height:${heightPx}px;">
+          <div class="map-layer-chips">
+            ${layers.map(l => `<button class="layer-chip ${state.cLayer === l ? "active" : ""}" onclick="state.cLayer='${l}';state.lastAction='Toggled Spatial Map layer: ${l}';renderAll()">${l}</button>`).join("")}
+          </div>
+          <svg viewBox="0 0 390 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+            <rect width="390" height="200" fill="${isMarietta ? "#E0ECFF" : "#E5F0E6"}" />
+            <!-- Campus Green / Globe Quad & BOB Route Polyline -->
+            <ellipse cx="195" cy="112" rx="95" ry="52" fill="${isMarietta ? "#C7DDFB" : "#C9E4CA"}" />
+            <path d="M 40 165 Q 195 45 355 145" stroke="#FDBB30" stroke-width="5" stroke-dasharray="7 5" fill="none" />
+            ${visiblePins.map(p => `
+              <g style="cursor:pointer;" onclick="state.cSelectedPin='${p.label}';state.lastAction='Selected spatial map pin: ${p.label}';renderAll()">
+                <rect x="${p.x - 46}" y="${p.y - 13}" width="92" height="24" rx="12" fill="#111317" stroke="#FDBB30" stroke-width="1.5" />
+                <text x="${p.x}" y="${p.y + 3}" text-anchor="middle" fill="#FFFFFF" font-size="9.5" font-weight="700">${p.icon} ${p.label}</text>
+              </g>
+            `).join("")}
+          </svg>
+          <button class="layer-chip" style="position:absolute;bottom:8px;right:8px;background:#111317;color:var(--ksu-gold);" onclick="state.cSheetExpanded=!state.cSheetExpanded;renderAll()">
+            ${state.cSheetExpanded ? "🗺️ Expand Map" : "⬆️ Expand Deck"}
+          </button>
+        </div>
+      `;
+    }
+
+    function VariantC() {
+      let deckBody = "";
+      if (state.cMode === "Explore") {
+        deckBody = `
+          <div class="scope-banner">📍 <strong>Selected on ${state.campus} Map:</strong> ${state.cSelectedPin}</div>
+          ${state.cLayer === "Study Rooms" ? renderStudyRoomCards()
+            : state.cLayer === "Shuttle Routes" ? renderShuttleCards()
+            : state.cLayer === "Dining" ? renderDiningCards()
+            : state.cLayer === "Meetup Spots" ? renderMarketplaceCards()
+            : renderParkingCards() + renderShuttleCards()}
+        `;
+      } else if (state.cMode === "Pulse") {
+        const subs = ["Feed", "Marketplace", "Course Hubs & Clubs", "Events"];
+        deckBody = `
+          <div class="sub-pills" style="margin:-12px -12px 6px -12px;">
+            ${subs.map(s => `<button class="sub-pill ${state.cPulseSub === s ? "active" : ""}" onclick="state.cPulseSub='${s}';renderAll()">${s}</button>`).join("")}
+          </div>
+          ${state.cPulseSub === "Feed" ? renderFeedCards("All")
+            : state.cPulseSub === "Marketplace" ? renderMarketplaceCards()
+            : state.cPulseSub === "Events" ? renderEventCards()
+            : renderHubsClubsCards()}
+        `;
+      } else if (state.cMode === "Chats") {
+        deckBody = renderChatCards("All");
+      }
+
+      const scrappyBar = `
+        <div class="scrappy-omnibar">
+          <span style="font-size:16px;">🦉</span>
+          <input type="text" placeholder="Ask Scrappy anything about ${state.campus}…" onkeydown="if(event.key==='Enter'){askScrappyPrompt('parking');this.value='';}" />
+          <button class="btn-inline primary" style="padding:4px 8px;" onclick="askScrappyPrompt('parking')">Ask</button>
+        </div>
+      `;
+
+      if (state.viewport === "desktop") {
+        return `
+          ${renderHeaderBlock("Variant C · Spatial Split-Screen OS")}
+          <div style="display:grid;grid-template-columns:1.15fr 1fr;flex:1;min-height:0;">
+            <div style="display:flex;flex-direction:column;border-right:1px solid var(--ksu-line);">
+              ${renderInteractiveMapSVG(450)}
+              <div style="padding:10px;overflow-y:auto;flex:1;background:#161A23;color:#FFF;font-size:12px;">
+                <strong style="color:var(--ksu-gold);">🦉 Live Scrappy Spatial Brief:</strong> ${state.scrappyAnswer}
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;min-height:0;">
+              <div class="sub-pills">
+                <button class="sub-pill ${state.cMode === "Explore" ? "active" : ""}" onclick="state.cMode='Explore';renderAll()">🗺️ Map Cards</button>
+                <button class="sub-pill ${state.cMode === "Pulse" ? "active" : ""}" onclick="state.cMode='Pulse';renderAll()">🔥 Pulse (Feed/Market/Hubs)</button>
+                <button class="sub-pill ${state.cMode === "Chats" ? "active" : ""}" onclick="state.cMode='Chats';renderAll()">💬 Chats (6)</button>
+              </div>
+              <div class="scroll-area">${deckBody}</div>
+              ${scrappyBar}
+            </div>
+          </div>
+        `;
+      }
+
+      const mapHeight = state.cMode === "Explore" ? (state.cSheetExpanded ? 115 : 225) : 108;
+      return `
+        ${renderHeaderBlock("Spatial Map + Omnibar")}
+        ${renderInteractiveMapSVG(mapHeight)}
+        <div class="scroll-area">
+          <div style="background:#FFFBEB;border:1px solid #FDE68A;color:#78350F;border-radius:8px;padding:6px 9px;font-size:11.5px;">
+            ${state.scrappyAnswer}
+          </div>
+          ${deckBody}
+        </div>
+        ${scrappyBar}
+        <nav class="bottom-tabs" style="grid-template-columns:repeat(3,1fr);">
+          <button class="tab-btn ${state.cMode === "Explore" ? "active" : ""}" onclick="state.cMode='Explore';renderAll()"><span class="icon">🗺️</span><span>Explore Campus</span></button>
+          <button class="tab-btn ${state.cMode === "Pulse" ? "active" : ""}" onclick="state.cMode='Pulse';renderAll()"><span class="icon">🔥</span><span>Campus Pulse</span></button>
+          <button class="tab-btn ${state.cMode === "Chats" ? "active" : ""}" onclick="state.cMode='Chats';renderAll()"><span class="badge-dot">6</span><span class="icon">💬</span><span>Chats</span></button>
+        </nav>
+      `;
+    }
+
+    // =========================================================================
+    // RENDER INSPECTOR & ROOT
+    // =========================================================================
+    function renderInspector() {
+      const vMeta = VARIANTS[state.variant];
+      const activeSurface = state.variant === "A"
+        ? (state.aTab === "Campus" ? `Campus → ${state.aCampusSub}` : state.aTab === "Spaces" ? `Spaces → ${state.aSpacesSub}` : state.aTab)
+        : state.variant === "B"
+        ? (state.bSheetOpen ? "⚡ Command & 10-Module Sheet" : state.bTab === "Now" && state.bDrillModule ? `Now HUD → ${state.bDrillModule}` : state.bTab)
+        : `${state.cMode} (${state.cMode === "Explore" ? "Layer: " + state.cLayer : state.cPulseSub})`;
+
+      const depthRows = Object.entries(vMeta.tapDepth).map(([cap, taps]) => `
+        <span>${cap}</span>
+        <span class="depth-pill depth-${taps}">${taps === 0 ? "0 taps (on launch)" : taps === 1 ? "1 tap" : "2 taps"}</span>
+      `).join("");
+
+      document.getElementById("state-inspector").innerHTML = `
+        <h3>
+          <span>🔍 Live Shell State</span>
+          <span class="proto-badge">?variant=${state.variant}</span>
+        </h3>
+
+        <div class="inspector-highlight">
+          <strong>Last Change:</strong> ${state.lastAction}
+        </div>
+
+        <div class="inspector-card">
+          <div class="inspector-row"><span class="inspector-label">Variant</span><span class="inspector-val">${vMeta.key} · ${vMeta.name}</span></div>
+          <div class="inspector-row"><span class="inspector-label">Viewport</span><span class="inspector-val">${state.viewport === "mobile" ? "Mobile PWA" : "Desktop Web"}</span></div>
+          <div class="inspector-row"><span class="inspector-label">Session Mode</span><span class="inspector-val">${state.judgeDemoMode ? "Judge Demo Mode" : "Verified Student"}</span></div>
+          <div class="inspector-row"><span class="inspector-label">Selected Campus</span><span class="inspector-val">${state.campus}</span></div>
+          <div class="inspector-row"><span class="inspector-label">Active Surface</span><span class="inspector-val">${activeSurface}</span></div>
+        </div>
+
+        <div class="inspector-card">
+          <div class="inspector-label" style="font-weight:700;color:#E2E8F0;">Architecture Thesis</div>
+          <div style="color:#B9C2D3;line-height:1.4;">${vMeta.thesis}</div>
+        </div>
+
+        <div class="inspector-card">
+          <div class="inspector-label" style="font-weight:700;color:#E2E8F0;">Tap Depth for All 10 Capabilities (Variant ${vMeta.key})</div>
+          <div class="tap-depth-grid">${depthRows}</div>
+        </div>
+
+        <div class="inspector-card">
+          <div class="inspector-label" style="font-weight:700;color:#E2E8F0;">Campus Switcher Scope Rules</div>
+          <div style="color:#B9C2D3;line-height:1.38;">
+            • <strong>Filtered to ${state.campus}:</strong> Feed, Parking Lots & Reports, Study Rooms, local Shuttle Routes, Dining, Events, Marketplace Listings.<br/>
+            • <strong>Always Preserved:</strong> Direct Messages, Group Chats, Deal Chats, enrolled Course Hubs, and Intercampus Kennesaw–Marietta BOB Shuttle Route.
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAll() {
+      const root = document.getElementById("app-viewport");
+      if (state.variant === "A") root.innerHTML = VariantA();
+      if (state.variant === "B") root.innerHTML = VariantB();
+      if (state.variant === "C") root.innerHTML = VariantC();
+
+      document.getElementById("switcher-label").textContent = `${state.variant} (${VARIANTS[state.variant].name})`;
+      ["A", "B", "C"].forEach(k => {
+        document.getElementById("vdot-" + k).classList.toggle("active", state.variant === k);
+      });
+
+      renderInspector();
+    }
+
+    renderAll();
+  </script>
+</body>
+</html>
