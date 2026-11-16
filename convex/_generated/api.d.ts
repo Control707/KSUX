@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as authNode from "../authNode.js";
+import type * as chats from "../chats.js";
 import type * as communities from "../communities.js";
 import type * as courses from "../courses.js";
 import type * as crons from "../crons.js";
@@ -20,6 +21,7 @@ import type * as housekeeping from "../housekeeping.js";
 import type * as lib_crypto from "../lib/crypto.js";
 import type * as lib_icsParser from "../lib/icsParser.js";
 import type * as lib_parkingMath from "../lib/parkingMath.js";
+import type * as lib_pushAdapter from "../lib/pushAdapter.js";
 import type * as lib_safety from "../lib/safety.js";
 import type * as lib_smtpAdapter from "../lib/smtpAdapter.js";
 import type * as lib_syllabusAdapter from "../lib/syllabusAdapter.js";
@@ -27,6 +29,8 @@ import type * as lib_syncGuard from "../lib/syncGuard.js";
 import type * as lib_viewer from "../lib/viewer.js";
 import type * as moderation from "../moderation.js";
 import type * as parking from "../parking.js";
+import type * as push from "../push.js";
+import type * as pushNode from "../pushNode.js";
 import type * as seed from "../seed.js";
 import type * as shell from "../shell.js";
 import type * as storageNode from "../storageNode.js";
@@ -47,6 +51,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   authNode: typeof authNode;
+  chats: typeof chats;
   communities: typeof communities;
   courses: typeof courses;
   crons: typeof crons;
@@ -57,6 +62,7 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto": typeof lib_crypto;
   "lib/icsParser": typeof lib_icsParser;
   "lib/parkingMath": typeof lib_parkingMath;
+  "lib/pushAdapter": typeof lib_pushAdapter;
   "lib/safety": typeof lib_safety;
   "lib/smtpAdapter": typeof lib_smtpAdapter;
   "lib/syllabusAdapter": typeof lib_syllabusAdapter;
@@ -64,6 +70,8 @@ declare const fullApi: ApiFromModules<{
   "lib/viewer": typeof lib_viewer;
   moderation: typeof moderation;
   parking: typeof parking;
+  push: typeof push;
+  pushNode: typeof pushNode;
   seed: typeof seed;
   shell: typeof shell;
   storageNode: typeof storageNode;

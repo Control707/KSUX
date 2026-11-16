@@ -1,4 +1,4 @@
-import { ModulePlaceholder } from "@/components/shared/ModulePlaceholder";
+import { ChatThreadView } from "@/components/chats/ChatThreadView";
 
 export default async function ChatDetailPage({
   params,
@@ -6,11 +6,5 @@ export default async function ChatDetailPage({
   params: Promise<{ chatId: string }>;
 }) {
   const { chatId } = await params;
-  return (
-    <ModulePlaceholder
-      title={`Chat Thread · ${chatId}`}
-      description="Real-time conversation preserved across Campus switches."
-      preserveAcrossCampus
-    />
-  );
+  return <ChatThreadView chatId={chatId} />;
 }
