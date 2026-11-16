@@ -11,4 +11,12 @@ crons.hourly(
   {}
 );
 
+// 30m Localist + Anthology Engage Events deduplicated diff-gated sync (:07, :37)
+crons.cron(
+  "sync-ksu-events-30m",
+  "7,37 * * * *",
+  internal.sync.eventsSync.runScheduledEventsSync,
+  {}
+);
+
 export default crons;

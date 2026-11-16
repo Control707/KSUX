@@ -1,10 +1,5 @@
-import { ModulePlaceholder } from "@/components/shared/ModulePlaceholder";
+import { EventsCalendarView } from "@/components/communities/EventsViews";
 
 export default function EventsIndexPage() {
-  return (
-    <ModulePlaceholder
-      title="Campus Events Calendar"
-      description="Deduplicated Localist, Anthology Engage, Club, and Student Events across Kennesaw & Marietta."
-    />
-  );
+  return <EventsCalendarView />;
 }

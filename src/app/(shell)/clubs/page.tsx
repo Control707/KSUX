@@ -1,10 +1,5 @@
-import { ModulePlaceholder } from "@/components/shared/ModulePlaceholder";
+import { ClubsDirectoryView } from "@/components/communities/ClubsViews";
 
 export default function ClubsIndexPage() {
-  return (
-    <ModulePlaceholder
-      title="KSU Clubs & Organizations"
-      description="544 seeded Registered KSU Clubs, Campus Departments, and grassroots Community Clubs."
-    />
-  );
+  return <ClubsDirectoryView />;
 }

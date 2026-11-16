@@ -1,4 +1,4 @@
-import { ModulePlaceholder } from "@/components/shared/ModulePlaceholder";
+import { EventDetailView } from "@/components/communities/EventsViews";
 
 export default async function EventDetailPage({
   params,
@@ -6,10 +6,5 @@ export default async function EventDetailPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  return (
-    <ModulePlaceholder
-      title={`Event · ${eventId}`}
-      description="Campus Event details and Going / Interested RSVPs."
-    />
-  );
+  return <EventDetailView eventId={eventId} />;
 }
