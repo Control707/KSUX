@@ -1,10 +1,16 @@
-import { ModulePlaceholder } from "@/components/shared/ModulePlaceholder";
+import React, { Suspense } from "react";
+import { MarketplaceView } from "@/components/marketplace/MarketplaceView";
 
 export default function MarketplacePage() {
   return (
-    <ModulePlaceholder
-      title="Student Marketplace"
-      description="Peer-to-peer Listings, isolated per-buyer Deal Chats, and safe campus Meetup Spots."
-    />
+    <Suspense
+      fallback={
+        <div className="p-4 text-xs font-semibold text-[#5E6675]">
+          Loading KSU Marketplace...
+        </div>
+      }
+    >
+      <MarketplaceView />
+    </Suspense>
   );
 }

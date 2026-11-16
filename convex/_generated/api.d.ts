@@ -27,6 +27,7 @@ import type * as lib_smtpAdapter from "../lib/smtpAdapter.js";
 import type * as lib_syllabusAdapter from "../lib/syllabusAdapter.js";
 import type * as lib_syncGuard from "../lib/syncGuard.js";
 import type * as lib_viewer from "../lib/viewer.js";
+import type * as marketplace from "../marketplace.js";
 import type * as moderation from "../moderation.js";
 import type * as parking from "../parking.js";
 import type * as push from "../push.js";
@@ -68,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   "lib/syllabusAdapter": typeof lib_syllabusAdapter;
   "lib/syncGuard": typeof lib_syncGuard;
   "lib/viewer": typeof lib_viewer;
+  marketplace: typeof marketplace;
   moderation: typeof moderation;
   parking: typeof parking;
   push: typeof push;

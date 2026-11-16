@@ -1,10 +1,17 @@
-import { ChatThreadView } from "@/components/chats/ChatThreadView";
+"use client";
 
-export default async function ChatDetailPage({
-  params,
-}: {
-  params: Promise<{ chatId: string }>;
-}) {
-  const { chatId } = await params;
-  return <ChatThreadView chatId={chatId} />;
+import React from "react";
+import { useParams } from "next/navigation";
+import { ChatThreadView } from "@/components/chats/ChatThreadView";
+import { DealHandoffPanel } from "@/components/marketplace/DealHandoffPanel";
+
+export default function ChatDetailPage() {
+  const params = useParams<{ chatId: string }>();
+  const chatId = String(params?.chatId ?? "");
+  return (
+    <ChatThreadView
+      chatId={chatId}
+      dealHandoffSlot={(thread) => <DealHandoffPanel thread={thread} />}
+    />
+  );
 }
