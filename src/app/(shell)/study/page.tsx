@@ -1,10 +1,16 @@
-import { ModulePlaceholder } from "@/components/shared/ModulePlaceholder";
+import React, { Suspense } from "react";
+import { StudyView } from "@/components/study/StudyView";
 
 export default function StudyPage() {
   return (
-    <ModulePlaceholder
-      title="Study Rooms & Study Sessions"
-      description="47 Sturgis, Johnson, & Marietta AI Lab LibCal Study Rooms plus walk-in crowd vibes and Study Sessions."
-    />
+    <Suspense
+      fallback={
+        <div className="p-4 text-xs font-semibold text-[#5E6675]">
+          Loading KSU Study Rooms...
+        </div>
+      }
+    >
+      <StudyView />
+    </Suspense>
   );
 }

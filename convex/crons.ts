@@ -35,4 +35,12 @@ crons.cron(
   {}
 );
 
+// 30m Daytime sequential LibCal Study Rooms warm cron (:12, :42)
+crons.cron(
+  "warm-libcal-study-rooms-30m",
+  "12,42 * * * *",
+  internal.sync.libcalSync.runSequentialLibCalRefresh,
+  { fromWarmCron: true }
+);
+
 export default crons;
