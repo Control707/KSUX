@@ -1,0 +1,71 @@
+import { describe, expect, it } from "vitest";
+import { parseStatelessScheduleIcs } from "../../convex/lib/icsParser";
+import { fetchSimpleSyllabusSummary } from "../../convex/lib/syllabusAdapter";
+
+describe("Seam 2 — Stateless .ics Parser & Simple Syllabus Fetch Adapter (#18)", () => {
+  it("unfolds multiline RFC 5545 .ics VEVENTs, extracts weekly classes + deadlines, and strips LMS token URLs", () => {
+    const raw = [
+      "BEGIN:VCALENDAR",
+      "BEGIN:VEVENT",
+      "UID:evt-1",
+      "SUMMARY:ME 3101 - Materials Science",
+      " and Engineering (CRN: 85105)",
+      "DTSTART:20261116T100000",
+      "RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR",
+      "LOCATION:Engineering Lab Q 112",
+      "END:VEVENT",
+      "BEGIN:VEVENT",
+      "UID:evt-2",
+      "SUMMARY:Lab 4 Submission https://kennesaw.view.usg.edu/d2l/ics?tok=abc",
+      "DTEND:20261122T045900Z",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+
+    const parsed = parseStatelessScheduleIcs(raw);
+    expect(parsed.classBlocks).toHaveLength(1);
+    expect(parsed.classBlocks[0]?.crnCandidate).toBe("85105");
+    expect(parsed.classBlocks[0]?.courseCodeCandidate).toBe("ME 3101");
+    expect(parsed.classBlocks[0]?.byDays).toEqual(["M", "W", "F"]);
+
+    expect(parsed.deadlines).toHaveLength(1);
+    expect(parsed.deadlines[0]?.title).toBe("Lab 4 Submission");
+  });
+
+  it("matches Simple Syllabus CRN or degrades gracefully with official link when upstream fails", async () => {
+    const okRes = await fetchSimpleSyllabusSummary(
+      { subjectCourse: "CS 3305", termCode: "202608", crn: "83190" },
+      async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          items: [
+            {
+              section: "01",
+              crn: "83190",
+              instructor_name: "Dr. Elena Vance",
+              office_hours: "MW 1:30–3:00 PM",
+              grading_weights: [{ label: "Labs", weight: "30%" }],
+              textbooks: ["CLRS 4th Ed"],
+              url: "https://kennesaw.simplesyllabus.com/en-US/doc/cs3305",
+            },
+          ],
+        }),
+      })
+    );
+    expect(okRes.status).toBe("found");
+    expect(okRes.summary?.instructor).toBe("Dr. Elena Vance");
+
+    let calls = 0;
+    const downRes = await fetchSimpleSyllabusSummary(
+      { subjectCourse: "CS 3305", termCode: "202608" },
+      async () => {
+        calls++;
+        throw new Error("ETIMEDOUT");
+      }
+    );
+    expect(calls).toBe(2); // Initial attempt + max 1 retry
+    expect(downRes.status).toBe("upstream_unreachable");
+    expect(downRes.sourceUrl).toContain("kennesaw.simplesyllabus.com");
+  });
+});

@@ -1,4 +1,5 @@
-import { ModulePlaceholder } from "@/components/shared/ModulePlaceholder";
+import React from "react";
+import { CourseHubView } from "@/components/courses/CourseHubView";
 
 export default async function CourseHubPage({
   params,
@@ -6,12 +7,5 @@ export default async function CourseHubPage({
   params: Promise<{ subjectCourse: string }>;
 }) {
   const { subjectCourse } = await params;
-  const decoded = decodeURIComponent(subjectCourse);
-  return (
-    <ModulePlaceholder
-      title={`Course Hub · ${decoded}`}
-      description="Fall 2026 & Spring 2027 Banner 9 sections, private .ics deadlines, and Simple Syllabus."
-      preserveAcrossCampus
-    />
-  );
+  return <CourseHubView subjectCourse={decodeURIComponent(subjectCourse)} />;
 }
