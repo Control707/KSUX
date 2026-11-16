@@ -22,6 +22,7 @@ import {
   useViewerQuery,
 } from "@/lib/viewerClient";
 import { ReportTrigger } from "@/components/shared/ReportTrigger";
+import { InstallHomeScreenCard } from "@/components/pwa/PwaSupport";
 
 export function ProfileView() {
   const searchParams = useSearchParams();
@@ -111,6 +112,7 @@ export function ProfileView() {
 
   return (
     <div data-testid="student-profile-view" className="space-y-4 p-4">
+      <InstallHomeScreenCard />
       {/* Primary Profile Card */}
       <div className="rounded-2xl border border-[#E4E7EE] bg-white p-5 shadow-xs">
         <div className="flex flex-wrap items-start justify-between gap-4">

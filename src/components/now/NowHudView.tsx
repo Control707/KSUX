@@ -19,6 +19,7 @@ import {
   COMMUTER_CACHE_STORAGE_KEY,
   useViewerQuery,
 } from "@/lib/viewerClient";
+import { InstallHomeScreenCard } from "@/components/pwa/PwaSupport";
 
 export function NowHudView() {
   const hud = useViewerQuery(api.shell.getNowHud, {});
@@ -79,6 +80,7 @@ export function NowHudView() {
 
   return (
     <div data-testid="now-bento-hud" className="space-y-3.5 p-3.5 sm:p-4">
+      <InstallHomeScreenCard />
       {/* Scope Context Header */}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#E4E7EE] bg-white px-4 py-3">
         <div>

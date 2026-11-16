@@ -105,13 +105,13 @@ export const shellSummary = viewerQuery({
           : ctx.db
               .query("parkingLots")
               .withIndex("by_campus", (q) => q.eq("campus", "Kennesaw"))
-              .take(8),
+              .take(50),
         campusFilter === "Kennesaw"
           ? Promise.resolve([] as Doc<"parkingLots">[])
           : ctx.db
               .query("parkingLots")
               .withIndex("by_campus", (q) => q.eq("campus", "Marietta"))
-              .take(8),
+              .take(35),
       ]);
 
     // Always preserve intercampus Kennesaw-Marietta Shuttle Route across Campus switches!
@@ -297,14 +297,14 @@ export const getNowHud = viewerQuery({
         : await ctx.db
             .query("parkingLots")
             .withIndex("by_campus", (q) => q.eq("campus", "Kennesaw"))
-            .take(25);
+            .take(50);
     const mLots =
       campusFilter === "Kennesaw"
         ? []
         : await ctx.db
             .query("parkingLots")
             .withIndex("by_campus", (q) => q.eq("campus", "Marietta"))
-            .take(25);
+            .take(35);
     const scopedLots = [...kLots, ...mLots];
 
     const pinnedSet = new Set(
@@ -314,6 +314,9 @@ export const getNowHud = viewerQuery({
       ...scopedLots.filter((l) => pinnedSet.has(String(l._id))),
       ...scopedLots.filter(
         (l) => !pinnedSet.has(String(l._id)) && l.isDeck
+      ),
+      ...scopedLots.filter(
+        (l) => !pinnedSet.has(String(l._id)) && !l.isDeck
       ),
     ].slice(0, 3);
 

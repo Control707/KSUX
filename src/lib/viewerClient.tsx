@@ -345,6 +345,11 @@ function ViewerClientInner({ children }: { children: React.ReactNode }) {
       width: number;
       height: number;
     }> => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        throw new Error(
+          "Offline: uploads are disabled until network connectivity returns."
+        );
+      }
       if (auth.status !== "student" && auth.status !== "demo") {
         throw new Error("Sign in or enter Judge Demo Mode before uploading.");
       }
@@ -486,6 +491,11 @@ export function useViewerMutation<
     async (
       args: StripAuthArgs<FunctionArgs<Mutation>>
     ): Promise<FunctionReturnType<Mutation>> => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        throw new Error(
+          "Offline: writes are paused while offline (showing saved read-only commuter cache)."
+        );
+      }
       if (!authArgs) {
         throw new Error(
           "Sign in with KSU .edu email or enter Judge Demo Mode."

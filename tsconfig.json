@@ -29,5 +29,5 @@
     "**/*.tsx",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules", ".next", ".convex", "out"]
+  "exclude": ["node_modules", ".playwright-browsers", ".next", ".convex", "out"]
 }

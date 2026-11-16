@@ -4,6 +4,7 @@
 # Dependencies & Build
 node_modules/
 .pnpm-store/
+.playwright-browsers/
 .next/
 .convex/
 out/

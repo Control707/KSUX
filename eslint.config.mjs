@@ -6,6 +6,7 @@ export default tseslint.config(
   {
     ignores: [
       "node_modules/**",
+      ".playwright-browsers/**",
       ".next/**",
       ".convex/**",
       "convex/_generated/**",

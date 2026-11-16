@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
+    "test:e2e": "tsx scripts/run-e2e.ts",
     "seed:harvest": "tsx scripts/harvest-ksu-seed.ts"
   },
   "dependencies": {
