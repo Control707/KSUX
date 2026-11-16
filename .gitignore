@@ -1,0 +1,15 @@
+# macOS / OS
+.DS_Store
+
+# Dependencies & Build
+node_modules/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+
+# Local env & secrets
+.env
+.env.*
+!.env.example
