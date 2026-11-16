@@ -1,10 +1,16 @@
-import { ModulePlaceholder } from "@/components/shared/ModulePlaceholder";
+import React, { Suspense } from "react";
+import { ProfileView } from "@/components/profile/ProfileView";
 
 export default function ProfilePage() {
   return (
-    <ModulePlaceholder
-      title="Student Profile"
-      description="Public KSU trust badge, Follow graph, joined Clubs, and account controls."
-    />
+    <Suspense
+      fallback={
+        <div className="p-4 text-xs font-semibold text-[#5E6675]">
+          Loading profile...
+        </div>
+      }
+    >
+      <ProfileView />
+    </Suspense>
   );
 }

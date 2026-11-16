@@ -13,6 +13,7 @@ export default tseslint.config(
       "playwright-report/**",
       "test-results/**",
       "public/sw.js",
+      "next-env.d.ts",
     ],
   },
   js.configs.recommended,
@@ -23,6 +24,7 @@ export default tseslint.config(
     },
     rules: {
       ...nextPlugin.configs.recommended.rules,
+      "@next/next/no-img-element": "off",
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }
