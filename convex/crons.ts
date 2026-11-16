@@ -19,4 +19,20 @@ crons.cron(
   {}
 );
 
+// 2m Passio GO Big Owl Bus Shuttle Routes diff-gated sync (auto-throttles to 30m overnight)
+crons.interval(
+  "sync-passio-shuttle-2m",
+  { minutes: 2 },
+  internal.sync.transitDiningSync.runScheduledShuttleSync,
+  {}
+);
+
+// Twice-daily Nutrislice + hours-locations.php Dining Venues sync (10:15 & 16:15 UTC = ~05:15 & 11:15 ET)
+crons.cron(
+  "sync-nutrislice-dining",
+  "15 10,16 * * *",
+  internal.sync.transitDiningSync.runScheduledDiningSync,
+  {}
+);
+
 export default crons;

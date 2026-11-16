@@ -32,6 +32,8 @@ import type * as shell from "../shell.js";
 import type * as storageNode from "../storageNode.js";
 import type * as students from "../students.js";
 import type * as sync_eventsSync from "../sync/eventsSync.js";
+import type * as sync_transitDiningSync from "../sync/transitDiningSync.js";
+import type * as transitDining from "../transitDining.js";
 import type * as uploads from "../uploads.js";
 
 import type {
@@ -65,6 +67,8 @@ declare const fullApi: ApiFromModules<{
   storageNode: typeof storageNode;
   students: typeof students;
   "sync/eventsSync": typeof sync_eventsSync;
+  "sync/transitDiningSync": typeof sync_transitDiningSync;
+  transitDining: typeof transitDining;
   uploads: typeof uploads;
 }>;
 
