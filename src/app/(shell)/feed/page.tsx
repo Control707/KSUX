@@ -1,10 +1,16 @@
-import { ModulePlaceholder } from "@/components/shared/ModulePlaceholder";
+import React, { Suspense } from "react";
+import { FeedView } from "@/components/feed/FeedView";
 
 export default function FeedPage() {
   return (
-    <ModulePlaceholder
-      title="Campus Feed"
-      description="Real-time Posts across Campus, Following, and Trending (24h) streams."
-    />
+    <Suspense
+      fallback={
+        <div className="p-4 text-xs font-semibold text-[#5E6675]">
+          Loading Campus Feed...
+        </div>
+      }
+    >
+      <FeedView />
+    </Suspense>
   );
 }

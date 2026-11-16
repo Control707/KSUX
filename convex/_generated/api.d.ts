@@ -13,6 +13,7 @@ import type * as authNode from "../authNode.js";
 import type * as crons from "../crons.js";
 import type * as demo_fixtures from "../demo/fixtures.js";
 import type * as demo_session from "../demo/session.js";
+import type * as feed from "../feed.js";
 import type * as housekeeping from "../housekeeping.js";
 import type * as lib_crypto from "../lib/crypto.js";
 import type * as lib_parkingMath from "../lib/parkingMath.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   "demo/fixtures": typeof demo_fixtures;
   "demo/session": typeof demo_session;
+  feed: typeof feed;
   housekeeping: typeof housekeeping;
   "lib/crypto": typeof lib_crypto;
   "lib/parkingMath": typeof lib_parkingMath;
