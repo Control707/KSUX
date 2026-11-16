@@ -26,6 +26,7 @@ import type * as lib_syllabusAdapter from "../lib/syllabusAdapter.js";
 import type * as lib_syncGuard from "../lib/syncGuard.js";
 import type * as lib_viewer from "../lib/viewer.js";
 import type * as moderation from "../moderation.js";
+import type * as parking from "../parking.js";
 import type * as seed from "../seed.js";
 import type * as shell from "../shell.js";
 import type * as storageNode from "../storageNode.js";
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   "lib/syncGuard": typeof lib_syncGuard;
   "lib/viewer": typeof lib_viewer;
   moderation: typeof moderation;
+  parking: typeof parking;
   seed: typeof seed;
   shell: typeof shell;
   storageNode: typeof storageNode;
