@@ -8,7 +8,7 @@ import {
 describe("Seam 1 — Big Owl Bus Shuttle Routes, 15m Stop Pulses & 17 Dining Venues with 30m Line Checks (#21)", () => {
   it("preserves KM Intercampus Shuttle across Campus switches, decays stop pulses at 15m, filters Dining dietary tags, and enforces 15m Line Check cooldown + 30m decay", async () => {
     const t = createTestConvex();
-    await t.mutation(internal.seed.bootstrapKsu, {});
+    await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: true });
 
     const student = await createVerifiedTestStudent(t, {
       handle: "commuter_owl",

@@ -14,7 +14,7 @@ describe("Seam 1 — Scrappy Read-Only Tool Isolation, Non-Looping @scrappy Ment
 
   it("filters Scrappy tool outputs by viewerContext (workspace, mutual Block, Under Review) and fences untrusted text", async () => {
     const t = createTestConvex();
-    await t.mutation(internal.seed.bootstrapKsu, {});
+    await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: true });
 
     const alice = await createVerifiedTestStudent(t, {
       handle: "scrappy_alice",
@@ -171,7 +171,7 @@ describe("Seam 1 — Scrappy Read-Only Tool Isolation, Non-Looping @scrappy Ment
 
   it("caps 1:1 Ask Scrappy history at <=6 turn pairs, enforces 15/10m rate limit, and returns Draft Cards without mutating Listings", async () => {
     const t = createTestConvex();
-    await t.mutation(internal.seed.bootstrapKsu, {});
+    await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: true });
     const demo = await t.mutation(
       api.demo.session.provisionOrAttachDemoSession,
       { preferredPersona: "maya_cs" }

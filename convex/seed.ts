@@ -8,17 +8,9 @@ import clubsSeed from "../data/ksu-seed/clubs.json";
 import eventsSeed from "../data/ksu-seed/events.json";
 import meetupSpotsSeed from "../data/ksu-seed/meetup-spots.json";
 import coursesSeed from "../data/ksu-seed/courses.json";
+import verifiedSections from "../data/ksu-seed/banner-verified.json";
 import { Id } from "./_generated/dataModel";
-
-function formatDateET(ms: number): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(ms));
-  return parts;
-}
+import { easternDate } from "./lib/easternDate";
 
 /**
  * Default realistic 48-bit LibCal open/reserved bitmask (1n = open, 0n = closed/booked).
@@ -39,11 +31,18 @@ export function buildSeedSlotMask48(roomIndex: number): bigint {
 export const bootstrapKsu = internalMutation({
   args: {
     now: v.optional(v.number()),
+    includeFixtures: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const now = args.now ?? Date.now();
-    const todayET = formatDateET(now);
-    const tomorrowET = formatDateET(now + 24 * 60 * 60 * 1000);
+    const includeFixtures = args.includeFixtures === true;
+    const daysET = [easternDate(now), easternDate(now, 1)];
+    const syncState = async (key: string) => ctx.db.query("feedSyncState")
+      .withIndex("by_source", (q) => q.eq("sourceKey", key)).unique();
+    const [legacyStudy, legacyShuttle] = await Promise.all([
+      syncState("libcal_study_rooms"),
+      syncState("passio_shuttle"),
+    ]);
 
     // 1. Parking Lots (72)
     let parkingInserted = 0;
@@ -78,20 +77,26 @@ export const bootstrapKsu = internalMutation({
       if (!existing) studyRoomsInserted++;
 
       if (rm.roomKind === "libcal") {
-        for (const [dIdx, dateET] of [todayET, tomorrowET].entries()) {
+        for (const [dIdx, dateET] of daysET.entries()) {
           const snap = await ctx.db
             .query("studyRoomSnapshots")
             .withIndex("by_room_date", (q) =>
               q.eq("studyRoomId", roomId).eq("dateET", dateET)
             )
             .unique();
-          if (!snap) {
+          const fixtureMask = buildSeedSlotMask48(idx + dIdx * 3);
+          if (!snap && includeFixtures) {
             await ctx.db.insert("studyRoomSnapshots", {
               studyRoomId: roomId,
               dateET,
-              slotMask48: buildSeedSlotMask48(idx + dIdx * 3),
+              slotMask48: fixtureMask,
               updatedAt: now,
+              isFixture: true,
             });
+          } else if (snap && !includeFixtures && (snap.isFixture ||
+            (legacyStudy?.lastSuccessAt === snap.updatedAt && !legacyStudy.lastPayloadHash &&
+              snap.slotMask48 === fixtureMask))) {
+            await ctx.db.delete(snap._id);
           }
         }
       }
@@ -115,7 +120,7 @@ export const bootstrapKsu = internalMutation({
       .query("shuttleSnapshots")
       .withIndex("by_singleton", (q) => q.eq("singletonKey", "latest"))
       .unique();
-    if (!existingShuttleSnap) {
+    if (!existingShuttleSnap && includeFixtures) {
       const initSnap = (shuttleRoutesSeed as any).initialSnapshot;
       await ctx.db.insert("shuttleSnapshots", {
         singletonKey: "latest",
@@ -123,7 +128,12 @@ export const bootstrapKsu = internalMutation({
         stopEtas: initSnap.stopEtas,
         serviceAlerts: initSnap.serviceAlerts,
         fetchedAt: now,
+        isFixture: true,
       });
+    } else if (existingShuttleSnap && !includeFixtures &&
+      (existingShuttleSnap.isFixture ||
+        (legacyShuttle?.lastSuccessAt === existingShuttleSnap.fetchedAt && !legacyShuttle.lastPayloadHash))) {
+      await ctx.db.delete(existingShuttleSnap._id);
     }
 
     // 4. Dining Venues (17)
@@ -138,10 +148,29 @@ export const bootstrapKsu = internalMutation({
       if (!existing) {
         await ctx.db.insert("diningVenues", {
           ...venue,
-          lastHoursSyncAt: now,
-          lastMenuSyncAt: now,
+          doorRatesJson: includeFixtures ? venue.doorRatesJson : undefined,
+          hoursScheduleJson: includeFixtures ? venue.hoursScheduleJson : "{}",
+          todayMenuJson: includeFixtures ? venue.todayMenuJson : "[]",
+          tomorrowMenuJson: includeFixtures ? venue.tomorrowMenuJson : "[]",
+          isFixtureMenu: includeFixtures || undefined,
+          isFixtureHours: includeFixtures || undefined,
+          lastHoursSyncAt: 0,
+          lastMenuSyncAt: 0,
         });
         diningInserted++;
+      } else if (!includeFixtures) {
+        const fixtureHours = existing.isFixtureHours || existing.hoursScheduleJson === venue.hoursScheduleJson;
+        const fixtureMenus = existing.isFixtureMenu || (existing.todayMenuJson === venue.todayMenuJson &&
+          existing.tomorrowMenuJson === venue.tomorrowMenuJson &&
+          !existing.todayMenuDateET && !existing.tomorrowMenuDateET);
+        const fixtureRates = existing.doorRatesJson !== undefined && existing.doorRatesJson === venue.doorRatesJson;
+        if (fixtureHours || fixtureMenus || fixtureRates) {
+          await ctx.db.patch(existing._id, {
+            ...(fixtureHours ? { hoursScheduleJson: "{}", isFixtureHours: undefined, lastHoursSyncAt: 0 } : {}),
+            ...(fixtureMenus ? { todayMenuJson: "[]", tomorrowMenuJson: "[]", isFixtureMenu: undefined, lastMenuSyncAt: 0 } : {}),
+            ...(fixtureRates ? { doorRatesJson: undefined } : {}),
+          });
+        }
       }
     }
 
@@ -157,10 +186,15 @@ export const bootstrapKsu = internalMutation({
         .unique();
       if (existing) {
         clubIdBySlug.set(club.slug, existing._id);
-      } else {
+        if (!includeFixtures && existing.externalEngageId === club.externalEngageId &&
+          existing.searchText === club.searchText && existing.visibilityStatus !== "removed") {
+          await ctx.db.patch(existing._id, { visibilityStatus: "removed" });
+        }
+      } else if (includeFixtures) {
         const cid = await ctx.db.insert("clubs", {
           workspaceKey: "ksu",
           ...club,
+          isFixture: true,
           visibilityStatus: "visible",
         });
         clubIdBySlug.set(club.slug, cid);
@@ -175,7 +209,7 @@ export const bootstrapKsu = internalMutation({
         .query("events")
         .withIndex("by_external_key", (q) => q.eq("externalKey", ev.externalKey))
         .unique();
-      if (!existing) {
+      if (!existing && includeFixtures) {
         const startTime = now + Math.round(ev.startOffsetHours * 3600_000);
         const endTime = startTime + Math.round(ev.durationHours * 3600_000);
         const linkedClubId = ev.clubSlug
@@ -190,10 +224,10 @@ export const bootstrapKsu = internalMutation({
           isVirtual: ev.isVirtual,
           clubId: linkedClubId,
           title: ev.title,
-          description: ev.description,
+          description: "Sample campus Event for Judge Demo Mode.",
           searchText: ev.searchText,
           locationName: ev.locationName,
-          externalUrl: ev.externalUrl,
+          isFixture: true,
           startTime,
           endTime,
           status: "scheduled",
@@ -202,6 +236,8 @@ export const bootstrapKsu = internalMutation({
           prodInterestedCount: ev.prodInterestedCount,
         });
         eventsInserted++;
+      } else if (existing && !includeFixtures && existing.visibilityStatus !== "removed") {
+        await ctx.db.patch(existing._id, { visibilityStatus: "removed", isFixture: true });
       }
     }
 
@@ -221,6 +257,12 @@ export const bootstrapKsu = internalMutation({
     // 8. Dual-Term Course Hubs (120) & 2-Index Sections (480) + Sample Syllabi
     let hubsInserted = 0;
     const hubIdBySubjectCourse = new Map<string, Id<"courseHubs">>();
+    const verifiedByCourse = new Map<string, typeof verifiedSections>();
+    for (const section of verifiedSections) {
+      const sections = verifiedByCourse.get(section.subjectCourse) ?? [];
+      sections.push(section);
+      verifiedByCourse.set(section.subjectCourse, sections);
+    }
     for (const hub of (coursesSeed as any).courseHubs) {
       const existing = await ctx.db
         .query("courseHubs")
@@ -228,17 +270,48 @@ export const bootstrapKsu = internalMutation({
           q.eq("subjectCourse", hub.subjectCourse)
         )
         .unique();
+      const verified = verifiedByCourse.get(hub.subjectCourse);
+      const liveFields = verified ? {
+        title: verified[0].title,
+        searchText: `${hub.subjectCourse} ${hub.subjectCode}${hub.courseNumber} ${verified[0].title}`,
+        campuses: Array.from(new Set(verified.map((section) => section.campus))) as ("Kennesaw" | "Marietta")[],
+        activeTerms: Array.from(new Set(verified.map((section) => section.termCode))),
+      } : null;
       if (existing) {
         hubIdBySubjectCourse.set(hub.subjectCourse, existing._id);
-      } else {
-        const hid = await ctx.db.insert("courseHubs", hub);
+        if (!includeFixtures && liveFields) {
+          const legacyFixtureCount = existing.catalogSource !== "banner_verified" &&
+            existing.searchText === hub.searchText ? hub.prodEnrollmentCount as number : 0;
+          await ctx.db.patch(existing._id, {
+            ...liveFields, isRetiredFixture: undefined, catalogSource: "banner_verified",
+            prodEnrollmentCount: Math.max(0, existing.prodEnrollmentCount - legacyFixtureCount),
+          });
+        } else if (!includeFixtures && existing.searchText === hub.searchText && !existing.isRetiredFixture) {
+          await ctx.db.patch(existing._id, { isRetiredFixture: true });
+        }
+      } else if (includeFixtures || liveFields) {
+        const hid = await ctx.db.insert("courseHubs", includeFixtures
+          ? { ...hub, catalogSource: "fixture" }
+          : { ...hub, ...liveFields, catalogSource: "banner_verified", prodEnrollmentCount: 0 });
         hubIdBySubjectCourse.set(hub.subjectCourse, hid);
         hubsInserted++;
       }
     }
 
     let sectionsInserted = 0;
-    for (const sec of (coursesSeed as any).courseSections) {
+    const verifiedKeys = new Set(verifiedSections.map((section) => `${section.termCode}:${section.crn}`));
+    if (!includeFixtures) {
+      for (const fixture of coursesSeed.courseSections) {
+        if (verifiedKeys.has(`${fixture.termCode}:${fixture.crn}`)) continue;
+        const existing = await ctx.db.query("courseSections")
+          .withIndex("by_term_crn", (q) => q.eq("termCode", fixture.termCode).eq("crn", fixture.crn))
+          .unique();
+        if (existing && existing.instructorName === fixture.instructorName && !existing.isRetiredFixture) {
+          await ctx.db.patch(existing._id, { isRetiredFixture: true });
+        }
+      }
+    }
+    for (const sec of includeFixtures ? coursesSeed.courseSections : verifiedSections) {
       const courseHubId = hubIdBySubjectCourse.get(sec.subjectCourse);
       if (!courseHubId) continue;
       const existing = await ctx.db
@@ -247,18 +320,21 @@ export const bootstrapKsu = internalMutation({
           q.eq("termCode", sec.termCode).eq("crn", sec.crn)
         )
         .unique();
-      if (!existing) {
-        await ctx.db.insert("courseSections", {
+      const fields = {
           termCode: sec.termCode,
           crn: sec.crn,
           courseHubId,
           sectionNumber: sec.sectionNumber,
-          campus: sec.campus,
-          deliveryMode: sec.deliveryMode,
+          campus: sec.campus as "Kennesaw" | "Marietta",
+          deliveryMode: sec.deliveryMode as "in_person" | "hybrid" | "online",
           instructorName: sec.instructorName,
           meetings: sec.meetings,
-        });
+      };
+      if (!existing) {
+        await ctx.db.insert("courseSections", { ...fields, isFixture: includeFixtures || undefined });
         sectionsInserted++;
+      } else if (!includeFixtures) {
+        await ctx.db.patch(existing._id, { ...fields, isRetiredFixture: undefined, isFixture: undefined });
       }
     }
 
@@ -268,7 +344,7 @@ export const bootstrapKsu = internalMutation({
         .query("courseSyllabiCache")
         .withIndex("by_cache_key", (q) => q.eq("cacheKey", cacheKey))
         .unique();
-      if (!existing) {
+      if (!existing && includeFixtures) {
         await ctx.db.insert("courseSyllabiCache", {
           cacheKey,
           subjectCourse: syl.subjectCourse,
@@ -282,29 +358,24 @@ export const bootstrapKsu = internalMutation({
           lastAccessedAt: now,
           expiresAt: now + 7 * 24 * 60 * 60 * 1000,
         });
+      } else if (existing && !includeFixtures && existing.summaryJson === JSON.stringify(syl.summary)) {
+        await ctx.db.delete(existing._id);
       }
     }
 
     // 9. Initialize feedSyncState rows
-    const syncSources = [
-      ["passio_shuttle", 11],
-      ["localist_engage_events", 30],
-      ["nutrislice_dining", 17],
-      ["libcal_study_rooms", 47],
-    ] as const;
-    for (const [sourceKey, activeRecordCount] of syncSources) {
-      const existing = await ctx.db
-        .query("feedSyncState")
-        .withIndex("by_source", (q) => q.eq("sourceKey", sourceKey))
-        .unique();
+    const syncSources = ["passio_shuttle", "localist_engage_events", "nutrislice_dining", "libcal_study_rooms"];
+    for (const sourceKey of syncSources) {
+      const existing = await syncState(sourceKey);
       if (!existing) {
         await ctx.db.insert("feedSyncState", {
           sourceKey,
-          lastSuccessAt: now,
-          lastAttemptAt: now,
           consecutiveFailures: 0,
-          activeRecordCount,
+          activeRecordCount: 0,
         });
+      } else if (!includeFixtures && existing.lastSuccessAt !== undefined &&
+        existing.lastSuccessAt === existing.lastAttemptAt && !existing.lastPayloadHash) {
+        await ctx.db.patch(existing._id, { lastSuccessAt: undefined, lastAttemptAt: undefined, activeRecordCount: 0 });
       }
     }
 

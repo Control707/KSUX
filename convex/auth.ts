@@ -7,10 +7,12 @@ import {
   sha256Hex,
 } from "./lib/crypto";
 import {
+  parseMaintainerEmails,
   publicAuthMutation,
   toPublicStudent,
   viewerMutation,
 } from "./lib/viewer";
+import { mintBrowserCredential, requireServerSecret } from "./lib/sessionCredential";
 
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const RESEND_COOLDOWN_MS = 60 * 1000; // 1 resend / 60s
@@ -24,11 +26,12 @@ const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 export const requestEmailOtp = publicAuthMutation({
   args: {
     email: v.string(),
-    clientIpHint: v.optional(v.string()),
-    nowOverride: v.optional(v.number()),
+    clientNetwork: v.string(),
+    serverSecret: v.string(),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    await requireServerSecret(args.serverSecret);
+    const now = Date.now();
     const parsed = canonicalizeKsuEmail(args.email);
     if (!parsed.ok) {
       throw new ConvexError({
@@ -96,7 +99,7 @@ export const requestEmailOtp = publicAuthMutation({
     }
 
     // Check 10 OTPs / hr per hashed IP
-    const ipHash = await sha256Hex(args.clientIpHint?.trim() || "default-ip");
+    const ipHash = await sha256Hex(`ksux-otp-network:${args.serverSecret}:${args.clientNetwork}`);
     const ipBucketKey = `otp_ip:${ipHash}`;
     const ipBucket = await ctx.db
       .query("rateLimitBuckets")
@@ -172,10 +175,11 @@ export const verifyEmailOtp = publicAuthMutation({
     email: v.string(),
     code: v.string(),
     userAgent: v.optional(v.string()),
-    nowOverride: v.optional(v.number()),
+    serverSecret: v.string(),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    await requireServerSecret(args.serverSecret);
+    const now = Date.now();
     const parsed = canonicalizeKsuEmail(args.email);
     if (!parsed.ok) {
       throw new ConvexError({
@@ -284,13 +288,14 @@ export const verifyEmailOtp = publicAuthMutation({
 
     const sessionToken = randomHex(32); // 256-bit opaque token
     const tokenHash = await sha256Hex(sessionToken);
+    const sessionExpiresAt = now + SESSION_DURATION_MS;
 
     await ctx.db.insert("studentSessions", {
       tokenHash,
       studentId: student._id,
       createdAt: now,
       lastRefreshedAt: now,
-      expiresAt: now + SESSION_DURATION_MS,
+      expiresAt: sessionExpiresAt,
       userAgent: args.userAgent,
     });
 
@@ -299,33 +304,35 @@ export const verifyEmailOtp = publicAuthMutation({
       sessionToken,
       student: toPublicStudent(student),
       needsOnboarding: student.onboardingCompleted === false,
+      isModerator: parseMaintainerEmails(process.env.KSUX_MAINTAINER_EMAILS).has(canonicalEmail),
+      sessionExpiresAt,
+      ...await mintBrowserCredential(tokenHash, sessionExpiresAt, now),
+    };
+  },
+});
+
+export const getBrowserSession = viewerMutation({
+  args: { serverSecret: v.string() },
+  handler: async (ctx, args) => {
+    await requireServerSecret(args.serverSecret);
+    const { isBrowserCredential, studentSessionTokenHash, studentSessionExpiresAt, actorStudent, isModerator } = ctx.viewer;
+    if (isBrowserCredential || !studentSessionTokenHash || !studentSessionExpiresAt) {
+      throw new ConvexError({ code: "UNAUTHENTICATED", message: "A valid Student session cookie is required." });
+    }
+    return {
+      ...await mintBrowserCredential(studentSessionTokenHash, studentSessionExpiresAt, Date.now()),
+      sessionExpiresAt: studentSessionExpiresAt,
+      student: toPublicStudent(actorStudent),
+      isModerator,
     };
   },
 });
 
 export const signOutSession = viewerMutation({
   args: {},
-  handler: async (ctx, _args) => {
-    if (ctx.viewer.mode === "student") {
-      const sessions = await ctx.db
-        .query("studentSessions")
-        .withIndex("by_student", (q) =>
-          q.eq("studentId", ctx.viewer.actorStudent._id)
-        )
-        .take(20);
-      // Clear current session(s) and Web Push subscriptions for this student
-      for (const s of sessions) {
-        await ctx.db.delete(s._id);
-      }
-      const pushes = await ctx.db
-        .query("pushSubscriptions")
-        .withIndex("by_student", (q) =>
-          q.eq("studentId", ctx.viewer.actorStudent._id)
-        )
-        .take(10);
-      for (const p of pushes) {
-        await ctx.db.delete(p._id);
-      }
+  handler: async (ctx) => {
+    if (ctx.viewer.studentSessionId) {
+      await ctx.db.delete(ctx.viewer.studentSessionId);
     }
     return { ok: true };
   },

@@ -79,8 +79,8 @@ export function ProfileView() {
     try {
       await updateProfile({
         displayName,
-        major: major || undefined,
-        classYear: classYear || undefined,
+        major,
+        classYear,
       });
       setEditing(false);
       setStatusMsg("Profile updated.");
@@ -194,7 +194,7 @@ export function ProfileView() {
               </button>
               <button
                 type="button"
-                onClick={() => void signOut()}
+                onClick={() => void signOut().catch((error: Error) => setStatusMsg(error.message))}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-[#111317] px-3 py-2 text-xs font-extrabold text-[#FDBB30]"
               >
                 <LogOut className="h-3.5 w-3.5" />

@@ -15,9 +15,10 @@ export function TransitView() {
     api.transitDining.submitShuttleStopPulse
   );
 
-  const [browserVehicles, setBrowserVehicles] = useState<
-    CampusMapVehicleMarker[] | null
-  >(null);
+  const [browserSnapshot, setBrowserSnapshot] = useState<{
+    vehicles: CampusMapVehicleMarker[];
+    expiresAt: number;
+  } | null>(null);
   const [pulseMsg, setPulseMsg] = useState<string | null>(null);
 
   // Browser-direct Passio GO CORS:* GPS polling every 12s (zero Convex write storms!)
@@ -25,7 +26,10 @@ export function TransitView() {
     let cancelled = false;
 
     const pollPassioDirect = async () => {
-      if (typeof window === "undefined" || !navigator.onLine) return;
+      if (!navigator.onLine) {
+        setBrowserSnapshot(null);
+        return;
+      }
       try {
         const resp = await fetch(
           "https://passio3.com/kennesaw/passioTransit/gtfs/realtime/vehiclePositions.json",
@@ -34,15 +38,15 @@ export function TransitView() {
             signal: AbortSignal.timeout(5000),
           }
         );
-        if (!resp.ok) return;
+        if (!resp.ok) throw new Error(`Passio returned ${resp.status}`);
         const json = await resp.json();
         const entities: any[] = Array.isArray(json?.entity) ? json.entity : [];
-        if (cancelled || entities.length === 0) return;
+        if (cancelled) return;
 
         const parsed: CampusMapVehicleMarker[] = [];
         entities.forEach((e, i) => {
           const pos = e?.vehicle?.position;
-          if (!pos || typeof pos.latitude !== "number") return;
+          if (!pos || !Number.isFinite(pos.latitude) || !Number.isFinite(pos.longitude)) return;
           parsed.push({
             busId: String(e?.vehicle?.vehicle?.id ?? `live-${i}`),
             busName: String(e?.vehicle?.vehicle?.label ?? `BOB #${i + 1}`),
@@ -52,21 +56,32 @@ export function TransitView() {
           });
         });
 
-        if (parsed.length > 0) {
-          setBrowserVehicles(parsed);
-        }
+        setBrowserSnapshot(parsed.length > 0 && navigator.onLine
+          ? { vehicles: parsed, expiresAt: Date.now() + 24_000 }
+          : null);
       } catch {
-        // Silently fall back to server-synced shuttleSnapshots
+        if (!cancelled) setBrowserSnapshot(null);
       }
     };
 
     void pollPassioDirect();
     const interval = setInterval(() => void pollPassioDirect(), 12_000);
+    const invalidate = () => setBrowserSnapshot(null);
+    window.addEventListener("offline", invalidate);
     return () => {
       cancelled = true;
       clearInterval(interval);
+      window.removeEventListener("offline", invalidate);
     };
   }, []);
+
+  useEffect(() => {
+    if (!browserSnapshot) return;
+    const timer = setTimeout(() => setBrowserSnapshot(null), Math.max(0, browserSnapshot.expiresAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [browserSnapshot]);
+
+  const browserVehicles = browserSnapshot?.vehicles;
 
   const activeVehicles =
     browserVehicles ??

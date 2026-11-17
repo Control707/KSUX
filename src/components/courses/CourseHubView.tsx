@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAction } from "convex/react";
 import {
@@ -60,6 +60,12 @@ export function CourseHubView({ subjectCourse }: { subjectCourse: string }) {
   const importIcs = useViewerMutation(api.courses.importScheduleFromIcs);
   const createPost = useViewerMutation(api.feed.createPost);
   const fetchSyllabusAction = useAction(api.courses.fetchAndCacheSyllabus);
+  const touchSyllabus = useViewerMutation(api.courses.touchCourseSyllabus);
+  const openedCacheEntry = syllabus?.cacheHit ? syllabus.cacheEntryId : undefined;
+
+  useEffect(() => {
+    if (openedCacheEntry) void touchSyllabus({ cacheEntryId: openedCacheEntry }).catch(() => {});
+  }, [openedCacheEntry, touchSyllabus]);
 
   const handleIcsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -465,8 +471,8 @@ export function CourseHubView({ subjectCourse }: { subjectCourse: string }) {
                   </Link>
                   <div className="text-[11px] text-[#5E6675]">
                     {item.matchedCrnSection
-                      ? `Matched CRN ${item.matchedCrnSection.crn} · ${item.matchedCrnSection.campus}`
-                      : `${item.sections.length} Banner 9 sections in ${termCode}`}
+                      ? `${item.matchedCrnSection.isFixture ? "Sample" : "Matched"} CRN ${item.matchedCrnSection.crn} · ${item.matchedCrnSection.campus}`
+                      : `${item.sections.length} ${item.sections.some((section: { isFixture?: boolean }) => section.isFixture) ? "sample" : "published"} sections in ${termCode}`}
                   </div>
                 </div>
                 <button
@@ -475,8 +481,7 @@ export function CourseHubView({ subjectCourse }: { subjectCourse: string }) {
                     void enrollMutation({
                       termCode,
                       courseHubId: item._id,
-                      sectionId:
-                        item.matchedCrnSection?._id ?? item.sections[0]?._id,
+                      sectionId: item.matchedCrnSection?._id,
                     })
                   }
                   className="inline-flex items-center gap-1 rounded-xl bg-[#FDBB30] px-3 py-1.5 font-extrabold text-[#111317]"

@@ -38,6 +38,7 @@ const CAMPUS_CENTERS = {
   Marietta: { lng: -84.5198, lat: 33.9401, zoom: 15.1 },
   "All KSU": { lng: -84.551, lat: 33.989, zoom: 11.4 },
 } as const;
+const ONLINE_MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
 // Zero-external-tile offline MapLibre GL JS base style (renders precached campus GeoJSON offline!)
 export const EMBEDDED_ZERO_TILE_STYLE = {
@@ -67,8 +68,12 @@ export function CampusGeoMap({
 }: CampusGeoMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
+  const setMapOfflineRef = useRef<((offline: boolean) => void) | null>(null);
+  const selectLotRef = useRef(onSelectLotSlug);
+  const selectMeetupRef = useRef(onSelectMeetupSlug);
   const [isOffline, setIsOffline] = useState(false);
-  const [mapReady, setMapReady] = useState(false);
+  const [usingOfflineStyle, setUsingOfflineStyle] = useState(false);
+  const [styleRevision, setStyleRevision] = useState(0);
   const [geoStats, setGeoStats] = useState<{
     buildings: number;
     lots: number;
@@ -89,6 +94,15 @@ export function CampusGeoMap({
       window.removeEventListener("online", onOn);
     };
   }, []);
+
+  useEffect(() => {
+    setMapOfflineRef.current?.(isOffline);
+  }, [isOffline]);
+
+  useEffect(() => {
+    selectLotRef.current = onSelectLotSlug;
+    selectMeetupRef.current = onSelectMeetupSlug;
+  }, [onSelectLotSlug, onSelectMeetupSlug]);
 
   // Load precached /public/data/*.geojson geometries (served from SW cache when offline!)
   const [geoCollections, setGeoCollections] = useState<{
@@ -155,32 +169,39 @@ export function CampusGeoMap({
         if (disposed || !containerRef.current) return;
 
         const center = CAMPUS_CENTERS[campusFilter];
-        const useOfflineStyle = !navigator.onLine;
-        const styleToUse = useOfflineStyle
-          ? (EMBEDDED_ZERO_TILE_STYLE as any)
-          : "https://tiles.openfreemap.org/styles/liberty";
+        let offlineStyle = !navigator.onLine;
+        const getStyle = (offline: boolean) => offline
+          ? structuredClone(EMBEDDED_ZERO_TILE_STYLE)
+          : ONLINE_MAP_STYLE;
 
         const map = new maplibregl.Map({
           container: containerRef.current,
-          style: styleToUse,
+          style: getStyle(offlineStyle),
           center: [center.lng, center.lat],
           zoom: center.zoom,
           attributionControl: false,
         });
 
-        map.on("error", () => {
-          // Automatic fallback to zero-tile embedded campus style on vector tile network error
-          try {
-            if (!map.getLayer("ksux-offline-bg")) {
-              map.setStyle(EMBEDDED_ZERO_TILE_STYLE as any);
-            }
-          } catch {
-            // ignore
-          }
-        });
+        setUsingOfflineStyle(offlineStyle);
+        const setMapOffline = (offline: boolean) => {
+          if (disposed || offline === offlineStyle) return;
+          offlineStyle = offline;
+          setUsingOfflineStyle(offline);
+          map.setStyle(getStyle(offline), { diff: false });
+        };
+        setMapOfflineRef.current = setMapOffline;
+        map.on("error", () => setMapOffline(true));
 
-        map.on("load", () => {
-          if (!disposed) setMapReady(true);
+        map.on("style.load", () => {
+          if (!disposed) setStyleRevision((revision) => revision + 1);
+        });
+        map.on("click", "ksu-lots-fill", (ev) => {
+          const slug = ev.features?.[0]?.properties?.slug;
+          if (slug) selectLotRef.current?.(String(slug));
+        });
+        map.on("click", "ksu-meetups-points", (ev) => {
+          const slug = ev.features?.[0]?.properties?.slug;
+          if (slug) selectMeetupRef.current?.(String(slug));
         });
 
         mapRef.current = map;
@@ -192,6 +213,7 @@ export function CampusGeoMap({
     void initMap();
     return () => {
       disposed = true;
+      setMapOfflineRef.current = null;
       if (mapRef.current) {
         try {
           mapRef.current.remove();
@@ -220,7 +242,7 @@ export function CampusGeoMap({
   // Sync static GeoJSON layers onto MapLibre once loaded
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady) return;
+    if (!map || styleRevision === 0) return;
 
     try {
       if (geoCollections.buildings && !map.getSource("ksu-buildings")) {
@@ -291,10 +313,6 @@ export function CampusGeoMap({
               "line-width": 1.5,
             },
           });
-          map.on("click", "ksu-lots-fill", (ev: any) => {
-            const slug = ev.features?.[0]?.properties?.slug;
-            if (slug && onSelectLotSlug) onSelectLotSlug(String(slug));
-          });
         }
       }
 
@@ -343,10 +361,6 @@ export function CampusGeoMap({
             "circle-stroke-color": "#111317",
           },
         });
-        map.on("click", "ksu-meetups-points", (ev: any) => {
-          const slug = ev.features?.[0]?.properties?.slug;
-          if (slug && onSelectMeetupSlug) onSelectMeetupSlug(String(slug));
-        });
       }
     } catch {
       // Ignore transient style reload races
@@ -354,15 +368,13 @@ export function CampusGeoMap({
   }, [
     geoCollections,
     lotStatuses,
-    mapReady,
-    onSelectLotSlug,
-    onSelectMeetupSlug,
+    styleRevision,
   ]);
 
   return (
     <div
       data-testid="campus-geo-map"
-      data-offline-style={isOffline ? "embedded-zero-tile" : "openfreemap"}
+      data-offline-style={usingOfflineStyle || isOffline ? "embedded-zero-tile" : "openfreemap"}
       data-loaded-buildings={geoStats.buildings}
       className="relative overflow-hidden rounded-2xl border border-[#E4E7EE] bg-[#E8EEF5]"
     >

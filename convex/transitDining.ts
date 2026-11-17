@@ -1,9 +1,12 @@
+import { workflowTime } from "./lib/workflowTime";
 import { ConvexError, v } from "convex/values";
 import { campusFilterValidator } from "./schema";
 import { evaluateDiningOpenStatus } from "./lib/parkingMath";
 import { formatStalenessBadge } from "./lib/syncGuard";
 import { viewerMutation, viewerQuery } from "./lib/viewer";
 import { Doc } from "./_generated/dataModel";
+import { freshShuttleAlerts, freshShuttleEta, freshShuttleVehicles } from "./lib/shuttleRead";
+import { easternDate } from "./lib/easternDate";
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 const THIRTY_MINUTES_MS = 30 * 60 * 1000;
@@ -15,20 +18,16 @@ export const listShuttleOverview = viewerQuery({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     const { viewer } = ctx;
     const campusFilter =
       args.campusOverride ?? viewer.actorStudent.activeCampusFilter;
 
-    const [allRoutes, latestSnap, syncState] = await Promise.all([
+    const [allRoutes, latestSnap] = await Promise.all([
       ctx.db.query("shuttleRoutes").take(20),
       ctx.db
         .query("shuttleSnapshots")
         .withIndex("by_singleton", (q) => q.eq("singletonKey", "latest"))
-        .unique(),
-      ctx.db
-        .query("feedSyncState")
-        .withIndex("by_source", (q) => q.eq("sourceKey", "passio_shuttle"))
         .unique(),
     ]);
 
@@ -86,7 +85,7 @@ export const listShuttleOverview = viewerQuery({
     );
 
     const staleness = formatStalenessBadge(
-      syncState?.lastSuccessAt ?? latestSnap?.fetchedAt,
+      latestSnap?.vehiclesFetchedAt,
       now,
       FIFTEEN_MINUTES_MS
     );
@@ -95,22 +94,21 @@ export const listShuttleOverview = viewerQuery({
       campusFilter,
       staleness,
       routes: scopedRoutes.map((r) => {
-        const eta = latestSnap?.stopEtas.find(
-          (e) => e.passioRouteId === r.passioRouteId
-        );
+        const eta = freshShuttleEta(latestSnap, r.passioRouteId, now, viewer.mode === "demo");
         return {
           ...r,
-          nextEtaMinutes: eta?.etaMinutes ?? 6,
-          loadLabel: eta?.loadLabel ?? "Seats Open",
+          nextEtaMinutes: eta?.etaMinutes ?? null,
+          loadLabel: eta?.loadLabel ?? "Live ETA unavailable",
           stops: r.stops.map((st) => ({
             ...st,
             activePulse: stopPulseMap.get(st.stopId) ?? null,
           })),
         };
       }),
-      vehicles: latestSnap?.vehicles ?? [],
-      serviceAlerts: latestSnap?.serviceAlerts ?? [],
-      fetchedAt: latestSnap?.fetchedAt ?? null,
+      vehicles: freshShuttleVehicles(latestSnap, now, viewer.mode === "demo"),
+      serviceAlerts: freshShuttleAlerts(latestSnap, now, viewer.mode === "demo"),
+      fetchedAt: latestSnap?.vehiclesFetchedAt ?? null,
+      isFixture: viewer.mode === "demo" && Boolean(latestSnap?.isFixture),
     };
   },
 });
@@ -126,7 +124,7 @@ export const submitShuttleStopPulse = viewerMutation({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     const { viewer } = ctx;
 
     await ctx.db.insert("campusPulses", {
@@ -148,10 +146,11 @@ export const listDiningVenues = viewerQuery({
     campusOverride: v.optional(campusFilterValidator),
     dietaryFilter: v.optional(v.string()),
     excludeAllergen: v.optional(v.string()),
+    menuDay: v.optional(v.union(v.literal("today"), v.literal("tomorrow"))),
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     const { viewer } = ctx;
     const campusFilter =
       args.campusOverride ?? viewer.actorStudent.activeCampusFilter;
@@ -176,6 +175,8 @@ export const listDiningVenues = viewerQuery({
     ]);
 
     const rawVenues = [...kVenues, ...mVenues];
+    const todayET = easternDate(now);
+    const tomorrowET = easternDate(now, 1);
     const dietary = args.dietaryFilter?.trim().toLowerCase();
     const allergenExclude = args.excludeAllergen?.trim().toLowerCase();
 
@@ -251,9 +252,9 @@ export const listDiningVenues = viewerQuery({
                   }
                   if (
                     allergenExclude &&
-                    (it.allergens ?? []).some(
+                    (!it.allergens || it.allergens.some(
                       (a) => a.toLowerCase() === allergenExclude
-                    )
+                    ))
                   ) {
                     return false;
                   }
@@ -266,6 +267,11 @@ export const listDiningVenues = viewerQuery({
           }
         };
 
+        const menuFor = (date: string, fixtureMenu: string) => {
+          if (venue.todayMenuDateET === date) return venue.todayMenuJson;
+          if (venue.tomorrowMenuDateET === date) return venue.tomorrowMenuJson;
+          return venue.isFixtureMenu ? fixtureMenu : "{}";
+        };
         return {
           _id: venue._id,
           slug: venue.nutrisliceSlug,
@@ -277,9 +283,11 @@ export const listDiningVenues = viewerQuery({
             ? JSON.parse(venue.doorRatesJson)
             : null,
           openStatus,
+          hoursAreFixture: venue.isFixtureHours ?? false,
           lineStatus,
-          todayStations: parseStations(venue.todayMenuJson),
-          tomorrowStations: parseStations(venue.tomorrowMenuJson),
+          menuIsFixture: venue.isFixtureMenu ?? false,
+          todayStations: parseStations(menuFor(todayET, venue.todayMenuJson)),
+          tomorrowStations: parseStations(menuFor(tomorrowET, venue.tomorrowMenuJson)),
         };
       })
     );
@@ -288,7 +296,12 @@ export const listDiningVenues = viewerQuery({
       campusFilter,
       staleness,
       venues: venues.filter(
-        (v) => !dietary && !allergenExclude ? true : v.todayStations.length > 0
+        (v) => {
+          if (!dietary && !allergenExclude) return true;
+          if (args.menuDay === "today") return v.todayStations.length > 0;
+          if (args.menuDay === "tomorrow") return v.tomorrowStations.length > 0;
+          return v.todayStations.length > 0 || v.tomorrowStations.length > 0;
+        }
       ),
     };
   },
@@ -306,7 +319,7 @@ export const submitDiningLineCheck = viewerMutation({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     const { viewer } = ctx;
     const cleanSlug = args.venueSlug.trim().toLowerCase();
 

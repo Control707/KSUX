@@ -22,12 +22,13 @@ import {
   Sparkles,
   Users,
   Utensils,
-  WifiOff,
   X,
   Zap,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
+import { OfflineCommuterView } from "@/components/pwa/OfflineCommuterView";
 import {
+  getCommuterScope,
   useViewerClient,
   useViewerMutation,
   useViewerQuery,
@@ -83,12 +84,18 @@ export function AppShell({
   const [resettingDemo, setResettingDemo] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [slideToast, setSlideToast] = useState<{
+    viewerKey: string;
     chatId: string;
     title: string;
     preview?: string;
     senderHandle?: string;
   } | null>(null);
   const lastSeenToastAtRef = useRef<number>(Date.now());
+  const viewerKey = auth.status === "demo"
+    ? `demo:${auth.demoShortCode}:${auth.demoPersonaHandle}`
+    : auth.status === "student"
+      ? `student:${auth.studentId ?? auth.sessionToken}`
+      : auth.status;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -103,7 +110,19 @@ export function AppShell({
     };
   }, []);
 
-  // Update browser tab title `(N) KSUX` & trigger universal Tier-0 Slide-Down Toast
+  useEffect(() => {
+    lastSeenToastAtRef.current = Date.now();
+    setSlideToast(null);
+    document.title = "KSUX";
+  }, [viewerKey]);
+
+  useEffect(() => {
+    if (!slideToast) return;
+    const timer = setTimeout(() => setSlideToast(null), 5000);
+    return () => clearTimeout(timer);
+  }, [slideToast]);
+
+  // Update browser tab title and show a toast for a new unread event.
   useEffect(() => {
     if (typeof document === "undefined" || !summary) return;
     const count = summary.unread.numericUnreadCount;
@@ -117,15 +136,14 @@ export function AppShell({
     ) {
       lastSeenToastAtRef.current = ev.lastMessageAt;
       setSlideToast({
+        viewerKey,
         chatId: String(ev.chatId),
         title: ev.title,
         preview: ev.preview,
         senderHandle: ev.senderHandle,
       });
-      const timer = setTimeout(() => setSlideToast(null), 5000);
-      return () => clearTimeout(timer);
     }
-  }, [summary, pathname]);
+  }, [summary, pathname, viewerKey]);
 
   if (auth.status === "booting") {
     return (
@@ -143,6 +161,15 @@ export function AppShell({
       <>
         <WelcomeGate onRequestEmailSignIn={() => setOpenSignInModal(true)} />
         {openSignInModal && authModalSlot}
+      </>
+    );
+  }
+
+  if (auth.status === "offline" || isOffline) {
+    return (
+      <>
+        <OfflineCommuterView key={viewerKey} scope={getCommuterScope(auth)} />
+        {quickComposerSlot}
       </>
     );
   }
@@ -177,7 +204,7 @@ export function AppShell({
   return (
     <div className="flex min-h-screen flex-col bg-[#F4F6FA] text-[#1B1F27]">
       {/* Universal Tier-0 Slide-Down Toast */}
-      {slideToast && (
+      {slideToast?.viewerKey === viewerKey && (
         <div
           data-testid="slide-down-toast"
           className="fixed left-1/2 top-3 z-50 flex w-[92%] max-w-md -translate-x-1/2 items-center justify-between gap-3 rounded-2xl border border-[#FDBB30] bg-[#111317] px-4 py-3 text-white shadow-2xl"
@@ -204,19 +231,6 @@ export function AppShell({
           >
             <X className="h-4 w-4" />
           </button>
-        </div>
-      )}
-
-      {/* Offline Banner */}
-      {isOffline && (
-        <div
-          data-testid="offline-commuter-banner"
-          className="flex items-center justify-center gap-2 bg-[#FEF3C7] px-3 py-1.5 text-xs font-bold text-[#92400E]"
-        >
-          <WifiOff className="h-3.5 w-3.5" />
-          <span>
-            Offline · Showing saved schedule &amp; campus map (writes paused)
-          </span>
         </div>
       )}
 
@@ -516,7 +530,7 @@ export function AppShell({
           </aside>
 
           {/* Center Active Module Pane */}
-          <main className="min-w-0 flex-1">{children}</main>
+          <main key={viewerKey} className="min-w-0 flex-1">{children}</main>
 
           {/* Right Always-Visible Campus Pulse Rail (Desktop >=1024px) */}
           <aside
@@ -563,11 +577,11 @@ export function AppShell({
                         {route.campusScope === "Both"
                           ? "Intercampus"
                           : route.campusScope}{" "}
-                        · {route.loadLabel}
+                        {route.loadLabel ? `· ${route.loadLabel}` : ""}
                       </div>
                     </div>
                     <span className="shrink-0 rounded-lg bg-[#111317] px-2 py-0.5 text-[11px] font-extrabold text-[#FDBB30]">
-                      {route.nextEtaMinutes}m
+                      {route.nextEtaMinutes === null ? "No ETA" : `${route.nextEtaMinutes}m`}
                     </span>
                   </div>
                 ))}

@@ -1,4 +1,4 @@
-const SW_VERSION = "ksux-v1";
+const SW_VERSION = "ksux-v2";
 const SHELL_CACHE = `${SW_VERSION}-shell`;
 const STATIC_CACHE = `${SW_VERSION}-static`;
 const GEOJSON_CACHE = `${SW_VERSION}-geojson`;
@@ -35,7 +35,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((k) => !keep.has(k))
+            .filter((k) => /^ksux-v\d+-(shell|static|geojson)$/.test(k) && !keep.has(k))
             .map((staleKey) => caches.delete(staleKey))
         )
       )
@@ -74,14 +74,15 @@ function isStrictPassthroughRequest(request, url) {
 
 async function networkFirstHtmlWith3sTimeout(request) {
   const cache = await caches.open(SHELL_CACHE);
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("SW_HTML_TIMEOUT_3S")), 3000)
-  );
+  let timer;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error("SW_HTML_TIMEOUT_3S")), 3000);
+  });
 
   try {
     const fresh = await Promise.race([fetch(request), timeoutPromise]);
     if (fresh && fresh.ok) {
-      cache.put(request, fresh.clone());
+      await cache.put(request, fresh.clone()).catch(() => {});
     }
     return fresh;
   } catch {
@@ -93,6 +94,8 @@ async function networkFirstHtmlWith3sTimeout(request) {
       status: 503,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -102,32 +105,31 @@ async function cacheFirstHashedBundle(request) {
   if (hit) return hit;
   const fresh = await fetch(request);
   if (fresh && fresh.ok) {
-    cache.put(request, fresh.clone());
+    await cache.put(request, fresh.clone()).catch(() => {});
   }
   return fresh;
 }
 
-async function staleWhileRevalidateAsset(request) {
-  const cache = await caches.open(GEOJSON_CACHE);
-  const cached = await cache.match(request);
-  const networkFetch = fetch(request)
-    .then((fresh) => {
-      if (fresh && fresh.ok) {
-        cache.put(request, fresh.clone());
+function staleWhileRevalidateAsset(event) {
+  const request = event.request;
+  const cache = caches.open(GEOJSON_CACHE);
+  const refresh = fetch(request)
+    .then(async (fresh) => {
+      if (fresh.ok) {
+        await cache.then((store) => store.put(request, fresh.clone())).catch(() => {});
       }
       return fresh;
     })
     .catch(() => null);
 
-  if (cached) {
-    return cached;
-  }
-  const fresh = await networkFetch;
-  if (fresh) return fresh;
-  return new Response("{}", {
-    status: 503,
-    headers: { "Content-Type": "application/json" },
-  });
+  event.waitUntil(refresh);
+  event.respondWith((async () => {
+    const cached = await cache.then((store) => store.match(request)).catch(() => null);
+    return cached ?? await refresh ?? new Response("{}", {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
+  })());
 }
 
 self.addEventListener("fetch", (event) => {
@@ -157,7 +159,7 @@ self.addEventListener("fetch", (event) => {
       url.pathname.startsWith("/icons/") ||
       url.pathname === "/manifest.webmanifest")
   ) {
-    event.respondWith(staleWhileRevalidateAsset(event.request));
+    staleWhileRevalidateAsset(event);
   }
 });
 

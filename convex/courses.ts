@@ -11,10 +11,25 @@ import { hydratePostCards } from "./feed";
 import { parseStatelessScheduleIcs } from "./lib/icsParser";
 import { fetchSimpleSyllabusSummary } from "./lib/syllabusAdapter";
 import { Doc, Id } from "./_generated/dataModel";
+import { removeCommunityChatMember } from "./lib/campusChat";
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const SYLLABUS_LRU_CAP = 500;
+
+function enrollmentTermFields(
+  existing: Doc<"studentEnrollments">,
+  termCode: string,
+  section: Doc<"courseSections"> | null
+) {
+  const sameTerm = existing.termCode === termCode;
+  return {
+    termCode,
+    sectionId: section?._id ?? (sameTerm ? existing.sectionId : undefined),
+    crn: section?.crn ?? (sameTerm ? existing.crn : undefined),
+    personalDeadlines: sameTerm ? existing.personalDeadlines : [],
+  };
+}
 
 export function normalizeSubjectCourse(raw: string): string {
   const cleaned = raw.trim().toUpperCase().replace(/\s+/g, " ");
@@ -109,8 +124,8 @@ export async function ensureLazyCommunityGroupChat(
     await ctx.db.patch(chat._id, {
       memberCount: chat.memberCount + 1,
     });
-  } else if (params.role === "admin" && existingMember.role !== "admin") {
-    await ctx.db.patch(existingMember._id, { role: "admin" });
+  } else if (params.role && existingMember.role !== params.role) {
+    await ctx.db.patch(existingMember._id, { role: params.role });
   }
 
   return chat._id;
@@ -133,11 +148,11 @@ export const searchCatalog = viewerQuery({
           q.eq("termCode", termCode).eq("crn", qText)
         )
         .unique();
-      if (!exactSection) {
+      if (!exactSection || exactSection.isRetiredFixture) {
         return [];
       }
       const hub = await ctx.db.get(exactSection.courseHubId);
-      if (!hub) return [];
+      if (!hub || hub.isRetiredFixture) return [];
       return [
         {
           _id: hub._id,
@@ -156,8 +171,10 @@ export const searchCatalog = viewerQuery({
           .withSearchIndex("search_course_hubs", (q) =>
             q.search("searchText", qText)
           )
+          .filter((q) => q.neq(q.field("isRetiredFixture"), true))
           .take(15)
-      : await ctx.db.query("courseHubs").take(15);
+      : await ctx.db.query("courseHubs")
+        .filter((q) => q.neq(q.field("isRetiredFixture"), true)).take(15);
 
     return Promise.all(
       hubs.map(async (hub) => {
@@ -166,6 +183,7 @@ export const searchCatalog = viewerQuery({
           .withIndex("by_hub_term", (q) =>
             q.eq("courseHubId", hub._id).eq("termCode", termCode)
           )
+          .filter((q) => q.neq(q.field("isRetiredFixture"), true))
           .take(10);
         return {
           _id: hub._id,
@@ -196,7 +214,7 @@ export const getCourseHubDetail = viewerQuery({
       .query("courseHubs")
       .withIndex("by_subject_course", (q) => q.eq("subjectCourse", normalized))
       .unique();
-    if (!hub) return null;
+    if (!hub || hub.isRetiredFixture) return null;
 
     const [sections, myEnrollment, groupChat, rawPosts, rawSessions] =
       await Promise.all([
@@ -205,6 +223,7 @@ export const getCourseHubDetail = viewerQuery({
           .withIndex("by_hub_term", (q) =>
             q.eq("courseHubId", hub._id).eq("termCode", termCode)
           )
+          .filter((q) => q.neq(q.field("isRetiredFixture"), true))
           .take(25),
         ctx.db
           .query("studentEnrollments")
@@ -370,6 +389,10 @@ export const enrollInCourseHub = viewerMutation({
     let matchedSection: Doc<"courseSections"> | null = null;
     if (args.sectionId) {
       matchedSection = await ctx.db.get(args.sectionId);
+      if (!matchedSection || matchedSection.isRetiredFixture || (args.termCode && matchedSection.termCode !== args.termCode)
+          || (args.courseHubId && matchedSection.courseHubId !== args.courseHubId)) {
+        throw new ConvexError({ code: "NOT_FOUND", message: "The section does not match this Course Hub and term." });
+      }
     } else if (args.crn) {
       matchedSection = await ctx.db
         .query("courseSections")
@@ -377,7 +400,7 @@ export const enrollInCourseHub = viewerMutation({
           q.eq("termCode", termCode).eq("crn", args.crn!.trim())
         )
         .unique();
-      if (!matchedSection) {
+      if (!matchedSection || matchedSection.isRetiredFixture) {
         throw new ConvexError({
           code: "NOT_FOUND",
           message: `No Banner 9 section found for CRN ${args.crn} in term ${termCode}.`,
@@ -394,7 +417,7 @@ export const enrollInCourseHub = viewerMutation({
     }
 
     const hub = await ctx.db.get(courseHubId);
-    if (!hub) {
+    if (!hub || hub.isRetiredFixture) {
       throw new ConvexError({
         code: "NOT_FOUND",
         message: "Course Hub not found.",
@@ -413,11 +436,8 @@ export const enrollInCourseHub = viewerMutation({
 
     let enrollmentId: Id<"studentEnrollments">;
     if (existing) {
-      await ctx.db.patch(existing._id, {
-        termCode: matchedSection?.termCode ?? termCode,
-        sectionId: matchedSection?._id ?? existing.sectionId,
-        crn: matchedSection?.crn ?? existing.crn,
-      });
+      await ctx.db.patch(existing._id,
+        enrollmentTermFields(existing, matchedSection?.termCode ?? termCode, matchedSection));
       enrollmentId = existing._id;
     } else {
       enrollmentId = await ctx.db.insert("studentEnrollments", {
@@ -483,6 +503,8 @@ export const leaveCourseHub = viewerMutation({
         }
       }
     }
+    await removeCommunityChatMember(ctx, viewer.workspaceKey, "course_hub",
+      args.courseHubId, viewer.actorStudent._id);
     return { ok: true };
   },
 });
@@ -515,6 +537,7 @@ export const importScheduleFromIcs = viewerMutation({
             q.eq("termCode", termCode).eq("crn", block.crnCandidate!)
           )
           .unique();
+        if (section?.isRetiredFixture) section = null;
         if (section) {
           hub = await ctx.db.get(section.courseHubId);
         }
@@ -528,31 +551,23 @@ export const importScheduleFromIcs = viewerMutation({
             q.eq("subjectCourse", normalized)
           )
           .unique();
+        if (hub?.isRetiredFixture) hub = null;
         if (hub && !section) {
           const candidates = await ctx.db
             .query("courseSections")
             .withIndex("by_hub_term", (q) =>
               q.eq("courseHubId", hub!._id).eq("termCode", termCode)
             )
+            .filter((q) => q.neq(q.field("isRetiredFixture"), true))
             .take(15);
-          section =
-            candidates.find((c) => {
-              const m0 = c.meetings[0];
-              if (!m0) return false;
-              const daysMatch =
-                block.byDays.length === 0 ||
-                block.byDays.some((d) => m0.days.includes(d));
-              const timeMatch =
-                block.startMinutes === undefined ||
-                Math.abs(m0.startMinutes - block.startMinutes) <= 20;
-              return daysMatch && timeMatch;
-            }) ??
-            candidates[0] ??
-            null;
+          const matches = candidates.filter((candidate) => candidate.meetings.some((meeting) =>
+            block.byDays.length > 0 && block.byDays.every((day) => meeting.days.includes(day))
+            && block.startMinutes === meeting.startMinutes));
+          section = matches.length === 1 ? matches[0]! : null;
         }
       }
 
-      if (!hub || matchedHubIds.has(String(hub._id))) continue;
+      if (!hub || hub.isRetiredFixture || matchedHubIds.has(String(hub._id))) continue;
       matchedHubIds.add(String(hub._id));
 
       const existing = await ctx.db
@@ -566,11 +581,7 @@ export const importScheduleFromIcs = viewerMutation({
         .first();
 
       if (existing) {
-        await ctx.db.patch(existing._id, {
-          termCode,
-          sectionId: section?._id ?? existing.sectionId,
-          crn: section?.crn ?? existing.crn,
-        });
+        await ctx.db.patch(existing._id, enrollmentTermFields(existing, termCode, section));
       } else {
         await ctx.db.insert("studentEnrollments", {
           workspaceKey: viewer.workspaceKey,
@@ -611,6 +622,7 @@ export const importScheduleFromIcs = viewerMutation({
         q
           .eq("workspaceKey", viewer.workspaceKey)
           .eq("studentId", viewer.actorStudent._id)
+          .eq("termCode", termCode)
       )
       .take(20);
 
@@ -685,6 +697,7 @@ export const getCourseSyllabus = viewerQuery({
       if (exactHit && exactHit.expiresAt > now && exactHit.status === "found") {
         return {
           cacheHit: true,
+          cacheEntryId: exactHit._id,
           status: exactHit.status,
           isFallbackSection: false,
           matchedSectionLabel: exactHit.matchedSectionLabel,
@@ -718,6 +731,7 @@ export const getCourseSyllabus = viewerQuery({
         : validFound.matchedSectionLabel;
       return {
         cacheHit: true,
+        cacheEntryId: validFound._id,
         status: "found" as const,
         isFallbackSection: isDifferentCrn,
         matchedSectionLabel: label,
@@ -736,6 +750,7 @@ export const getCourseSyllabus = viewerQuery({
     if (validMiss) {
       return {
         cacheHit: true,
+        cacheEntryId: validMiss._id,
         status: "not_found" as const,
         isFallbackSection: false,
         matchedSectionLabel: validMiss.matchedSectionLabel,
@@ -754,6 +769,17 @@ export const getCourseSyllabus = viewerQuery({
       sourceUrl: `https://kennesaw.simplesyllabus.com/en-US/doc-library?search=${encodeURIComponent(normalized)}`,
       summary: null,
     };
+  },
+});
+
+export const touchCourseSyllabus = viewerMutation({
+  args: { cacheEntryId: v.id("courseSyllabiCache") },
+  handler: async (ctx, args) => {
+    const entry = await ctx.db.get(args.cacheEntryId);
+    const now = Date.now();
+    if (entry && entry.expiresAt > now && now - entry.lastAccessedAt >= 60 * 60_000) {
+      await ctx.db.patch(entry._id, { lastAccessedAt: now });
+    }
   },
 });
 
@@ -852,6 +878,12 @@ export const fetchAndCacheSyllabus = action({
       crn: args.crn,
     });
     if (cached.cacheHit) {
+      await ctx.runMutation(api.courses.touchCourseSyllabus, {
+        sessionToken: args.sessionToken,
+        demoShortCode: args.demoShortCode,
+        demoPersonaHandle: args.demoPersonaHandle,
+        cacheEntryId: cached.cacheEntryId,
+      });
       return cached;
     }
 

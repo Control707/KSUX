@@ -1,3 +1,4 @@
+import { workflowTime } from "./lib/workflowTime";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { chatReactionEmojiValidator } from "./schema";
@@ -5,16 +6,54 @@ import { makeStudentPairKey } from "./lib/crypto";
 import { buildPrivacySafePushIfEligible } from "./lib/pushAdapter";
 import { assertPublishSafety, detectDealScamWarning } from "./lib/safety";
 import {
+  makeTargetKey,
   toPublicStudent,
   viewerMutation,
   viewerQuery,
 } from "./lib/viewer";
 import { Doc, Id } from "./_generated/dataModel";
-import { MutationCtx } from "./_generated/server";
+import { MutationCtx, QueryCtx } from "./_generated/server";
+import { isCurrentCampusChatMember } from "./lib/campusChat";
+import { queueMediaDeletion } from "./lib/mediaCleanup";
+import { getChatPreview } from "./lib/chatPreview";
 
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_CUSTOM_GROUP_MEMBERS = 50;
+const GROUP_CHAT_KINDS = ["club_group", "course_group", "study_group", "custom_group"] as const;
+
+async function isDirectMessageBlocked(ctx: QueryCtx | MutationCtx, chat: Doc<"chats">) {
+  if (chat.kind !== "dm" || !chat.dmPairKey) return false;
+  const pairKey = chat.dmPairKey;
+  const block = await ctx.db.query("studentBlocks").withIndex("by_pair", (q) =>
+    q.eq("workspaceKey", chat.workspaceKey).eq("pairKey", pairKey),
+  ).first();
+  return Boolean(block);
+}
+
+export async function updateLatestMessagePreview(
+  ctx: MutationCtx,
+  chat: Doc<"chats">,
+  message: Pick<Doc<"chatMessages">, "seq" | "body" | "isDeleted" | "visibilityStatus">,
+) {
+  if (message.seq === chat.messageSeq) {
+    await ctx.db.patch(chat._id, {
+      lastMessagePreview: message.isDeleted ? "[Message deleted]" :
+        message.visibilityStatus === "under_review" ? "[Message under review]" : message.body.slice(0, 120),
+    });
+  }
+}
+
+export async function getChatMembership(
+  ctx: QueryCtx | MutationCtx,
+  chat: Doc<"chats">,
+  studentId: Id<"students">,
+) {
+  const membership = await ctx.db.query("chatMembers").withIndex("by_chat_student", (q) =>
+    q.eq("workspaceKey", chat.workspaceKey).eq("chatId", chat._id).eq("studentId", studentId),
+  ).unique();
+  return membership && await isCurrentCampusChatMember(ctx, chat, studentId) ? membership : null;
+}
 
 function detectInternalKsuxLink(body: string):
   | { href: string; label: string; entityType?: string }
@@ -224,30 +263,22 @@ export const listInbox = viewerQuery({
     const { viewer } = ctx;
     const filter = args.tabFilter ?? "all";
 
-    const memberships = await ctx.db
-      .query("chatMembers")
-      .withIndex("by_student_inbox", (q) =>
-        q
-          .eq("workspaceKey", viewer.workspaceKey)
-          .eq("studentId", viewer.actorStudent._id)
-          .eq("isArchived", false)
-      )
-      .order("desc")
-      .take(50);
+    const kinds = filter === "group" ? GROUP_CHAT_KINDS : filter === "all" ? [] : [filter];
+    const memberships = filter === "all" ? await ctx.db.query("chatMembers")
+      .withIndex("by_student_inbox", (q) => q.eq("workspaceKey", viewer.workspaceKey)
+        .eq("studentId", viewer.actorStudent._id).eq("isArchived", false))
+      .order("desc").take(50) : (await Promise.all(kinds.map((kind) =>
+      ctx.db.query("chatMembers").withIndex("by_student_kind_inbox", (q) =>
+        q.eq("workspaceKey", viewer.workspaceKey).eq("studentId", viewer.actorStudent._id)
+          .eq("isArchived", false).eq("chatKind", kind),
+      ).order("desc").take(50),
+    ))).flat().sort((a, b) => b.lastChatMessageAt - a.lastChatMessageAt).slice(0, 50);
 
     const rows = [];
     for (const m of memberships) {
-      if (filter === "dm" && m.chatKind !== "dm") continue;
-      if (filter === "deal" && m.chatKind !== "deal") continue;
-      if (
-        filter === "group" &&
-        (m.chatKind === "dm" || m.chatKind === "deal")
-      ) {
-        continue;
-      }
-
       const chat = await ctx.db.get(m.chatId);
-      if (!chat || chat.requestStatus === "declined") continue;
+      if (!chat || chat.requestStatus === "declined" ||
+          !await isCurrentCampusChatMember(ctx, chat, viewer.actorStudent._id)) continue;
 
       let displayTitle = chat.title ?? "Conversation";
       let counterparty: ReturnType<typeof toPublicStudent> | null = null;
@@ -255,12 +286,7 @@ export const listInbox = viewerQuery({
       if (chat.kind === "dm") {
         const allMembers = await ctx.db
           .query("chatMembers")
-          .filter((q) =>
-            q.and(
-              q.eq(q.field("workspaceKey"), viewer.workspaceKey),
-              q.eq(q.field("chatId"), chat._id)
-            )
-          )
+          .withIndex("by_chat_student", (q) => q.eq("workspaceKey", viewer.workspaceKey).eq("chatId", chat._id))
           .take(4);
         const other = allMembers.find(
           (om) => om.studentId !== viewer.actorStudent._id
@@ -275,6 +301,7 @@ export const listInbox = viewerQuery({
       }
 
       const unreadCount = Math.max(0, chat.messageSeq - m.lastReadSeq);
+      const isBlocked = await isDirectMessageBlocked(ctx, chat);
       const isStudyGraceLocked = Boolean(
         chat.readonlyAfter !== undefined && now >= chat.readonlyAfter
       );
@@ -286,10 +313,10 @@ export const listInbox = viewerQuery({
         counterparty,
         requestStatus: chat.requestStatus,
         isPendingIncomingRequest:
-          chat.requestStatus === "pending_request" &&
+          !isBlocked && chat.requestStatus === "pending_request" &&
           chat.requestInitiatorId !== viewer.actorStudent._id,
         isReadOnlyLocked:
-          chat.requestStatus === "locked_readonly" || isStudyGraceLocked,
+          chat.requestStatus === "locked_readonly" || isStudyGraceLocked || isBlocked,
         badgeMode: m.badgeMode,
         unreadCount: m.badgeMode === "count" && !m.isMuted ? unreadCount : 0,
         hasDotUnread:
@@ -297,7 +324,7 @@ export const listInbox = viewerQuery({
         isMuted: m.isMuted,
         role: m.role,
         lastMessageAt: chat.lastMessageAt,
-        lastMessagePreview: chat.lastMessagePreview,
+        lastMessagePreview: await getChatPreview(ctx, chat, viewer),
         lastSenderHandle: chat.lastSenderHandle,
         handoffStatus: chat.handoffCard?.status ?? null,
       });
@@ -313,22 +340,14 @@ export const getChatThread = viewerQuery({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     const { viewer } = ctx;
     const chat = await ctx.db.get(args.chatId);
     if (!chat || chat.workspaceKey !== viewer.workspaceKey) {
       return null;
     }
 
-    const membership = await ctx.db
-      .query("chatMembers")
-      .withIndex("by_chat_student", (q) =>
-        q
-          .eq("workspaceKey", viewer.workspaceKey)
-          .eq("chatId", chat._id)
-          .eq("studentId", viewer.actorStudent._id)
-      )
-      .unique();
+    const membership = await getChatMembership(ctx, chat, viewer.actorStudent._id);
     if (!membership) {
       throw new ConvexError({
         code: "FORBIDDEN",
@@ -367,7 +386,11 @@ export const getChatThread = viewerQuery({
       })
     );
 
-    const chronological = [...latestMessagesRaw].reverse();
+    const canReadMessage = (message: Doc<"chatMessages">) =>
+      message.chatId === chat._id && message.workspaceKey === viewer.workspaceKey &&
+      message.visibilityStatus !== "under_review" &&
+      !viewer.hiddenTargetKeys.has(makeTargetKey("chat_message", message._id));
+    const chronological = latestMessagesRaw.filter(canReadMessage).reverse();
     const msgById = new Map<string, Doc<"chatMessages">>();
     for (const m of chronological) msgById.set(String(m._id), m);
 
@@ -391,7 +414,8 @@ export const getChatThread = viewerQuery({
           const quoted =
             msgById.get(String(msg.replyToMessageId)) ??
             (await ctx.db.get(msg.replyToMessageId));
-          if (quoted) {
+          if (quoted && canReadMessage(quoted) &&
+              !(quoted.senderId && viewer.blockedStudentIds.has(quoted.senderId))) {
             const qSender = quoted.senderId
               ? await ctx.db.get(quoted.senderId)
               : null;
@@ -434,6 +458,9 @@ export const getChatThread = viewerQuery({
     const isStudyGraceLocked = Boolean(
       chat.readonlyAfter !== undefined && now >= chat.readonlyAfter
     );
+    const isBlocked = await isDirectMessageBlocked(ctx, chat);
+    const canSeeDealChatId = (dealChatId: Id<"chats"> | undefined) =>
+      dealChatId === chat._id || viewer.actorStudent._id === listingDoc?.sellerId ? dealChatId : undefined;
 
     return {
       chat: {
@@ -452,6 +479,7 @@ export const getChatThread = viewerQuery({
         isReadOnlyLocked:
           chat.requestStatus === "locked_readonly" ||
           chat.requestStatus === "declined" ||
+          isBlocked ||
           isStudyGraceLocked,
       },
       myMembership: {
@@ -468,8 +496,8 @@ export const getChatThread = viewerQuery({
             priceCents: listingDoc.priceCents,
             tradeNote: listingDoc.tradeNote,
             status: listingDoc.status,
-            activeDealChatId: listingDoc.activeDealChatId,
-            soldDealChatId: listingDoc.soldDealChatId,
+            activeDealChatId: canSeeDealChatId(listingDoc.activeDealChatId),
+            soldDealChatId: canSeeDealChatId(listingDoc.soldDealChatId),
             buyerConfirmedPickup: listingDoc.buyerConfirmedPickup,
           }
         : null,
@@ -486,19 +514,10 @@ export const markChatRead = viewerMutation({
   handler: async (ctx, args) => {
     const now = Date.now();
     const { viewer } = ctx;
-    const [chat, membership] = await Promise.all([
-      ctx.db.get(args.chatId),
-      ctx.db
-        .query("chatMembers")
-        .withIndex("by_chat_student", (q) =>
-          q
-            .eq("workspaceKey", viewer.workspaceKey)
-            .eq("chatId", args.chatId)
-            .eq("studentId", viewer.actorStudent._id)
-        )
-        .unique(),
-    ]);
-    if (!chat || !membership) return { ok: false };
+    const chat = await ctx.db.get(args.chatId);
+    if (!chat || chat.workspaceKey !== viewer.workspaceKey) return { ok: false };
+    const membership = await getChatMembership(ctx, chat, viewer.actorStudent._id);
+    if (!membership) return { ok: false };
     await ctx.db.patch(membership._id, {
       lastReadSeq: chat.messageSeq,
       lastReadAt: now,
@@ -538,7 +557,7 @@ export const startOrOpenDirectMessage = viewerMutation({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     const { viewer } = ctx;
 
     const cleanTarget = args.recipientHandleOrId
@@ -592,6 +611,10 @@ export const startOrOpenDirectMessage = viewerMutation({
         q.eq("workspaceKey", viewer.workspaceKey).eq("dmPairKey", dmPairKey)
       )
       .unique();
+
+    if (existing && await isDirectMessageBlocked(ctx, existing)) {
+      throw new ConvexError({ code: "BLOCKED", message: "Direct Messages are unavailable between blocked Students." });
+    }
 
     const connected = await areStudentsConnectedForDirectMessage(
       ctx,
@@ -653,10 +676,11 @@ export const startOrOpenDirectMessage = viewerMutation({
         });
       }
       chatDoc = (await ctx.db.get(chatId))!;
-    } else if (chatDoc.requestStatus === "declined" && connected) {
+    } else if (chatDoc.requestStatus === "declined") {
       await ctx.db.patch(chatDoc._id, {
-        requestStatus: "active",
-        requestInitiatorId: undefined,
+        requestStatus: connected ? "active" : "pending_request",
+        requestInitiatorId: connected ? undefined : viewer.actorStudent._id,
+        requestOpenerSeq: connected ? undefined : chatDoc.messageSeq,
       });
       chatDoc = (await ctx.db.get(chatDoc._id))!;
     }
@@ -667,13 +691,17 @@ export const startOrOpenDirectMessage = viewerMutation({
       if (
         chatDoc.requestStatus === "pending_request" &&
         chatDoc.requestInitiatorId === viewer.actorStudent._id &&
-        chatDoc.messageSeq >= 1
+        chatDoc.messageSeq > (chatDoc.requestOpenerSeq ?? 0)
       ) {
         throw new ConvexError({
           code: "MESSAGE_REQUEST_CAP",
           message:
             "Cold Message Requests allow 1 text-only opener until accepted.",
         });
+      }
+      if (chatDoc.requestStatus === "pending_request" && chatDoc.requestInitiatorId !== viewer.actorStudent._id) {
+        await ctx.db.patch(chatDoc._id, { requestStatus: "active", requestInitiatorId: undefined, requestOpenerSeq: undefined });
+        chatDoc = (await ctx.db.get(chatDoc._id))!;
       }
       await appendMessageAndFanoutUnread(ctx, {
         workspaceKey: viewer.workspaceKey,
@@ -700,7 +728,7 @@ export const respondToMessageRequest = viewerMutation({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     const { viewer } = ctx;
     const chat = await ctx.db.get(args.chatId);
     if (
@@ -722,9 +750,15 @@ export const respondToMessageRequest = viewerMutation({
       });
     }
 
+    if (!await getChatMembership(ctx, chat, viewer.actorStudent._id) || await isDirectMessageBlocked(ctx, chat)) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "This Message Request cannot be changed." });
+    }
+
     if (args.decision === "accept") {
       await ctx.db.patch(chat._id, {
         requestStatus: "active",
+        requestInitiatorId: undefined,
+        requestOpenerSeq: undefined,
       });
       return { requestStatus: "active" as const };
     }
@@ -774,22 +808,14 @@ export const sendMessage = viewerMutation({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     const { viewer } = ctx;
     const chat = await ctx.db.get(args.chatId);
     if (!chat || chat.workspaceKey !== viewer.workspaceKey) {
       throw new ConvexError({ code: "NOT_FOUND", message: "Chat not found." });
     }
 
-    const membership = await ctx.db
-      .query("chatMembers")
-      .withIndex("by_chat_student", (q) =>
-        q
-          .eq("workspaceKey", viewer.workspaceKey)
-          .eq("chatId", chat._id)
-          .eq("studentId", viewer.actorStudent._id)
-      )
-      .unique();
+    const membership = await getChatMembership(ctx, chat, viewer.actorStudent._id);
     if (!membership) {
       throw new ConvexError({
         code: "FORBIDDEN",
@@ -800,6 +826,7 @@ export const sendMessage = viewerMutation({
     if (
       chat.requestStatus === "locked_readonly" ||
       chat.requestStatus === "declined" ||
+      await isDirectMessageBlocked(ctx, chat) ||
       (chat.readonlyAfter !== undefined && now >= chat.readonlyAfter)
     ) {
       throw new ConvexError({
@@ -820,7 +847,7 @@ export const sendMessage = viewerMutation({
       }
       if (
         chat.requestInitiatorId === viewer.actorStudent._id &&
-        chat.messageSeq >= 1
+        chat.messageSeq > (chat.requestOpenerSeq ?? 0)
       ) {
         throw new ConvexError({
           code: "MESSAGE_REQUEST_CAP",
@@ -829,7 +856,7 @@ export const sendMessage = viewerMutation({
         });
       }
       if (chat.requestInitiatorId !== viewer.actorStudent._id) {
-        await ctx.db.patch(chat._id, { requestStatus: "active" });
+        await ctx.db.patch(chat._id, { requestStatus: "active", requestInitiatorId: undefined, requestOpenerSeq: undefined });
       }
     }
 
@@ -855,7 +882,8 @@ export const sendMessage = viewerMutation({
       if (
         !asset ||
         asset.workspaceKey !== viewer.workspaceKey ||
-        asset.ownerStudentId !== viewer.actorStudent._id
+        asset.ownerStudentId !== viewer.actorStudent._id || asset.purpose !== "chat" ||
+        asset.status !== "pending" || asset.deleteClaimedAt !== undefined
       ) {
         throw new ConvexError({
           code: "FORBIDDEN",
@@ -863,6 +891,16 @@ export const sendMessage = viewerMutation({
         });
       }
       await ctx.db.patch(asset._id, { status: "attached" });
+    }
+
+    if (args.replyToMessageId) {
+      const quoted = await ctx.db.get(args.replyToMessageId);
+      if (!quoted || quoted.workspaceKey !== chat.workspaceKey || quoted.chatId !== chat._id ||
+          quoted.visibilityStatus === "under_review" ||
+          viewer.hiddenTargetKeys.has(makeTargetKey("chat_message", quoted._id)) ||
+          (quoted.senderId && viewer.blockedStudentIds.has(quoted.senderId))) {
+        throw new ConvexError({ code: "INVALID_TARGET", message: "This Chat message cannot be quoted." });
+      }
     }
 
     const freshChat = (await ctx.db.get(chat._id))!;
@@ -894,23 +932,19 @@ export const toggleMessageReaction = viewerMutation({
   handler: async (ctx, args) => {
     const { viewer } = ctx;
     const msg = await ctx.db.get(args.messageId);
-    if (!msg || msg.workspaceKey !== viewer.workspaceKey || msg.isDeleted) {
+    if (!msg || msg.workspaceKey !== viewer.workspaceKey || msg.isDeleted ||
+        msg.visibilityStatus === "under_review" ||
+        viewer.hiddenTargetKeys.has(makeTargetKey("chat_message", msg._id))) {
       throw new ConvexError({
         code: "NOT_FOUND",
         message: "Message not available.",
       });
     }
 
-    const membership = await ctx.db
-      .query("chatMembers")
-      .withIndex("by_chat_student", (q) =>
-        q
-          .eq("workspaceKey", viewer.workspaceKey)
-          .eq("chatId", msg.chatId)
-          .eq("studentId", viewer.actorStudent._id)
-      )
-      .unique();
-    if (!membership) {
+    const chat = await ctx.db.get(msg.chatId);
+    if (!chat || chat.workspaceKey !== viewer.workspaceKey ||
+        !await getChatMembership(ctx, chat, viewer.actorStudent._id) ||
+        await isDirectMessageBlocked(ctx, chat)) {
       throw new ConvexError({ code: "FORBIDDEN", message: "Not a member." });
     }
 
@@ -946,7 +980,7 @@ export const editChatMessage = viewerMutation({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     const msg = await ctx.db.get(args.messageId);
     if (
       !msg ||
@@ -975,13 +1009,20 @@ export const editChatMessage = viewerMutation({
     assertPublishSafety(trimmed);
 
     const chat = await ctx.db.get(msg.chatId);
+    if (!chat || chat.workspaceKey !== msg.workspaceKey || msg.visibilityStatus === "under_review" ||
+        !await getChatMembership(ctx, chat, ctx.viewer.actorStudent._id) ||
+        await isDirectMessageBlocked(ctx, chat)) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "You cannot edit this message." });
+    }
     await ctx.db.patch(msg._id, {
       body: trimmed,
+      linkEmbed: detectInternalKsuxLink(trimmed),
       scamWarningTriggered: Boolean(
         chat?.kind === "deal" && detectDealScamWarning(trimmed)
       ),
       editedAt: now,
     });
+    await updateLatestMessagePreview(ctx, chat, { ...msg, body: trimmed });
     return { ok: true };
   },
 });
@@ -1003,17 +1044,16 @@ export const deleteChatMessage = viewerMutation({
       });
     }
 
+    const chat = await ctx.db.get(msg.chatId);
+    if (!chat || chat.workspaceKey !== msg.workspaceKey ||
+        !await getChatMembership(ctx, chat, ctx.viewer.actorStudent._id)) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "You cannot delete this message." });
+    }
+
     if (msg.mediaAssetId) {
       const asset = await ctx.db.get(msg.mediaAssetId);
-      if (asset && asset.status !== "deleted") {
-        await ctx.db.patch(asset._id, { status: "deleted" });
-        if (process.env.KSUX_SKIP_STORAGE_SCHEDULER !== "true") {
-          await ctx.scheduler.runAfter(
-            0,
-            internal.storageNode.deleteUploadThingFiles,
-            { fileKeys: [asset.fileKey] }
-          );
-        }
+      if (asset && asset.workspaceKey === msg.workspaceKey && asset.ownerStudentId === msg.senderId) {
+        await queueMediaDeletion(ctx, asset);
       }
     }
 
@@ -1023,6 +1063,7 @@ export const deleteChatMessage = viewerMutation({
       mediaAssetId: undefined,
       linkEmbed: undefined,
     });
+    await updateLatestMessagePreview(ctx, chat, { ...msg, isDeleted: true });
     return { ok: true };
   },
 });

@@ -59,6 +59,7 @@ export interface EvaluatedParkingStatus {
 export function evaluateParkingLotFullness(
   lot: Pick<Doc<"parkingLots">, "hourlyBaselinePrior">,
   activeReports: Array<{
+    authorId?: string;
     fullnessTier?: 0 | 1 | 2 | 3;
     deckLevel?: string;
     publishedAt: number;
@@ -76,7 +77,7 @@ export function evaluateParkingLotFullness(
     | 3;
 
   // Filter strictly active reports inside the 45m decay window
-  const valid = activeReports
+  const eligible = activeReports
     .filter(
       (r) =>
         r.status === "active" &&
@@ -84,13 +85,20 @@ export function evaluateParkingLotFullness(
         typeof r.fullnessTier === "number"
     )
     .sort((a, b) => b.publishedAt - a.publishedAt);
+  const seen = new Set<string>();
+  const valid = eligible.filter((report) => {
+    if (!report.authorId) return true;
+    if (seen.has(report.authorId)) return false;
+    seen.add(report.authorId);
+    return true;
+  });
 
   if (valid.length === 0) {
     return {
       effectiveTier: priorTier,
       tierLabel: FULLNESS_TIER_LABELS[priorTier],
       provenanceKind: "baseline_prior",
-      provenanceLabel: `Estimated · Typical ${dayName} ${hourLabel} class load`,
+      provenanceLabel: `Estimated · Modeled ${dayName} ${hourLabel} baseline`,
       activeReportCount: 0,
     };
   }
@@ -171,7 +179,7 @@ export function evaluateParkingLotFullness(
 }
 
 export interface DiningOpenStatus {
-  state: "open" | "closing_soon" | "closed";
+  state: "open" | "closing_soon" | "closed" | "unknown";
   label: string;
 }
 
@@ -187,17 +195,26 @@ export function evaluateDiningOpenStatus(
       weekdayCloseMin?: number;
       weekendOpenMin?: number | null;
       weekendCloseMin?: number | null;
+      byDay?: Record<number, { openMin: number; closeMin: number } | null>;
+      closedDates?: Array<{ start: string; end: string }>;
     };
-    const openMin = isWeekend ? parsed.weekendOpenMin : parsed.weekdayOpenMin;
-    const closeMin = isWeekend
-      ? parsed.weekendCloseMin
-      : parsed.weekdayCloseMin;
-    if (
-      typeof openMin !== "number" ||
-      typeof closeMin !== "number" ||
-      closeMin <= openMin
-    ) {
+    const day = easternDate(nowMs);
+    if (parsed.closedDates?.some(({ start, end }) => start <= day && day <= end)) {
       return { state: "closed", label: "Closed Today" };
+    }
+    const published = parsed.byDay?.[dayOfWeek];
+    if (published === null) return { state: "closed", label: "Closed Today" };
+    const openMin = parsed.byDay ? published?.openMin
+      : isWeekend ? parsed.weekendOpenMin : parsed.weekdayOpenMin;
+    const closeMin = parsed.byDay ? published?.closeMin
+      : isWeekend ? parsed.weekendCloseMin : parsed.weekdayCloseMin;
+    if (openMin === null && closeMin === null) {
+      return { state: "closed", label: "Closed Today" };
+    }
+    if (typeof openMin !== "number" || typeof closeMin !== "number" ||
+        !Number.isInteger(openMin) || !Number.isInteger(closeMin) ||
+        openMin < 0 || closeMin > 1440 || closeMin <= openMin) {
+      return { state: "unknown", label: "Hours unavailable" };
     }
     if (minuteOfDay < openMin || minuteOfDay >= closeMin) {
       const openHr = Math.floor(openMin / 60);
@@ -225,6 +242,7 @@ export function evaluateDiningOpenStatus(
       label: "Open Now",
     };
   } catch {
-    return { state: "open", label: "Open Now" };
+    return { state: "unknown", label: "Hours unavailable" };
   }
 }
+import { easternDate } from "./easternDate";

@@ -22,7 +22,7 @@ export function ScrappyView() {
   const { auth, setPendingDraftCard } = useViewerClient();
 
   const [selectedThreadId, setSelectedThreadId] =
-    useState<Id<"scrappyThreads"> | null>(null);
+    useState<Id<"scrappyThreads"> | "new" | null>(null);
   const [prompt, setPrompt] = useState("");
   const [streamingText, setStreamingText] = useState("");
   const [streamingCitations, setStreamingCitations] = useState<any[]>([]);
@@ -31,7 +31,9 @@ export function ScrappyView() {
   const [error, setError] = useState<string | null>(null);
 
   const threads = useViewerQuery(api.scrappy.threads.listMyThreads, {});
-  const activeThreadId = selectedThreadId ?? threads?.[0]?._id ?? null;
+  const activeThreadId = selectedThreadId === "new"
+    ? null
+    : selectedThreadId ?? threads?.[0]?._id ?? null;
   const threadData = useViewerQuery(
     api.scrappy.threads.getThreadMessages,
     activeThreadId ? { threadId: activeThreadId } : "skip"
@@ -77,7 +79,7 @@ export function ScrappyView() {
         headers,
         credentials: "same-origin",
         body: JSON.stringify({
-          threadId: selectedThreadId ?? undefined,
+          threadId: activeThreadId ?? undefined,
           prompt: promptText.trim(),
         }),
       });
@@ -157,9 +159,14 @@ export function ScrappyView() {
 
           <button
             type="button"
+            disabled={streaming}
             onClick={() => {
-              setSelectedThreadId(null);
+              setSelectedThreadId("new");
+              setPrompt("");
               setStreamingText("");
+              setStreamingDraft(null);
+              setStreamingCitations([]);
+              setError(null);
             }}
             className="inline-flex items-center gap-1 rounded-xl bg-[#FDBB30] px-3 py-1.5 text-xs font-extrabold text-[#111317]"
           >
@@ -177,6 +184,7 @@ export function ScrappyView() {
                 <button
                   key={String(th._id)}
                   type="button"
+                  disabled={streaming}
                   onClick={() => setSelectedThreadId(th._id)}
                   className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
                     active

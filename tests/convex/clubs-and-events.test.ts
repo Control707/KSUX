@@ -8,7 +8,7 @@ import {
 describe("Seam 1 — Clubs Directory, Officer Claiming & Hybrid KSU + Student Events (#19)", () => {
   it("auto-approves matching .edu Engage contact email on Claim Officer Role, routes non-matching claims to Moderation Queue, and isolates Community Clubs", async () => {
     const t = createTestConvex();
-    await t.mutation(internal.seed.bootstrapKsu, {});
+    await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: true });
 
     const acmPresident = await createVerifiedTestStudent(t, {
       email: "acm@students.kennesaw.edu",
@@ -126,8 +126,8 @@ describe("Seam 1 — Clubs Directory, Officer Claiming & Hybrid KSU + Student Ev
           endTime: now + 4 * 3600_000,
         },
         {
-          externalKey: "engage:marietta-robotics-1",
-          source: "engage",
+          externalKey: "localist:marietta-robotics-1",
+          source: "localist",
           campus: "Marietta",
           campusScope: "Marietta",
           isVirtual: false,
@@ -182,6 +182,7 @@ describe("Seam 1 — Clubs Directory, Officer Claiming & Hybrid KSU + Student Ev
       internal.sync.eventsSync.applySyncedEventsInternal,
       {
         now: now + 60_000,
+        localistCoverageComplete: true,
         status: "ready_to_upsert",
         payloadHash: "hash-2",
         events: [

@@ -4,13 +4,15 @@ import { campusValidator } from "./schema";
 import { validateHandleRules } from "./lib/crypto";
 import { assertPublishSafety } from "./lib/safety";
 import {
+  isItemVisibleToViewer,
   toPublicStudent,
   verifiedStudentMutation,
   viewerMutation,
   viewerQuery,
 } from "./lib/viewer";
-import { MutationCtx } from "./_generated/server";
+import { MutationCtx, internalMutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { queueMediaDeletion } from "./lib/mediaCleanup";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_ACTIVE_FOLLOWS = 200;
@@ -95,10 +97,13 @@ export const completeOnboarding = verifiedStudentMutation({
       if (
         asset &&
         asset.workspaceKey === "prod" &&
-        asset.ownerStudentId === ctx.viewer.actorStudent._id
+        asset.ownerStudentId === ctx.viewer.actorStudent._id && asset.purpose === "avatar" &&
+        asset.status === "pending" && asset.deleteClaimedAt === undefined
       ) {
         avatarUrl = asset.url;
         await ctx.db.patch(asset._id, { status: "attached" });
+      } else {
+        throw new ConvexError({ code: "FORBIDDEN", message: "Invalid avatar attachment." });
       }
     }
 
@@ -213,16 +218,18 @@ export const updateProfile = viewerMutation({
       if (
         asset &&
         asset.workspaceKey === ctx.viewer.workspaceKey &&
-        asset.ownerStudentId === actor._id
+        asset.ownerStudentId === actor._id && asset.purpose === "avatar" &&
+        asset.status === "pending" && asset.deleteClaimedAt === undefined
       ) {
         patch.avatarAssetId = asset._id;
         patch.avatarUrl = asset.url;
         await ctx.db.patch(asset._id, { status: "attached" });
+      } else {
+        throw new ConvexError({ code: "FORBIDDEN", message: "Invalid avatar attachment." });
       }
     }
 
-    const effectiveMajor =
-      patch.major !== undefined ? patch.major : actor.major;
+    const effectiveMajor = args.major !== undefined ? patch.major : actor.major;
     patch.searchText =
       `@${nextHandleLower} ${nextDisplayName} ${effectiveMajor ?? ""}`.trim();
 
@@ -261,7 +268,6 @@ export const getProfile = viewerQuery({
 
     const isSelf = target._id === viewer.actorStudent._id;
     const isBlocked = !isSelf && viewer.blockedStudentIds.has(target._id);
-
     if (target.accountStatus !== "active" || isBlocked) {
       return {
         student: toPublicStudent(isBlocked ? null : target),
@@ -273,6 +279,9 @@ export const getProfile = viewerQuery({
         joinedClubs: [],
       };
     }
+    if (!isSelf && !isItemVisibleToViewer(viewer, {
+      targetType: "student", targetId: target._id, visibilityStatus: target.visibilityStatus,
+    })) return null;
 
     const [followers, following, viewerFollowRow, clubMemberships] =
       await Promise.all([
@@ -362,7 +371,9 @@ export const searchStudents = viewerQuery({
         (s) =>
           s.accountStatus === "active" &&
           s.handleLower !== "scrappy" &&
-          !viewer.blockedStudentIds.has(s._id)
+          isItemVisibleToViewer(viewer, {
+            targetType: "student", targetId: s._id, authorId: s._id, visibilityStatus: s.visibilityStatus,
+          })
       )
       .map((s) => toPublicStudent(s));
   },
@@ -445,107 +456,64 @@ export async function closeStudentArtifactsAndMedia(
   ctx: MutationCtx,
   workspaceKey: string,
   studentId: Id<"students">
-): Promise<string[]> {
-  // Revoke sessions & push subscriptions
-  const sessions = await ctx.db
-    .query("studentSessions")
-    .withIndex("by_student", (q) => q.eq("studentId", studentId))
-    .take(50);
+): Promise<number> {
+  const batchSize = 25;
+  const [sessions, pushes, postBatches, listingBatches, hostedSessions, reports, mediaBatches] = await Promise.all([
+    ctx.db.query("studentSessions").withIndex("by_student", (q) => q.eq("studentId", studentId)).take(batchSize),
+    ctx.db.query("pushSubscriptions").withIndex("by_student", (q) => q.eq("studentId", studentId)).take(batchSize),
+    Promise.all((["visible", "under_review"] as const).map((status) => ctx.db.query("posts")
+      .withIndex("by_author", (q) => q.eq("workspaceKey", workspaceKey).eq("authorId", studentId)
+        .eq("visibilityStatus", status)).take(batchSize))),
+    Promise.all((["available", "pending"] as const).map((status) => ctx.db.query("listings")
+      .withIndex("by_seller_status_expiry", (q) => q.eq("workspaceKey", workspaceKey).eq("sellerId", studentId)
+        .eq("status", status)).take(batchSize))),
+    ctx.db.query("studySessions").withIndex("by_host_status", (q) => q.eq("workspaceKey", workspaceKey)
+      .eq("hostId", studentId).eq("status", "scheduled")).take(batchSize),
+    ctx.db.query("parkingReports").withIndex("by_author_status", (q) => q.eq("workspaceKey", workspaceKey)
+      .eq("authorId", studentId).eq("status", "active")).take(batchSize),
+    Promise.all((["pending", "attached"] as const).map((status) => ctx.db.query("mediaAssets")
+      .withIndex("by_owner_status", (q) => q.eq("workspaceKey", workspaceKey).eq("ownerStudentId", studentId)
+        .eq("status", status)).take(batchSize))),
+  ]);
   for (const s of sessions) await ctx.db.delete(s._id);
-
-  const pushes = await ctx.db
-    .query("pushSubscriptions")
-    .withIndex("by_student", (q) => q.eq("studentId", studentId))
-    .take(20);
   for (const p of pushes) await ctx.db.delete(p._id);
-
-  // Close open Posts
-  const posts = await ctx.db
-    .query("posts")
-    .withIndex("by_author", (q) =>
-      q
-        .eq("workspaceKey", workspaceKey)
-        .eq("authorId", studentId)
-        .eq("visibilityStatus", "visible")
-    )
-    .take(200);
-  for (const p of posts) {
+  for (const p of postBatches.flat()) {
     await ctx.db.patch(p._id, {
       visibilityStatus: p.replyCount > 0 ? "deleted_tombstone" : "removed",
-      body: p.replyCount > 0 ? "[Deleted Post]" : p.body,
+      body: "[Deleted Post]",
+      searchText: "",
+      tags: [],
+      embed: undefined,
       showInCampusFeed: false,
       mediaAssetIds: [],
     });
   }
-
-  // Close open Listings
-  const listings = await ctx.db
-    .query("listings")
-    .withIndex("by_seller", (q) =>
-      q.eq("workspaceKey", workspaceKey).eq("sellerId", studentId)
-    )
-    .take(100);
-  for (const l of listings) {
-    if (l.status === "available" || l.status === "pending") {
-      await ctx.db.patch(l._id, {
-        status: "removed",
-        visibilityStatus: "removed",
-        isBrowseable: false,
-      });
-    }
+  for (const l of listingBatches.flat()) {
+    await ctx.db.patch(l._id, { status: "removed", visibilityStatus: "removed", isBrowseable: false });
   }
-
-  // Cancel hosted Study Sessions & clear active Parking Reports
-  const hostedSessions = await ctx.db
-    .query("studySessions")
-    .filter((q) =>
-      q.and(
-        q.eq(q.field("workspaceKey"), workspaceKey),
-        q.eq(q.field("hostId"), studentId)
-      )
-    )
-    .take(50);
   for (const ss of hostedSessions) {
-    if (ss.status === "scheduled") {
-      await ctx.db.patch(ss._id, {
-        status: "cancelled",
-        visibilityStatus: "removed",
-      });
-    }
+    await ctx.db.patch(ss._id, { status: "cancelled", visibilityStatus: "removed" });
   }
+  for (const r of reports) await ctx.db.patch(r._id, { status: "cleared" });
+  const media = mediaBatches.flat();
+  for (const asset of media) await queueMediaDeletion(ctx, asset);
 
-  const reports = await ctx.db
-    .query("parkingReports")
-    .filter((q) =>
-      q.and(
-        q.eq(q.field("workspaceKey"), workspaceKey),
-        q.eq(q.field("authorId"), studentId)
-      )
-    )
-    .take(50);
-  for (const r of reports) {
-    if (r.status === "active") {
-      await ctx.db.patch(r._id, { status: "cleared" });
-    }
+  const batches = [sessions, pushes, ...postBatches, ...listingBatches, hostedSessions, reports, ...mediaBatches];
+  if (batches.some((batch) => batch.length === batchSize)) {
+    await ctx.scheduler.runAfter(0, internal.students.continueStudentCleanup, { workspaceKey, studentId });
   }
-
-  // Mark media assets deleted and return fileKeys for UploadThing purge
-  const assets = await ctx.db
-    .query("mediaAssets")
-    .withIndex("by_owner", (q) =>
-      q.eq("workspaceKey", workspaceKey).eq("ownerStudentId", studentId)
-    )
-    .take(200);
-  const fileKeys: string[] = [];
-  for (const a of assets) {
-    if (a.status !== "deleted") {
-      fileKeys.push(a.fileKey);
-      await ctx.db.patch(a._id, { status: "deleted" });
-    }
-  }
-
-  return fileKeys;
+  return media.length;
 }
+
+export const continueStudentCleanup = internalMutation({
+  args: { workspaceKey: v.string(), studentId: v.id("students") },
+  handler: async (ctx, args) => {
+    const student = await ctx.db.get(args.studentId);
+    if (student?.workspaceKey === args.workspaceKey && student.accountStatus !== "active") {
+      await closeStudentArtifactsAndMedia(ctx, args.workspaceKey, student._id);
+    }
+  },
+});
 
 export const deleteMyProfile = verifiedStudentMutation({
   args: {},
@@ -562,7 +530,7 @@ export const deleteMyProfile = verifiedStudentMutation({
       expiresAt: now + THIRTY_DAYS_MS,
     });
 
-    const fileKeys = await closeStudentArtifactsAndMedia(ctx, "prod", actor._id);
+    const purgedAssetCount = await closeStudentArtifactsAndMedia(ctx, "prod", actor._id);
 
     // Scrub stored canonicalEmail and release live handle slot to handleReservations (30d) while retaining tombstone row
     const tombstoneHandle = `deleted_${String(actor._id).slice(-10).toLowerCase()}`;
@@ -581,14 +549,6 @@ export const deleteMyProfile = verifiedStudentMutation({
       accountStatus: "deleted",
     });
 
-    if (fileKeys.length > 0 && process.env.KSUX_SKIP_STORAGE_SCHEDULER !== "true") {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.storageNode.deleteUploadThingFiles,
-        { fileKeys }
-      );
-    }
-
-    return { ok: true, purgedAssetCount: fileKeys.length };
+    return { ok: true, purgedAssetCount };
   },
 });

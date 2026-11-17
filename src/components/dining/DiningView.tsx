@@ -21,6 +21,7 @@ export function DiningView() {
   const [banner, setBanner] = useState<string | null>(null);
 
   const data = useViewerQuery(api.transitDining.listDiningVenues, {
+    menuDay,
     dietaryFilter: dietaryFilter || undefined,
     excludeAllergen: excludeAllergen || undefined,
   });
@@ -150,11 +151,17 @@ export function DiningView() {
                         : "bg-[#E4E7EE] text-[#5E6675]"
                   }`}
                 >
-                  {venue.openStatus.label}
+                  {venue.hoursAreFixture ? "Demo hours · " : ""}{venue.openStatus.label}
                 </span>
               </div>
 
-              {/* Synced Nutrislice Stations */}
+              {venue.menuIsFixture && <p className="mt-3 text-xs font-semibold">Sample menu for Judge Demo Mode</p>}
+              {stations.length === 0 && (
+                <p className="mt-3 text-xs text-[#5E6675]">
+                  No matching menu items for this day.{" "}
+                  <a href="https://ksu.nutrislice.com/menu/" target="_blank" rel="noreferrer" className="underline">Check Nutrislice</a>
+                </p>
+              )}
               <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {stations.map((st: any) => (
                   <div
@@ -168,9 +175,9 @@ export function DiningView() {
                       {st.items.map((it: any) => (
                         <li key={it.name}>
                           <span className="font-semibold">{it.name}</span>{" "}
-                          <span className="text-[#5E6675]">
-                            ({it.calories} cal)
-                          </span>
+                          {typeof it.calories === "number" && (
+                            <span className="text-[#5E6675]">({it.calories} cal)</span>
+                          )}
                         </li>
                       ))}
                     </ul>

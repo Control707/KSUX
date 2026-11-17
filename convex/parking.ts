@@ -1,6 +1,8 @@
+import { workflowTime } from "./lib/workflowTime";
 import { ConvexError, v } from "convex/values";
 import { campusFilterValidator } from "./schema";
 import { evaluateParkingLotFullness } from "./lib/parkingMath";
+import { freshShuttleEta } from "./lib/shuttleRead";
 import { viewerMutation, viewerQuery } from "./lib/viewer";
 import { Doc, Id } from "./_generated/dataModel";
 
@@ -14,7 +16,7 @@ export const listParkingLots = viewerQuery({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     const { viewer } = ctx;
     const campusFilter =
       args.campusOverride ?? viewer.actorStudent.activeCampusFilter;
@@ -39,7 +41,7 @@ export const listParkingLots = viewerQuery({
         .unique(),
     ]);
 
-    const tierFilter = args.permitTierFilter?.trim();
+    const tierFilter = (args.permitTierFilter ?? viewer.actorStudent.permitTier)?.trim();
     const rawLots = [...kLots, ...mLots].filter((lot) => {
       if (!tierFilter || tierFilter === "All") return true;
       return lot.permitTiers.includes(tierFilter);
@@ -71,6 +73,7 @@ export const listParkingLots = viewerQuery({
                 .eq("reportKind", "fullness")
                 .gt("expiresAt", now)
             )
+            .order("desc")
             .take(30),
           ctx.db
             .query("parkingReports")
@@ -131,6 +134,7 @@ export const listParkingLots = viewerQuery({
                     .eq("reportKind", "fullness")
                     .gt("expiresAt", now)
                 )
+                .order("desc")
                 .take(15);
               targetEntry = {
                 lot: fetchedOverflow,
@@ -147,9 +151,7 @@ export const listParkingLots = viewerQuery({
           if (targetEntry && targetEntry.evaluated.effectiveTier <= 1) {
             const routeId = targetEntry.lot.servedByShuttleRouteIds[0];
             const route = allRoutes.find((r) => r.passioRouteId === routeId);
-            const eta = latestShuttleSnap?.stopEtas.find(
-              (e) => e.passioRouteId === routeId
-            );
+            const eta = routeId ? freshShuttleEta(latestShuttleSnap, routeId, now, viewer.mode === "demo") : null;
             overflowReroute = {
               lotId: targetEntry.lot._id,
               slug: targetEntry.lot.slug,
@@ -157,7 +159,7 @@ export const listParkingLots = viewerQuery({
               effectiveTier: targetEntry.evaluated.effectiveTier,
               tierLabel: targetEntry.evaluated.tierLabel,
               shuttleRouteName: route?.name,
-              shuttleEtaMinutes: eta?.etaMinutes ?? 5,
+              shuttleEtaMinutes: eta?.etaMinutes,
             };
             break;
           }
@@ -251,7 +253,7 @@ export const saveParkingPreferences = viewerMutation({
     await ctx.db.patch(actor._id, patch);
     return {
       pinnedParkingLotIds: nextPinned,
-      permitTier: patch.permitTier ?? actor.permitTier,
+      permitTier: args.permitTier === undefined ? actor.permitTier : patch.permitTier,
     };
   },
 });
@@ -267,7 +269,7 @@ export const submitParkingReport = viewerMutation({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     const { viewer } = ctx;
     const lot = await ctx.db.get(args.parkingLotId);
     if (!lot) {

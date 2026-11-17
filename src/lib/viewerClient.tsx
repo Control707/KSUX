@@ -19,14 +19,18 @@ import { FunctionArgs, FunctionReference, FunctionReturnType } from "convex/serv
 import { api } from "@convex/_generated/api";
 import { compressImageToExifStrippedWebP } from "./imageCompression";
 import { Id } from "@convex/_generated/dataModel";
+import {
+  clearCommuterCache,
+  readCachedStudentScope,
+  type CommuterScope,
+} from "./commuterCache";
 
 const DEMO_CODE_SESSION_KEY = "ksux_demo_short_code";
 const DEMO_PERSONA_SESSION_KEY = "ksux_demo_persona";
-export const COMMUTER_CACHE_STORAGE_KEY = "ksux_commuter_cache";
-
 export type ActiveAuthState =
   | { status: "booting" }
   | { status: "unauthenticated" }
+  | { status: "offline"; scope: CommuterScope }
   | {
       status: "demo";
       demoShortCode: string;
@@ -35,7 +39,28 @@ export type ActiveAuthState =
   | {
       status: "student";
       sessionToken: string;
+      browserExpiresAt: number;
+      studentId?: string;
+      sessionExpiresAt?: number;
     };
+
+function readStudentSession(response: {
+  authenticated?: boolean;
+  browserCredential?: string;
+  expiresAt?: number;
+  sessionExpiresAt?: number;
+  student?: { _id?: string };
+} | null): Extract<ActiveAuthState, { status: "student" }> | null {
+  if (!response?.authenticated || !response.browserCredential || !response.expiresAt ||
+      !response.sessionExpiresAt || !response.student?._id) return null;
+  return {
+    status: "student",
+    sessionToken: response.browserCredential,
+    browserExpiresAt: response.expiresAt,
+    studentId: response.student._id,
+    sessionExpiresAt: response.sessionExpiresAt,
+  };
+}
 
 interface ViewerClientContextValue {
   auth: ActiveAuthState;
@@ -51,7 +76,7 @@ interface ViewerClientContextValue {
   switchDemoPersona: (personaHandle: string) => void;
   resetDemoState: () => Promise<void>;
   exitDemoToSignIn: () => void;
-  establishStudentSession: (sessionToken: string) => Promise<void>;
+  establishStudentSession: (email: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
   uploadImage: (
     file: File,
@@ -103,13 +128,15 @@ function getConvexClient(): ConvexReactClient {
   return singletonConvexClient;
 }
 
-export function clearCommuterCache(): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(COMMUTER_CACHE_STORAGE_KEY);
-  } catch {
-    // ignore storage errors
+export function getCommuterScope(auth: ActiveAuthState): CommuterScope | null {
+  if (auth.status === "offline") return auth.scope;
+  if (auth.status === "demo") {
+    return { mode: "demo", shortCode: auth.demoShortCode, persona: auth.demoPersonaHandle };
   }
+  if (auth.status === "student" && auth.studentId && auth.sessionExpiresAt) {
+    return { mode: "student", studentId: auth.studentId, expiresAt: auth.sessionExpiresAt };
+  }
+  return null;
 }
 
 function ViewerClientInner({ children }: { children: React.ReactNode }) {
@@ -181,6 +208,19 @@ function ViewerClientInner({ children }: { children: React.ReactNode }) {
       const demoParam = params.get("demo")?.trim();
       const personaParam = params.get("persona")?.trim();
 
+      if (!navigator.onLine) {
+        const shortCode = window.sessionStorage.getItem(DEMO_CODE_SESSION_KEY);
+        const persona = window.sessionStorage.getItem(DEMO_PERSONA_SESSION_KEY);
+        const sameDemo = !demoParam || ["1", "true", shortCode].includes(demoParam);
+        if (shortCode && persona && sameDemo && (!personaParam || personaParam === persona)) {
+          setAuth({ status: "offline", scope: { mode: "demo", shortCode, persona } });
+          return;
+        }
+        const scope = !demoParam && readCachedStudentScope();
+        setAuth(scope ? { status: "offline", scope } : { status: "unauthenticated" });
+        return;
+      }
+
       // 1. Direct URL ?demo=1 or ?demo=<shortCode>&persona=... zero-click boot
       if (demoParam) {
         const storedTabPersona = window.sessionStorage.getItem(
@@ -209,14 +249,6 @@ function ViewerClientInner({ children }: { children: React.ReactNode }) {
       const tabDemoPersona =
         window.sessionStorage.getItem(DEMO_PERSONA_SESSION_KEY) || "maya_cs";
       if (tabDemoCode) {
-        if (!navigator.onLine) {
-          setAuth({
-            status: "demo",
-            demoShortCode: tabDemoCode,
-            demoPersonaHandle: tabDemoPersona,
-          });
-          return;
-        }
         try {
           await enterJudgeDemo({
             shortCode: tabDemoCode,
@@ -236,27 +268,68 @@ function ViewerClientInner({ children }: { children: React.ReactNode }) {
           credentials: "same-origin",
         });
         if (resp.ok) {
-          const data = (await resp.json()) as {
-            authenticated?: boolean;
-            sessionToken?: string;
-          };
-          if (data.authenticated && data.sessionToken) {
-            setAuth({
-              status: "student",
-              sessionToken: data.sessionToken,
-            });
+          const session = readStudentSession(await resp.json());
+          if (session) {
+            setAuth(session);
             return;
           }
         }
       } catch {
-        // If offline and commuter cache exists, surface unauthenticated/offline shell
+        const scope = !demoParam && readCachedStudentScope();
+        if (scope) {
+          setAuth({ status: "offline", scope });
+          return;
+        }
       }
 
+      clearCommuterCache("student");
       setAuth({ status: "unauthenticated" });
     };
 
     void boot();
   }, [enterJudgeDemo]);
+
+  useEffect(() => {
+    if (auth.status !== "offline") return;
+    const reconnect = () => window.location.reload();
+    window.addEventListener("online", reconnect);
+    return () => window.removeEventListener("online", reconnect);
+  }, [auth.status]);
+
+  useEffect(() => {
+    if (auth.status !== "student") return;
+    let canceled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const refresh = async () => {
+      try {
+        const response = await fetch("/api/auth/session", {
+          credentials: "same-origin", cache: "no-store", signal: AbortSignal.timeout(8_000),
+        });
+        if (canceled) return;
+        if (response.status === 401) {
+          clearCommuterCache("student");
+          setAuth({ status: "unauthenticated" });
+          return;
+        }
+        if (response.ok) {
+          const session = readStudentSession(await response.json());
+          if (canceled) return;
+          if (session) {
+            setAuth(session);
+            return;
+          }
+        }
+      } catch {
+        // Keep retrying transient backend failures without treating them as revocation.
+      }
+      if (!canceled) timer = setTimeout(() => void refresh(), 30_000);
+    };
+    timer = setTimeout(() => void refresh(), Math.max(0, auth.browserExpiresAt - Date.now() - 60_000));
+    return () => {
+      canceled = true;
+      clearTimeout(timer);
+    };
+  }, [auth]);
 
   const switchDemoPersona = useCallback((personaHandle: string) => {
     const clean = personaHandle.trim().replace(/^@+/, "").toLowerCase();
@@ -277,7 +350,7 @@ function ViewerClientInner({ children }: { children: React.ReactNode }) {
 
   const resetDemoState = useCallback(async () => {
     if (auth.status !== "demo") return;
-    clearCommuterCache();
+    clearCommuterCache("demo");
     await resetDemoMutation({
       demoShortCode: auth.demoShortCode,
       demoPersonaHandle: auth.demoPersonaHandle,
@@ -285,7 +358,7 @@ function ViewerClientInner({ children }: { children: React.ReactNode }) {
   }, [auth, resetDemoMutation]);
 
   const exitDemoToSignIn = useCallback(() => {
-    clearCommuterCache();
+    clearCommuterCache("demo");
     if (typeof window !== "undefined") {
       window.sessionStorage.removeItem(DEMO_CODE_SESSION_KEY);
       window.sessionStorage.removeItem(DEMO_PERSONA_SESSION_KEY);
@@ -298,7 +371,17 @@ function ViewerClientInner({ children }: { children: React.ReactNode }) {
     setOpenSignInModal(true);
   }, []);
 
-  const establishStudentSession = useCallback(async (sessionToken: string) => {
+  const establishStudentSession = useCallback(async (email: string, code: string) => {
+    const response = await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ operation: "verify", email, code }),
+    });
+    const result = await response.json().catch(() => null);
+    const session = response.ok ? readStudentSession(result) : null;
+    if (!session) throw new Error(result?.message ?? result?.error ?? "Verification failed.");
+
     clearCommuterCache();
     if (typeof window !== "undefined") {
       window.sessionStorage.removeItem(DEMO_CODE_SESSION_KEY);
@@ -308,17 +391,13 @@ function ViewerClientInner({ children }: { children: React.ReactNode }) {
       url.searchParams.delete("persona");
       window.history.replaceState({}, "", url.pathname);
     }
-    await fetch("/api/auth/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({ sessionToken }),
-    });
-    setAuth({ status: "student", sessionToken });
+    setAuth(session);
     setOpenSignInModal(false);
   }, []);
 
   const signOut = useCallback(async () => {
+    const response = await fetch("/api/auth/session", { method: "DELETE", credentials: "same-origin" });
+    if (!response.ok) throw new Error("Could not revoke this session. Try signing out again.");
     clearCommuterCache();
     if (typeof window !== "undefined") {
       window.sessionStorage.removeItem(DEMO_CODE_SESSION_KEY);
@@ -328,10 +407,6 @@ function ViewerClientInner({ children }: { children: React.ReactNode }) {
       url.searchParams.delete("persona");
       window.history.replaceState({}, "", "/");
     }
-    await fetch("/api/auth/session", {
-      method: "DELETE",
-      credentials: "same-origin",
-    }).catch(() => {});
     setAuth({ status: "unauthenticated" });
   }, []);
 

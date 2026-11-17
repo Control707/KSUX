@@ -8,7 +8,7 @@ import {
 describe("Seam 1 — Course Hubs, Banner 9 CRN, Stateless .ics, Schedule Privacy & 500-LRU Syllabus (#18)", () => {
   it("matches 5-digit CRNs, filters My Section vs All Sections, enforces strict schedule privacy, and gates Course Hub Members Only sessions", async () => {
     const t = createTestConvex();
-    await t.mutation(internal.seed.bootstrapKsu, {});
+    await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: true });
 
     const maya = await createVerifiedTestStudent(t, {
       handle: "maya_course",

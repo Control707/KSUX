@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+// Generates demonstration data and approximate offline map shapes locally.
+// Verified public Banner records live separately in banner-verified.json.
 const ROOT = process.cwd();
 const GEO_DIR = path.join(ROOT, "public", "data");
 const SEED_DIR = path.join(ROOT, "data", "ksu-seed");

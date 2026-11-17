@@ -10,10 +10,7 @@ import {
   DEMO_PERSONA_HANDLES,
   randomShortCode,
 } from "../lib/crypto";
-import {
-  cloneDemoWorkspaceFixtures,
-  wipeWorkspaceRows,
-} from "./fixtures";
+import { cloneDemoWorkspaceFixtures } from "./fixtures";
 
 const DEMO_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -56,14 +53,20 @@ export const provisionOrAttachDemoSession = publicAuthMutation({
     }
 
     // Generate a fresh collision-free shortCode
-    let shortCode = randomShortCode(8);
+    let shortCode: string | undefined;
     for (let attempt = 0; attempt < 5; attempt++) {
+      const candidate = randomShortCode(8);
       const collision = await ctx.db
         .query("demoSessions")
-        .withIndex("by_short_code", (q) => q.eq("shortCode", shortCode))
+        .withIndex("by_short_code", (q) => q.eq("shortCode", candidate))
         .unique();
-      if (!collision) break;
-      shortCode = randomShortCode(8);
+      if (!collision) {
+        shortCode = candidate;
+        break;
+      }
+    }
+    if (!shortCode) {
+      throw new ConvexError({ code: "TRY_AGAIN", message: "Could not reserve a Demo link. Please try again." });
     }
 
     const demoSessionId = await ctx.db.insert("demoSessions", {
@@ -132,23 +135,28 @@ export const getDemoWorkspaceInfo = viewerQuery({
 export const resetDemoWorkspace = viewerMutation({
   args: {},
   handler: async (ctx) => {
-    if (ctx.viewer.mode !== "demo" || !ctx.viewer.demoSessionId) {
+    const { demoSessionId, demoShortCode, mode } = ctx.viewer;
+    if (mode !== "demo" || !demoSessionId || !demoShortCode) {
       throw new ConvexError({
         code: "FORBIDDEN",
         message: "Reset Demo State is only available in Judge Demo Mode.",
       });
     }
     const now = Date.now();
-    await wipeWorkspaceRows(ctx, ctx.viewer.workspaceKey);
-    await ctx.db.patch(ctx.viewer.demoSessionId, {
+    // Retire the old workspace immediately while leaving its rows available for durable cleanup.
+    await ctx.db.patch(demoSessionId, { shortCode: `reset:${demoSessionId}`, expiresAt: now });
+    const replacementId = await ctx.db.insert("demoSessions", {
+      shortCode: demoShortCode,
+      defaultPersonaHandle: "maya_cs",
       uploadCount: 0,
+      createdAt: now,
       lastActiveAt: now,
       expiresAt: now + DEMO_TTL_MS,
     });
-    await cloneDemoWorkspaceFixtures(ctx, ctx.viewer.demoSessionId, now);
+    await cloneDemoWorkspaceFixtures(ctx, replacementId, now);
     return {
       ok: true,
-      shortCode: ctx.viewer.demoShortCode,
+      shortCode: demoShortCode,
       resetAt: now,
     };
   },

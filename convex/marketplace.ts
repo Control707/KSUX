@@ -1,3 +1,4 @@
+import { workflowTime } from "./lib/workflowTime";
 import { ConvexError, v } from "convex/values";
 import {
   campusFilterValidator,
@@ -15,12 +16,56 @@ import {
   viewerQuery,
 } from "./lib/viewer";
 import { appendMessageAndFanoutUnread } from "./chats";
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
+import { MutationCtx } from "./_generated/server";
 
 const MAX_ACTIVE_LISTINGS_PER_STUDENT = 15;
 const MAX_DEAL_CHAT_PARTICIPANTS = 6;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+function isActiveListing(listing: Doc<"listings">, now: number) {
+  return (listing.status === "available" || listing.status === "pending") &&
+    listing.expiresAt > now;
+}
+
+async function assertListingCapacity(
+  ctx: MutationCtx,
+  workspaceKey: string,
+  sellerId: Id<"students">,
+  now: number,
+) {
+  const batches = await Promise.all(
+    (["available", "pending"] as const).map((status) =>
+      ctx.db.query("listings").withIndex("by_seller_status_expiry", (q) =>
+        q.eq("workspaceKey", workspaceKey).eq("sellerId", sellerId)
+          .eq("status", status).gt("expiresAt", now),
+      ).take(MAX_ACTIVE_LISTINGS_PER_STUDENT),
+    ),
+  );
+  if (batches.flat().length >= MAX_ACTIVE_LISTINGS_PER_STUDENT) {
+    throw new ConvexError({
+      code: "LISTING_CAP_REACHED",
+      message: "Active Marketplace Listings are capped at 15 per Student.",
+    });
+  }
+}
+
+async function requireListingDealChat(
+  ctx: MutationCtx,
+  listing: Doc<"listings">,
+  chatId: Id<"chats">,
+) {
+  const chat = await ctx.db.get(chatId);
+  if (!chat || chat.workspaceKey !== listing.workspaceKey || chat.kind !== "deal" ||
+      chat.listingId !== listing._id || chat.primarySellerId !== listing.sellerId) {
+    throw new ConvexError({
+      code: "INVALID_TARGET",
+      message: "Deal Chat does not belong to this Listing.",
+    });
+  }
+  return chat;
+}
 
 export const listMeetupSpots = viewerQuery({
   args: {
@@ -93,6 +138,16 @@ export const listListings = viewerQuery({
           return sq;
         })
         .take(limit);
+    } else if (campusFilter === "All KSU" && args.category) {
+      const category = args.category;
+      rawDocs = await ctx.db
+        .query("listings")
+        .withIndex("by_all_category", (q) =>
+          q.eq("workspaceKey", viewer.workspaceKey).eq("isBrowseable", true)
+            .eq("category", category),
+        )
+        .order("desc")
+        .take(limit);
     } else if (campusFilter === "All KSU") {
       rawDocs = await ctx.db
         .query("listings")
@@ -132,14 +187,14 @@ export const listListings = viewerQuery({
           targetType: "listing",
           getAuthorId: (l) => l.sellerId,
         }).filter((l) => {
-          if (l.expiresAt <= now && l.status === "available") return false;
+          if (!isActiveListing(l, now)) return false;
           if (args.category && l.category !== args.category) return false;
           if (args.pricingMode && l.pricingMode !== args.pricingMode)
             return false;
           return true;
         });
 
-    return Promise.all(
+    const listingCards = await Promise.all(
       visibleDocs.map(async (listing) => {
         const [sellerDoc, mediaDocs, bookmarkRow, existingDealChat] =
           await Promise.all([
@@ -168,6 +223,7 @@ export const listListings = viewerQuery({
               .unique(),
           ]);
 
+        if (!sellerDoc || sellerDoc.accountStatus !== "active") return null;
         return {
           _id: listing._id,
           seller: toPublicStudent(sellerDoc),
@@ -185,7 +241,7 @@ export const listListings = viewerQuery({
             )
             .map((m) => m.url),
           status:
-            listing.status === "available" && listing.expiresAt <= now
+            (listing.status === "available" || listing.status === "pending") && listing.expiresAt <= now
               ? ("expired" as const)
               : listing.status,
           bookmarkCount: listing.bookmarkCount,
@@ -196,6 +252,7 @@ export const listListings = viewerQuery({
         };
       })
     );
+    return listingCards.filter((listing) => listing !== null);
   },
 });
 
@@ -212,7 +269,7 @@ export const createListing = viewerMutation({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     const { viewer } = ctx;
     const title = args.title.trim();
     const description = args.description.trim();
@@ -236,11 +293,11 @@ export const createListing = viewerMutation({
 
     if (
       args.pricingMode === "fixed_obo" &&
-      (args.priceCents === undefined || args.priceCents <= 0)
+      (args.priceCents === undefined || !Number.isSafeInteger(args.priceCents) || args.priceCents <= 0)
     ) {
       throw new ConvexError({
         code: "INVALID_PRICE",
-        message: "Enter a positive dollar price for $ Price / OBO Listings.",
+        message: "Enter a positive price in whole cents for $ Price / OBO Listings.",
       });
     }
 
@@ -266,27 +323,7 @@ export const createListing = viewerMutation({
       await ctx.db.patch(asset._id, { status: "attached" });
     }
 
-    // Enforce <= 15 active Listings per Student
-    const myListings = await ctx.db
-      .query("listings")
-      .withIndex("by_seller", (q) =>
-        q
-          .eq("workspaceKey", viewer.workspaceKey)
-          .eq("sellerId", viewer.actorStudent._id)
-      )
-      .take(40);
-    const activeCount = myListings.filter(
-      (l) =>
-        (l.status === "available" || l.status === "pending") &&
-        l.expiresAt > now
-    ).length;
-
-    if (activeCount >= MAX_ACTIVE_LISTINGS_PER_STUDENT) {
-      throw new ConvexError({
-        code: "LISTING_CAP_REACHED",
-        message: "Active Marketplace Listings are capped at 15 per Student.",
-      });
-    }
+    await assertListingCapacity(ctx, viewer.workspaceKey, viewer.actorStudent._id, now);
 
     const listingId = await ctx.db.insert("listings", {
       workspaceKey: viewer.workspaceKey,
@@ -294,8 +331,7 @@ export const createListing = viewerMutation({
       campus: args.campus,
       category: args.category,
       pricingMode: args.pricingMode,
-      priceCents:
-        args.pricingMode === "fixed_obo" ? Math.round(args.priceCents!) : undefined,
+      priceCents: args.pricingMode === "fixed_obo" ? args.priceCents : undefined,
       tradeNote:
         args.pricingMode === "open_to_trade"
           ? args.tradeNote?.trim().slice(0, 200)
@@ -340,9 +376,13 @@ export const renewListing = viewerMutation({
         message: "Sold or removed Listings cannot be renewed.",
       });
     }
+    if (!isActiveListing(listing, now)) {
+      await assertListingCapacity(ctx, listing.workspaceKey, listing.sellerId, now);
+    }
     await ctx.db.patch(listing._id, {
       status: "available",
       isBrowseable: listing.visibilityStatus === "visible",
+      activeDealChatId: undefined,
       expiresAt: now + THIRTY_DAYS_MS,
     });
     return { ok: true, expiresAt: now + THIRTY_DAYS_MS };
@@ -453,7 +493,8 @@ export const openOrResumeDealChat = viewerMutation({
       return { chatId: existing._id, created: false };
     }
 
-    if (listing.status !== "available" && listing.status !== "pending") {
+    const seller = await ctx.db.get(listing.sellerId);
+    if (!isActiveListing(listing, now) || seller?.accountStatus !== "active") {
       throw new ConvexError({
         code: "LISTING_CLOSED",
         message: "This Listing is no longer accepting new Deal Chats.",
@@ -758,19 +799,15 @@ export const confirmHandoffMeetup = viewerMutation({
     }
 
     const card = chat.handoffCard;
-    const nextConfirmed = card.confirmedByIds.includes(viewer.actorStudent._id)
-      ? card.confirmedByIds
-      : [...card.confirmedByIds, viewer.actorStudent._id];
+    if (card.confirmedByIds.includes(viewer.actorStudent._id) || card.status === "completed") {
+      return { status: card.status };
+    }
+    const nextConfirmed = [...card.confirmedByIds, viewer.actorStudent._id];
 
     const isCounterpartyConfirmed = nextConfirmed.some(
       (id) => id !== card.proposedById
     );
-    const nextStatus =
-      card.status === "completed"
-        ? "completed"
-        : isCounterpartyConfirmed
-          ? "confirmed"
-          : "proposed";
+    const nextStatus = isCounterpartyConfirmed ? "confirmed" : "proposed";
 
     await ctx.db.patch(chat._id, {
       handoffCard: {
@@ -780,6 +817,8 @@ export const confirmHandoffMeetup = viewerMutation({
         updatedAt: now,
       },
     });
+
+    if (nextStatus === card.status) return { status: nextStatus };
 
     const freshChat = (await ctx.db.get(chat._id))!;
     await appendMessageAndFanoutUnread(ctx, {
@@ -826,33 +865,38 @@ export const transitionListingStatus = viewerMutation({
       });
     }
 
+    if (listing.visibilityStatus !== "visible" || listing.status === "removed") {
+      throw new ConvexError({ code: "INVALID_STATE", message: "This Listing is no longer available." });
+    }
+
     if (args.nextStatus === "available") {
+      if (listing.expiresAt <= now || listing.status === "expired") {
+        throw new ConvexError({ code: "INVALID_STATE", message: "Renew this Listing before reopening it." });
+      }
+      if (!isActiveListing(listing, now)) {
+        await assertListingCapacity(ctx, listing.workspaceKey, listing.sellerId, now);
+      }
       await ctx.db.patch(listing._id, {
         status: "available",
         isBrowseable: listing.visibilityStatus === "visible",
         activeDealChatId: undefined,
+        soldDealChatId: undefined,
+        buyerConfirmedPickup: false,
       });
       return { status: "available" as const };
     }
 
     if (args.nextStatus === "pending") {
+      if (!isActiveListing(listing, now)) {
+        throw new ConvexError({ code: "INVALID_STATE", message: "Only active Listings can be marked Pending." });
+      }
       if (!args.dealChatId) {
         throw new ConvexError({
           code: "INVALID_INPUT",
           message: "Select the Deal Chat to mark Pending.",
         });
       }
-      const chosenChat = await ctx.db.get(args.dealChatId);
-      if (
-        !chosenChat ||
-        chosenChat.workspaceKey !== viewer.workspaceKey ||
-        chosenChat.listingId !== listing._id
-      ) {
-        throw new ConvexError({
-          code: "INVALID_TARGET",
-          message: "Deal Chat does not belong to this Listing.",
-        });
-      }
+      const chosenChat = await requireListingDealChat(ctx, listing, args.dealChatId);
 
       await ctx.db.patch(listing._id, {
         status: "pending",
@@ -896,25 +940,29 @@ export const transitionListingStatus = viewerMutation({
 
     // Sold transition (completedDealCount does NOT increment until primaryBuyer taps Confirm Pickup!)
     const winningChatId = args.dealChatId ?? listing.activeDealChatId;
+    const winningChat = winningChatId ? await requireListingDealChat(ctx, listing, winningChatId) : null;
+    if (listing.status === "sold" && listing.soldDealChatId === winningChatId) {
+      return { status: "sold" as const };
+    }
+    if (!isActiveListing(listing, now)) {
+      throw new ConvexError({ code: "INVALID_STATE", message: "Only active Listings can be marked Sold." });
+    }
     await ctx.db.patch(listing._id, {
       status: "sold",
       isBrowseable: false,
       soldDealChatId: winningChatId,
     });
 
-    if (winningChatId) {
-      const winChat = await ctx.db.get(winningChatId);
-      if (winChat && winChat.workspaceKey === viewer.workspaceKey) {
-        await appendMessageAndFanoutUnread(ctx, {
+    if (winningChat) {
+      await appendMessageAndFanoutUnread(ctx, {
           workspaceKey: viewer.workspaceKey,
-          chat: winChat,
+          chat: winningChat,
           senderId: viewer.actorStudent._id,
           senderHandle: viewer.actorStudent.handle,
           messageType: "handoff_update",
           body: "Seller marked this Listing Sold! Primary buyer: tap 'Confirm Pickup' once you receive the item.",
           now,
-        });
-      }
+      });
     }
 
     return { status: "sold" as const };
@@ -927,7 +975,7 @@ export const confirmBuyerPickup = viewerMutation({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     const { viewer } = ctx;
     const chat = await ctx.db.get(args.chatId);
     if (

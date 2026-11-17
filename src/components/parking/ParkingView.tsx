@@ -56,8 +56,13 @@ const FULLNESS_BUTTONS: Array<{
 
 export function ParkingView() {
   const searchParams = useSearchParams();
-  const { pendingDraftCard, setPendingDraftCard } = useViewerClient();
-  const [permitFilter, setPermitFilter] = useState<string>("All");
+  const {
+    pendingDraftCard,
+    setPendingDraftCard,
+    quickComposerKind,
+    setQuickComposerKind,
+  } = useViewerClient();
+  const [permitOverride, setPermitFilter] = useState<string>();
   const [selectedLotSlug, setSelectedLotSlug] = useState<string | null>(null);
   const [selectedLevelByLot, setSelectedLevelByLot] = useState<
     Record<string, string>
@@ -69,12 +74,20 @@ export function ParkingView() {
   );
 
   const data = useViewerQuery(api.parking.listParkingLots, {
-    permitTierFilter: permitFilter === "All" ? undefined : permitFilter,
+    permitTierFilter: permitOverride,
   });
+  const permitFilter = permitOverride ?? data?.savedPermitTier ?? "All";
 
   const savePrefs = useViewerMutation(api.parking.saveParkingPreferences);
   const submitReport = useViewerMutation(api.parking.submitParkingReport);
   const resolveOpening = useViewerMutation(api.parking.resolveSpotOpening);
+
+  useEffect(() => {
+    if (quickComposerKind === "parking_report") {
+      setStatusBanner("Tap a fullness tier or 'Leaving in ~5 min' on any Parking Lot below.");
+      setQuickComposerKind(null);
+    }
+  }, [quickComposerKind, setQuickComposerKind]);
 
   useEffect(() => {
     if (pendingDraftCard && pendingDraftCard.draftKind === "parking_report") {
@@ -154,8 +167,8 @@ export function ParkingView() {
               KSU Parking Lots &amp; Live Deck Fullness
             </h1>
             <p className="text-xs text-[#5E6675]">
-              All 72 Kennesaw &amp; Marietta lots · 45m recency-decayed Student
-              reports + 168-hr Banner 9 class-load priors · Pin up to 2 lots.
+              Kennesaw &amp; Marietta · Recent Student reports and modeled
+              fullness estimates · Pin up to 2 Parking Lots.
             </p>
           </div>
 
@@ -303,7 +316,7 @@ export function ParkingView() {
                   </span>{" "}
                   is <strong>{lot.overflowReroute.tierLabel}</strong>
                   {lot.overflowReroute.shuttleRouteName
-                    ? ` · ${lot.overflowReroute.shuttleRouteName} arrives in ${lot.overflowReroute.shuttleEtaMinutes} min`
+                    ? ` · ${lot.overflowReroute.shuttleRouteName}${lot.overflowReroute.shuttleEtaMinutes === undefined ? " · ETA unavailable" : ` in ${lot.overflowReroute.shuttleEtaMinutes} min`}`
                     : ""}
                 </div>
               )}

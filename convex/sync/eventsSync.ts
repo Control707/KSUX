@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalAction, internalMutation, internalQuery } from "../_generated/server";
 import { internal } from "../_generated/api";
+import { localTimestamp } from "../lib/easternDate";
 import {
   computePayloadHash,
   evaluateFailureStatePatch,
@@ -11,6 +12,8 @@ import {
 
 export interface NormalizedUpstreamEvent {
   externalKey: string;
+  sourceExternalKeys?: string[];
+  explicitlyCancelled?: boolean;
   source: "localist" | "engage";
   campus: "Kennesaw" | "Marietta";
   campusScope: "Kennesaw" | "Marietta" | "Both";
@@ -55,16 +58,20 @@ export function deduplicateUpstreamEvents(
 
   for (const eng of engageItems) {
     const normTitle = normalizeEventTitleForDedup(eng.title);
-    const duplicate = winners.some(
+    const duplicate = winners.find(
       (w) =>
         normalizeEventTitleForDedup(w.title) === normTitle &&
-        Math.abs(w.startTime - eng.startTime) <= FIFTEEN_MINUTES_MS
+        Math.abs(w.startTime - eng.startTime) <= FIFTEEN_MINUTES_MS &&
+        (w.source !== eng.source || w.externalKey === eng.externalKey) &&
+        (w.isVirtual || eng.isVirtual || w.campus === eng.campus)
     );
-    if (!duplicate) {
-      winners.push({
-        ...eng,
-        campusScope: eng.isVirtual ? "Both" : eng.campus,
-      });
+    if (duplicate) {
+      duplicate.sourceExternalKeys = [...new Set([
+        ...(duplicate.sourceExternalKeys ?? [duplicate.externalKey]),
+        ...(eng.sourceExternalKeys ?? [eng.externalKey]),
+      ])];
+    } else {
+      winners.push({ ...eng, campusScope: eng.isVirtual ? "Both" : eng.campus });
     }
   }
 
@@ -78,14 +85,9 @@ export function parseLocalistEventsPayload(payload: any): NormalizedUpstreamEven
   for (const wrapper of rawEvents) {
     const ev = wrapper?.event ?? wrapper;
     if (!ev?.id || !ev?.title) continue;
-    const inst =
-      ev.event_instances?.[0]?.event_instance ?? ev.first_instance ?? {};
-    const startMs = Date.parse(inst.start || ev.start || "");
-    if (!Number.isFinite(startMs)) continue;
-    const endMs = Number.isFinite(Date.parse(inst.end || ""))
-      ? Date.parse(inst.end)
-      : startMs + 2 * 3600_000;
-
+    const instances = Array.isArray(ev.event_instances) && ev.event_instances.length
+      ? ev.event_instances.map((item: any) => item?.event_instance ?? item)
+      : [ev.first_instance ?? {}];
     const isVirtual =
       ev.experience === "virtual" ||
       /virtual|online|teams|zoom/i.test(String(ev.location_name ?? ""));
@@ -95,25 +97,33 @@ export function parseLocalistEventsPayload(payload: any): NormalizedUpstreamEven
         ? "Marietta"
         : "Kennesaw";
 
-    out.push({
-      externalKey: `localist:${ev.id}`,
-      source: "localist",
-      campus,
-      campusScope: isVirtual ? "Both" : campus,
-      isVirtual,
-      title: String(ev.title).trim(),
-      description: String(ev.description_text || ev.title).trim().slice(0, 1200),
-      locationName: String(
-        ev.location_name || (isVirtual ? "Virtual / Online" : `${campus} Campus`)
-      ),
-      roomNumber: ev.room_number ? String(ev.room_number) : undefined,
-      latitude: ev.geo?.latitude ? Number(ev.geo.latitude) : undefined,
-      longitude: ev.geo?.longitude ? Number(ev.geo.longitude) : undefined,
-      photoUrl: ev.photo_url ? String(ev.photo_url) : undefined,
-      externalUrl: ev.localist_url ? String(ev.localist_url) : undefined,
-      startTime: startMs,
-      endTime: endMs,
-    });
+    for (const [index, inst] of instances.entries()) {
+      const startMs = Date.parse(inst?.start || ev.start || "");
+      if (!Number.isFinite(startMs)) continue;
+      const parsedEnd = Date.parse(inst?.end || "");
+      const endMs = parsedEnd > startMs ? parsedEnd : startMs + 2 * 3600_000;
+      const legacyKey = `localist:${ev.id}`;
+      const externalKey = `${legacyKey}:${inst?.id ?? startMs}`;
+      out.push({
+        externalKey,
+        sourceExternalKeys: index === 0 ? [externalKey, legacyKey] : [externalKey],
+        explicitlyCancelled: inst?.status === "cancelled" || ev.status === "cancelled",
+        source: "localist",
+        campus,
+        campusScope: isVirtual ? "Both" : campus,
+        isVirtual,
+        title: String(ev.title).trim(),
+        description: String(ev.description_text || ev.title).trim().slice(0, 1200),
+        locationName: String(ev.location_name || (isVirtual ? "Virtual / Online" : `${campus} Campus`)),
+        roomNumber: ev.room_number ? String(ev.room_number) : undefined,
+        latitude: ev.geo?.latitude ? Number(ev.geo.latitude) : undefined,
+        longitude: ev.geo?.longitude ? Number(ev.geo.longitude) : undefined,
+        photoUrl: ev.photo_url ? String(ev.photo_url) : undefined,
+        externalUrl: ev.localist_url ? String(ev.localist_url) : undefined,
+        startTime: startMs,
+        endTime: endMs,
+      });
+    }
   }
   return out;
 }
@@ -180,6 +190,100 @@ export function parseEngageRssPayload(rssXml: string): NormalizedUpstreamEvent[]
   return out;
 }
 
+function parseEngageIcsTimestamp(value: string, timeZone?: string): number | null {
+  const match = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/.exec(value);
+  if (!match) return null;
+  return localTimestamp({
+    year: Number(match[1]), month: Number(match[2]), day: Number(match[3]),
+    hour: Number(match[4] ?? 0), minute: Number(match[5] ?? 0), second: Number(match[6] ?? 0),
+  }, match[7] ? "UTC" : timeZone);
+}
+
+export function parseEngageIcsPayload(calendar: string): NormalizedUpstreamEvent[] {
+  return [...calendar.replace(/\r?\n[ \t]/g, "").matchAll(/BEGIN:VEVENT\r?\n([\s\S]*?)END:VEVENT/gi)]
+    .flatMap((event) => {
+      const fields = new Map<string, { value: string; timeZone?: string }>();
+      for (const line of event[1]!.split(/\r?\n/)) {
+        const colon = line.indexOf(":");
+        if (colon < 0) continue;
+        const [name, ...parameters] = line.slice(0, colon).split(";");
+        const value = line.slice(colon + 1).trim().replace(/\\([nN,;\\])/g, (_, c) => /n/i.test(c) ? " " : c);
+        const timeZone = parameters.find((item) => /^TZID=/i.test(item))?.slice(5).replace(/^"|"$/g, "");
+        fields.set(name!.toUpperCase(), { value, timeZone });
+      }
+      const start = fields.get("DTSTART");
+      const end = fields.get("DTEND");
+      const uid = fields.get("UID")?.value;
+      const title = fields.get("SUMMARY")?.value;
+      const url = fields.get("URL")?.value;
+      const startTime = start && parseEngageIcsTimestamp(start.value, start.timeZone);
+      if (!uid || !title || startTime == null) return [];
+      const endTime = end && parseEngageIcsTimestamp(end.value, end.timeZone);
+      const locationName = fields.get("LOCATION")?.value || "KSU Campus";
+      const isVirtual = /virtual|online|teams|zoom/i.test(locationName);
+      const campus = /marietta|johnson|atrium|wilson/i.test(locationName) ? "Marietta" as const : "Kennesaw" as const;
+      const recurrenceId = fields.get("RECURRENCE-ID")?.value;
+      const externalKey = recurrenceId ? `engage:${uid}:${recurrenceId}` : `engage:${uid}`;
+      return [{
+        externalKey,
+        sourceExternalKeys: url && !recurrenceId ? [externalKey, `engage:${url}`] : [externalKey],
+        explicitlyCancelled: fields.get("STATUS")?.value.toUpperCase() === "CANCELLED",
+        source: "engage" as const, campus, campusScope: isVirtual ? "Both" as const : campus, isVirtual,
+        title, description: (fields.get("DESCRIPTION")?.value || title).slice(0, 1200),
+        locationName, externalUrl: url, startTime, endTime: endTime && endTime > startTime ? endTime : startTime + 2 * 3600_000,
+      }];
+    });
+}
+
+async function fetchLocalistEvents(fetchImpl?: UpstreamFetchFn) {
+  const events: NormalizedUpstreamEvent[] = [];
+  let totalPages: number | undefined;
+  let complete = false;
+  for (let page = 1; page <= 8; page++) {
+    const response = await fetchUpstreamWithRetry(
+      `https://calendar.kennesaw.edu/api/2/events?pp=50&days=30&page=${page}`,
+      { headers: { Accept: "application/json" } }, fetchImpl);
+    const payload = await response.json();
+    if (!Array.isArray(payload?.events)) throw new Error("Invalid Localist events response");
+    events.push(...parseLocalistEventsPayload(payload));
+    const count = Number(payload.page?.total ?? payload.page?.total_pages);
+    const current = Number(payload.page?.current);
+    if (!Number.isSafeInteger(count) || count < 1 || current !== page
+        || (totalPages !== undefined && totalPages !== count)) break;
+    totalPages = count;
+    if (current === count) {
+      complete = true;
+      break;
+    }
+    if (!payload.events.length) break;
+  }
+  return { events, complete };
+}
+
+async function fetchEngageEvents(fetchImpl?: UpstreamFetchFn) {
+  const [ics, rss] = await Promise.allSettled(["ics", "rss"].map(async (kind) => {
+    const response = await fetchUpstreamWithRetry(
+      `https://kennesaw.campuslabs.com/engage/events.${kind}`,
+      { headers: { Accept: kind === "ics" ? "text/calendar" : "application/rss+xml, application/xml, text/xml" } },
+      fetchImpl);
+    const payload = await response.text();
+    if (kind === "ics" && /BEGIN:VCALENDAR/i.test(payload)) return parseEngageIcsPayload(payload);
+    if (kind === "rss" && /<rss\b/i.test(payload)) return parseEngageRssPayload(payload);
+    throw new Error(`Invalid Engage ${kind} response`);
+  }));
+  if (ics.status === "rejected" && rss.status === "rejected") throw new Error("Engage feeds unavailable");
+  const combined = ics.status === "fulfilled" ? [...ics.value] : [];
+  if (rss.status === "fulfilled") {
+    for (const row of rss.value) {
+      const match = combined.find((item) => item.sourceExternalKeys?.includes(row.externalKey)
+        || (item.startTime === row.startTime && normalizeEventTitleForDedup(item.title) === normalizeEventTitleForDedup(row.title)));
+      if (match) match.sourceExternalKeys = [...new Set([...(match.sourceExternalKeys ?? [match.externalKey]), row.externalKey])];
+      else combined.push(row);
+    }
+  }
+  return combined;
+}
+
 export async function runEventsIngestCycle(params: {
   syncState: {
     consecutiveFailures: number;
@@ -201,6 +305,7 @@ export async function runEventsIngestCycle(params: {
       status: "ready_to_upsert";
       payloadHash: string;
       events: NormalizedUpstreamEvent[];
+      localistCoverageComplete: boolean;
     }
 > {
   const { syncState, nowMs, fetchImpl } = params;
@@ -209,28 +314,16 @@ export async function runEventsIngestCycle(params: {
   }
 
   try {
-    const [localistResp, engageResp] = await Promise.all([
-      fetchUpstreamWithRetry(
-        "https://calendar.kennesaw.edu/api/2/events?pp=50&days=30",
-        { headers: { Accept: "application/json" } },
-        fetchImpl
-      ),
-      fetchUpstreamWithRetry(
-        "https://kennesaw.campuslabs.com/engage/events.rss",
-        { headers: { Accept: "application/rss+xml, application/xml, text/xml" } },
-        fetchImpl
-      ),
-    ]);
-
-    const [localistJson, engageXml] = await Promise.all([
-      localistResp.json(),
-      engageResp.text(),
-    ]);
-
+    const [localist, engage] = await Promise.allSettled([fetchLocalistEvents(fetchImpl), fetchEngageEvents(fetchImpl)]);
+    if (localist.status === "rejected" && engage.status === "rejected") {
+      throw new Error("Localist and Engage feeds unavailable");
+    }
     const deduped = deduplicateUpstreamEvents(
-      parseLocalistEventsPayload(localistJson),
-      parseEngageRssPayload(engageXml)
+      localist.status === "fulfilled" ? localist.value.events : [],
+      engage.status === "fulfilled" ? engage.value : []
     );
+    const localistCoverageComplete = localist.status === "fulfilled" && localist.value.complete
+      && engage.status === "fulfilled";
 
     if (isSuddenDropOrEmpty(syncState.activeRecordCount, deduped.length)) {
       const reason = `Aborted Events upsert: incoming ${deduped.length} vs previous ${syncState.activeRecordCount} (>80% drop or empty).`;
@@ -241,8 +334,8 @@ export async function runEventsIngestCycle(params: {
       };
     }
 
-    const payloadHash = await computePayloadHash(deduped);
-    if (payloadHash === syncState.lastPayloadHash) {
+    const payloadHash = await computePayloadHash({ events: deduped, localistCoverageComplete });
+    if (localistCoverageComplete && payloadHash === syncState.lastPayloadHash) {
       return { status: "noop_unchanged", payloadHash };
     }
 
@@ -250,6 +343,7 @@ export async function runEventsIngestCycle(params: {
       status: "ready_to_upsert",
       payloadHash,
       events: deduped,
+      localistCoverageComplete,
     };
   } catch (err: any) {
     const reason = err?.message || "Upstream KSU Events sync error";
@@ -274,6 +368,7 @@ export const getEventsSyncStateInternal = internalQuery({
 export const applySyncedEventsInternal = internalMutation({
   args: {
     now: v.number(),
+    localistCoverageComplete: v.optional(v.boolean()),
     status: v.union(
       v.literal("noop_unchanged"),
       v.literal("ready_to_upsert"),
@@ -328,118 +423,111 @@ export const applySyncedEventsInternal = internalMutation({
     }
 
     const incoming = (args.events ?? []) as NormalizedUpstreamEvent[];
-    const seenExternalKeys = new Set<string>();
+    const seenEventIds = new Set<string>();
     let upserted = 0;
+    let cancelledUpstream = 0;
 
     for (const ev of incoming) {
-      seenExternalKeys.add(ev.externalKey);
-      const existing = await ctx.db
-        .query("events")
-        .withIndex("by_external_key", (q) =>
-          q.eq("externalKey", ev.externalKey)
-        )
-        .unique();
-
+      const keys = ev.sourceExternalKeys ?? [ev.externalKey];
+      const exactMatches = await Promise.all(keys.map(async (key) => {
+        const indexed = await ctx.db.query("eventSourceAliases")
+          .withIndex("by_source_key", (q) => q.eq("sourceKey", key)).unique();
+        const match = indexed ? await ctx.db.get(indexed.eventId) : null;
+        if (match) return match;
+        return ctx.db.query("events").withIndex("by_external_key", (q) => q.eq("externalKey", key)).unique();
+      }));
+      let existing = exactMatches.find((row) => row?.workspaceKey === "ksu" && !seenEventIds.has(row._id) && (
+        row.externalKey === ev.externalKey || row.source !== ev.source
+          || (row.source === "localist" && row.externalKey?.split(":").length === 2)
+          || row.sourceExternalKeys?.includes(ev.externalKey)
+      ));
+      if (!existing) {
+        const candidates = await ctx.db.query("events").withIndex("by_all_start", (q) =>
+          q.eq("workspaceKey", "ksu").eq("visibilityStatus", "visible")
+            .gte("startTime", ev.startTime - FIFTEEN_MINUTES_MS)
+            .lte("startTime", ev.startTime + FIFTEEN_MINUTES_MS)).take(25);
+        existing = candidates.find((row) => !seenEventIds.has(row._id)
+          && (row.sourceExternalKeys?.some((key) => keys.includes(key))
+            || (row.source !== ev.source && (row.isVirtual || ev.isVirtual || row.campus === ev.campus)
+              && normalizeEventTitleForDedup(row.title) === normalizeEventTitleForDedup(ev.title))));
+      }
+      const patch = {
+        campus: ev.campus,
+        campusScope: ev.isVirtual ? "Both" as const : ev.campus,
+        isVirtual: ev.isVirtual,
+        title: ev.title,
+        description: ev.description,
+        searchText: `${ev.title} ${ev.locationName} ${ev.campus}`,
+        locationName: ev.locationName,
+        roomNumber: ev.roomNumber,
+        latitude: ev.latitude,
+        longitude: ev.longitude,
+        photoUrl: ev.photoUrl,
+        externalUrl: ev.externalUrl,
+        startTime: ev.startTime,
+        endTime: ev.endTime,
+        source: ev.source,
+        sourceExternalKeys: [...new Set([...(existing?.sourceExternalKeys ?? []), ...keys])],
+        status: ev.explicitlyCancelled ? "cancelled_upstream" as const : "scheduled" as const,
+      };
       if (existing) {
-        // Non-destructive upsert: preserves RSVPs, prodGoingCount, prodInterestedCount, and embedding if title/desc unchanged!
-        await ctx.db.patch(existing._id, {
-          campus: ev.campus,
-          campusScope: ev.isVirtual ? "Both" : ev.campus,
-          isVirtual: ev.isVirtual,
-          title: ev.title,
-          description: ev.description,
-          searchText: `${ev.title} ${ev.locationName} ${ev.campus}`,
-          locationName: ev.locationName,
-          roomNumber: ev.roomNumber,
-          latitude: ev.latitude,
-          longitude: ev.longitude,
-          photoUrl: ev.photoUrl,
-          externalUrl: ev.externalUrl,
-          startTime: ev.startTime,
-          endTime: ev.endTime,
-          status: "scheduled",
-        });
+        await ctx.db.patch(existing._id, patch);
+        seenEventIds.add(existing._id);
       } else {
-        await ctx.db.insert("events", {
-          workspaceKey: "ksu",
-          externalKey: ev.externalKey,
-          source: ev.source,
-          campus: ev.campus,
-          campusScope: ev.isVirtual ? "Both" : ev.campus,
-          isVirtual: ev.isVirtual,
-          title: ev.title,
-          description: ev.description,
-          searchText: `${ev.title} ${ev.locationName} ${ev.campus}`,
-          locationName: ev.locationName,
-          roomNumber: ev.roomNumber,
-          latitude: ev.latitude,
-          longitude: ev.longitude,
-          photoUrl: ev.photoUrl,
-          externalUrl: ev.externalUrl,
-          startTime: ev.startTime,
-          endTime: ev.endTime,
-          status: "scheduled",
-          visibilityStatus: "visible",
-          prodGoingCount: 0,
-          prodInterestedCount: 0,
+        const id = await ctx.db.insert("events", {
+          ...patch, workspaceKey: "ksu", externalKey: ev.externalKey, visibilityStatus: "visible",
+          prodGoingCount: 0, prodInterestedCount: 0,
         });
+        seenEventIds.add(id);
+        existing = await ctx.db.get(id);
+      }
+      if (!existing) continue;
+      for (const key of keys) {
+        // The legacy Localist event ID can describe multiple occurrences.
+        if (key !== ev.externalKey && /^localist:[^:]+$/.test(key)) continue;
+        const priorAlias = await ctx.db.query("eventSourceAliases")
+          .withIndex("by_source_key", (q) => q.eq("sourceKey", key)).unique();
+        if (!priorAlias) await ctx.db.insert("eventSourceAliases", { sourceKey: key, eventId: existing._id });
       }
       upserted++;
     }
 
-    // Cancelled Upstream preservation: if an upcoming synced KSU Event disappears upstream while >= 1 Student RSVPed, mark cancelled_upstream instead of vanishing!
-    const existingUpcoming = await ctx.db
-      .query("events")
-      .withIndex("by_all_start", (q) =>
-        q
-          .eq("workspaceKey", "ksu")
-          .eq("visibilityStatus", "visible")
-          .gt("startTime", args.now)
-      )
-      .take(200);
-
-    let cancelledUpstream = 0;
-    for (const row of existingUpcoming) {
-      if (
-        row.externalKey &&
-        !seenExternalKeys.has(row.externalKey) &&
-        row.status === "scheduled"
-      ) {
-        const anyRsvp =
-          row.prodGoingCount + row.prodInterestedCount > 0 ||
-          Boolean(
-            await ctx.db
-              .query("eventRsvps")
-              .filter((q) => q.eq(q.field("eventId"), row._id))
-              .first()
-          );
-        if (anyRsvp) {
-          await ctx.db.patch(row._id, { status: "cancelled_upstream" });
-          cancelledUpstream++;
-        } else {
-          await ctx.db.patch(row._id, { status: "cancelled" });
-        }
+    if (args.localistCoverageComplete) {
+      const localistWindowEnd = args.now + 29 * 24 * 60 * 60_000;
+      const existingUpcoming = await ctx.db.query("events").withIndex("by_all_start", (q) =>
+        q.eq("workspaceKey", "ksu").eq("visibilityStatus", "visible")
+          .gt("startTime", args.now).lt("startTime", localistWindowEnd)).take(200);
+      for (const row of existingUpcoming) {
+        // RSS/iCalendar feeds do not publish a completeness guarantee. Only
+        // infer disappearance for Localist occurrences in its paginated window.
+        if (row.source !== "localist" || !row.externalKey || seenEventIds.has(row._id)
+            || row.status !== "scheduled") continue;
+        const rsvp = await ctx.db.query("eventRsvps").withIndex("by_event", (q) => q.eq("eventId", row._id)).first();
+        const hasRsvp = Boolean(rsvp) || row.prodGoingCount + row.prodInterestedCount > 0;
+        await ctx.db.patch(row._id, { status: hasRsvp ? "cancelled_upstream" : "cancelled" });
+        if (hasRsvp) cancelledUpstream++;
       }
     }
 
     if (state) {
       await ctx.db.patch(state._id, {
-        lastSuccessAt: args.now,
+        lastSuccessAt: args.localistCoverageComplete ? args.now : state.lastSuccessAt,
         lastAttemptAt: args.now,
         consecutiveFailures: 0,
         backoffUntil: undefined,
         lastPayloadHash: args.payloadHash,
-        activeRecordCount: incoming.length,
-        lastError: undefined,
+        activeRecordCount: args.localistCoverageComplete ? incoming.length : state.activeRecordCount,
+        lastError: args.localistCoverageComplete ? undefined : "Event feed coverage was incomplete",
       });
     } else {
       await ctx.db.insert("feedSyncState", {
         sourceKey: "localist_engage_events",
-        lastSuccessAt: args.now,
+        lastSuccessAt: args.localistCoverageComplete ? args.now : undefined,
         lastAttemptAt: args.now,
         consecutiveFailures: 0,
         lastPayloadHash: args.payloadHash,
         activeRecordCount: incoming.length,
+        lastError: args.localistCoverageComplete ? undefined : "Event feed coverage was incomplete",
       });
     }
 
@@ -489,6 +577,7 @@ export const runScheduledEventsSync = internalAction({
       status: "ready_to_upsert",
       payloadHash: outcome.payloadHash,
       events: outcome.events,
+      localistCoverageComplete: outcome.localistCoverageComplete,
     });
     return { status: "updated" };
   },

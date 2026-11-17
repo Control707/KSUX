@@ -12,6 +12,7 @@ import {
   FEED_MENTION_TOOLS,
 } from "./tools";
 import {
+  fenceUntrustedCampusText,
   invokeThreeTierScrappyCompletion,
   ScrappyTurnMessage,
 } from "./router";
@@ -199,31 +200,17 @@ export const getMentionExecutionContextInternal = internalQuery({
       ctx.db.get(args.replyPostId),
       ctx.db.get(args.triggerPostId),
     ]);
-    if (!replyPost || !triggerPost) return null;
-
-    // Resolve auth envelope for internal read-only tool queries
-    let demoShortCode: string | undefined;
-    let demoPersonaHandle: string | undefined;
-    let sessionToken: string | undefined;
-
-    const triggerAuthor = await ctx.db.get(triggerPost.authorId);
-    if (replyPost.workspaceKey.startsWith("demo:")) {
-      const demoId = replyPost.workspaceKey.slice(5) as any;
-      const demoDoc = await ctx.db.get(demoId);
-      if (demoDoc && "shortCode" in demoDoc) {
-        demoShortCode = String((demoDoc as any).shortCode);
-        demoPersonaHandle = triggerAuthor?.handleLower ?? "maya_cs";
-      }
-    }
+    if (!replyPost || !triggerPost || !replyPost.authorIsScrappy ||
+        replyPost.scrappyStatus !== "thinking" ||
+        replyPost.replyToPostId !== triggerPost._id ||
+        replyPost.workspaceKey !== triggerPost.workspaceKey ||
+        replyPost.scrappyTriggerAuthorId !== triggerPost.authorId) return null;
 
     return {
       workspaceKey: replyPost.workspaceKey,
       campus: triggerPost.campus,
       promptBody: triggerPost.body,
       triggerAuthorId: triggerPost.authorId,
-      demoShortCode,
-      demoPersonaHandle,
-      sessionToken,
     };
   },
 });
@@ -376,45 +363,12 @@ export const executeFeedMentionAction = internalAction({
     if (!info) return;
 
     try {
-      let pulseSummary: any = null;
-      let marketplaceSummary: any = null;
-      const collectedCitations: Array<{
-        entityType: string;
-        entityId: string;
-        label: string;
-        href: string;
-        campus?: string;
-      }> = [];
-
-      if (info.demoShortCode) {
-        // Execute read-only public tools from FEED_MENTION_TOOLS (never getMyPersonalContext!)
-        const [pulse, listings] = await Promise.all([
-          ctx.runQuery(internal.scrappy.tools.getCampusDailyPulse, {
-            demoShortCode: info.demoShortCode,
-            demoPersonaHandle: info.demoPersonaHandle,
-            campus: info.campus,
-          }),
-          ctx.runQuery(internal.scrappy.tools.searchMarketplaceListings, {
-            demoShortCode: info.demoShortCode,
-            demoPersonaHandle: info.demoPersonaHandle,
-            campus: info.campus,
-          }),
-        ]);
-        pulseSummary = pulse;
-        marketplaceSummary = listings;
-        collectedCitations.push(
-          ...(pulse.citations ?? []),
-          ...(listings.citations ?? [])
-        );
-      } else {
-        collectedCitations.push({
-          entityType: "parking_lot",
-          entityId: info.campus,
-          label: `${info.campus} Campus Pulse`,
-          href: "/parking",
-          campus: info.campus,
-        });
-      }
+      const toolArgs = { mentionPostId: args.triggerPostId, campus: info.campus };
+      const [pulseSummary, marketplaceSummary] = await Promise.all([
+        ctx.runQuery(internal.scrappy.tools.getCampusDailyPulse, toolArgs),
+        ctx.runQuery(internal.scrappy.tools.searchMarketplaceListings, toolArgs),
+      ]);
+      const collectedCitations = [...pulseSummary.citations, ...marketplaceSummary.citations];
 
       const env = {
         groqApiKey: process.env.GROQ_API_KEY?.trim(),
@@ -436,11 +390,11 @@ export const executeFeedMentionAction = internalAction({
           {
             role: "user",
             content: `Campus: ${info.campus}\nPublic Campus Pulse JSON: ${JSON.stringify({
-              parking: pulseSummary?.parking?.slice(0, 2),
-              shuttles: pulseSummary?.shuttles?.slice(0, 2),
-              study: pulseSummary?.study?.slice(0, 2),
-              listings: marketplaceSummary?.rows?.slice(0, 2),
-            })}\nStudent Post: <untrusted_campus_content>${info.promptBody.slice(0, 400)}</untrusted_campus_content>`,
+              parking: pulseSummary.parking.slice(0, 2),
+              shuttles: pulseSummary.shuttles.slice(0, 2),
+              study: pulseSummary.study.slice(0, 2),
+              listings: marketplaceSummary.rows.slice(0, 2),
+            })}\nStudent Post: ${fenceUntrustedCampusText(info.promptBody, 400)}`,
           },
         ];
 
@@ -454,9 +408,9 @@ export const executeFeedMentionAction = internalAction({
       }
 
       if (!finalBody) {
-        const topLot = pulseSummary?.parking?.[0];
-        const topBus = pulseSummary?.shuttles?.[0];
-        const topStudy = pulseSummary?.study?.[0];
+        const topLot = pulseSummary.parking[0];
+        const topBus = pulseSummary.shuttles[0];
+        const topStudy = pulseSummary.study[0];
         finalBody = `Hoot! On ${info.campus} Campus right now: ${
           topLot ? `${topLot.name} is ${topLot.status}` : "check Parking Lots for live deck tiers"
         }${

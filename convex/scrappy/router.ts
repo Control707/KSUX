@@ -1,3 +1,5 @@
+import parkingLotCatalog from "../../data/ksu-seed/parking-lots.json";
+
 export type ScrappyInvocationMode = "ask_scrappy" | "feed_mention";
 
 export interface ScrappyToolSpec {
@@ -24,6 +26,8 @@ export interface ProviderHttpResponse {
   ok: boolean;
   status: number;
   json: () => Promise<any>;
+  body?: ReadableStream<Uint8Array> | null;
+  headers?: Headers;
 }
 
 export type ProviderFetchFn = (
@@ -130,6 +134,7 @@ export async function invokeThreeTierScrappyCompletion(params: {
   tools?: ScrappyToolSpec[];
   env: ScrappyRouterEnv;
   fetchImpl?: ProviderFetchFn;
+  onDelta?: (text: string) => void;
 }): Promise<{
   providerUsed: string;
   content: string;
@@ -147,6 +152,7 @@ export async function invokeThreeTierScrappyCompletion(params: {
   }
 
   let lastError: unknown;
+  let emitted = false;
 
   for (const target of chain) {
     const outgoingMessages = target.requiresPiiStrip
@@ -161,6 +167,9 @@ export async function invokeThreeTierScrappyCompletion(params: {
       temperature: 0.2,
       messages: outgoingMessages,
     };
+    if (params.onDelta && !params.tools?.length && target.tier !== "cloudflare_fallback") {
+      bodyPayload.stream = true;
+    }
 
     if (params.tools && params.tools.length > 0) {
       bodyPayload.tools = params.tools.map((t) => ({
@@ -193,6 +202,16 @@ export async function invokeThreeTierScrappyCompletion(params: {
         continue;
       }
 
+      const onDelta = params.onDelta;
+      if (bodyPayload.stream && onDelta && resp.body && resp.headers?.get("content-type")?.includes("text/event-stream")) {
+        const content = await readCompletionDeltas(resp.body, (text) => {
+          emitted = true;
+          onDelta(text);
+        });
+        if (!content) throw new Error("The provider returned no text.");
+        return { providerUsed: `${target.tier}:${target.model}`, content, toolCalls: [] };
+      }
+
       const json = await resp.json();
       const choice = json?.choices?.[0]?.message ?? {};
       const rawCalls: any[] = Array.isArray(choice.tool_calls)
@@ -211,6 +230,7 @@ export async function invokeThreeTierScrappyCompletion(params: {
           })),
       };
     } catch (err) {
+      if (emitted) throw err;
       lastError = err;
     }
   }
@@ -218,6 +238,45 @@ export async function invokeThreeTierScrappyCompletion(params: {
   throw lastError instanceof Error
     ? lastError
     : new Error("All 3 Scrappy LLM provider tiers failed.");
+}
+
+async function readCompletionDeltas(body: ReadableStream<Uint8Array>, emit: (text: string) => void) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result = "";
+  let finished = false;
+  try {
+    while (!finished) {
+      const { done, value } = await reader.read();
+      buffer += value ? decoder.decode(value, { stream: true }) : decoder.decode();
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data:")) continue;
+        const data = line.slice(5).trim();
+        if (data === "[DONE]") {
+          finished = true;
+          break;
+        }
+        const frame = JSON.parse(data);
+        if (frame.error) throw new Error("The provider interrupted the answer.");
+        const choice = frame.choices?.[0];
+        if (typeof choice?.delta?.content === "string" && choice.delta.content) {
+          result += choice.delta.content;
+          if (result.length > 32_000) throw new Error("The provider response exceeded the answer limit.");
+          emit(choice.delta.content);
+        }
+        if (choice?.finish_reason) finished = true;
+      }
+      if (done) break;
+    }
+    if (!finished) throw new Error("The provider closed its stream before completing the answer.");
+    return result;
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
 }
 
 export async function generateOptionalEmbedding768(
@@ -267,7 +326,10 @@ export function maybeBuildClientDraftCard(prompt: string): {
     /\b(?:create|draft|publish|post|sell|list|submit|report|host)\b/.test(lower);
   if (!wantsDraft) return null;
 
-  if (/\b(?:sell|listing|marketplace|textbook|calculator|obo)\b/.test(lower)) {
+  const listingRequested = /\b(?:sell|draft (?:a )?listing|create (?:a )?listing|list (?:my|a|an|the))\b/.test(lower);
+  if (listingRequested) {
+    const price = /\$\s*(\d+(?:,\d{3})*(?:\.\d{1,2})?)(?![\d.,])|\b(\d+(?:,\d{3})*(?:\.\d{1,2})?)\s+dollars?\b/i.exec(prompt);
+    const amount = price?.[1] ?? price?.[2];
     return {
       draftKind: "listing",
       title: "Draft Marketplace Listing",
@@ -275,20 +337,22 @@ export function maybeBuildClientDraftCard(prompt: string): {
       payloadJson: JSON.stringify({
         title: prompt.replace(/^.*?(?:sell|list)\s+/i, "").slice(0, 70) || "Campus Item",
         description: prompt.slice(0, 300),
-        priceDollars: 40,
+        priceDollars: amount === undefined ? undefined : Number(amount.replaceAll(",", "")),
       }),
     };
   }
 
   if (/\b(?:parking\s+report|deck\s+is\s+full|lot\s+is\s+full|leaving\s+in)\b/.test(lower)) {
+    const search = ` ${lower.replace(/[^a-z0-9]+/g, " ").trim()} `;
+    const matches = parkingLotCatalog.filter((lot) =>
+      search.includes(` ${lot.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `)
+    );
     return {
       draftKind: "parking_report",
       title: "Draft Parking Report",
       summary: "Review lot & fullness tier before publishing.",
       payloadJson: JSON.stringify({
-        lotSlug: /marietta/i.test(lower)
-          ? "marietta-west-deck"
-          : "central-parking-deck",
+        lotSlug: matches.length === 1 ? matches[0].slug : undefined,
       }),
     };
   }

@@ -1,3 +1,4 @@
+import { workflowTime } from "./lib/workflowTime";
 import { ConvexError, v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { internal } from "./_generated/api";
@@ -17,6 +18,7 @@ import {
 } from "./lib/viewer";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx } from "./_generated/server";
+import { queueMediaDeletion } from "./lib/mediaCleanup";
 
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
@@ -31,15 +33,16 @@ function dayKeyET(ms: number): string {
   return parts;
 }
 
-async function incrementHashtagCounts(
+async function adjustHashtagCounts(
   ctx: MutationCtx,
   workspaceKey: string,
   campus: "Kennesaw" | "Marietta",
   tags: string[],
-  now: number
+  publishedAt: number,
+  delta: 1 | -1,
 ) {
   if (tags.length === 0) return;
-  const dayKey = dayKeyET(now);
+  const dayKey = dayKeyET(publishedAt);
   for (const tag of tags) {
     for (const campusScope of [campus, "All"] as const) {
       const existing = await ctx.db
@@ -52,9 +55,11 @@ async function incrementHashtagCounts(
             .eq("tag", tag)
         )
         .unique();
-      if (existing) {
-        await ctx.db.patch(existing._id, { count: existing.count + 1 });
-      } else {
+      if (existing && existing.count + delta <= 0) {
+        await ctx.db.delete(existing._id);
+      } else if (existing) {
+        await ctx.db.patch(existing._id, { count: existing.count + delta });
+      } else if (delta > 0) {
         await ctx.db.insert("hashtagDailyCounts", {
           workspaceKey,
           dayKey,
@@ -72,7 +77,7 @@ export async function hydratePostCards(
   posts: Doc<"posts">[],
   viewer: ViewerContext
 ) {
-  return Promise.all(
+  const cards = await Promise.all(
     posts.map(async (post) => {
       const [authorDoc, mediaDocs, likedRow, bookmarkedRow, quotedDoc, repostDoc, hubDoc, clubDoc] =
         await Promise.all([
@@ -104,6 +109,9 @@ export async function hydratePostCards(
           post.clubId ? ctx.db.get(post.clubId) : Promise.resolve(null),
         ]);
 
+      const isTombstone = post.visibilityStatus === "deleted_tombstone";
+      if (!isTombstone && authorDoc?.accountStatus !== "active") return null;
+
       let quotedSummary: {
         _id: Id<"posts">;
         authorHandle: string;
@@ -114,7 +122,7 @@ export async function hydratePostCards(
 
       const refDoc = quotedDoc ?? repostDoc;
       if (
-        refDoc &&
+        refDoc && refDoc.workspaceKey === viewer.workspaceKey &&
         isItemVisibleToViewer(viewer, {
           targetType: "post",
           targetId: String(refDoc._id),
@@ -123,17 +131,17 @@ export async function hydratePostCards(
         })
       ) {
         const refAuthor = await ctx.db.get(refDoc.authorId);
-        const pubRefAuthor = toPublicStudent(refAuthor);
-        quotedSummary = {
-          _id: refDoc._id,
-          authorHandle: pubRefAuthor.handle,
-          authorDisplayName: pubRefAuthor.displayName,
-          body: refDoc.body,
-          campus: refDoc.campus,
-        };
+        if (refAuthor?.accountStatus === "active") {
+          const pubRefAuthor = toPublicStudent(refAuthor);
+          quotedSummary = {
+            _id: refDoc._id,
+            authorHandle: pubRefAuthor.handle,
+            authorDisplayName: pubRefAuthor.displayName,
+            body: refDoc.body,
+            campus: refDoc.campus,
+          };
+        }
       }
-
-      const isTombstone = post.visibilityStatus === "deleted_tombstone";
 
       return {
         _id: post._id,
@@ -197,6 +205,7 @@ export async function hydratePostCards(
       };
     })
   );
+  return cards.filter((card) => card !== null);
 }
 
 export const listFeedRingsAndTrends = viewerQuery({
@@ -414,7 +423,7 @@ export const listFollowingFeed = viewerQuery({
     const { viewer } = ctx;
     const limit = Math.min(args.limit ?? 25, 25);
 
-    const [follows, clubMemberships] = await Promise.all([
+    const [follows, clubMemberships, enrollments] = await Promise.all([
       ctx.db
         .query("studentFollows")
         .withIndex("by_follower", (q) =>
@@ -430,7 +439,10 @@ export const listFollowingFeed = viewerQuery({
             .eq("workspaceKey", viewer.workspaceKey)
             .eq("studentId", viewer.actorStudent._id)
         )
-        .take(30),
+        .collect(),
+      ctx.db.query("studentEnrollments").withIndex("by_student_hub", (q) =>
+        q.eq("workspaceKey", viewer.workspaceKey).eq("studentId", viewer.actorStudent._id),
+      ).collect(),
     ]);
 
     const candidateMap = new Map<string, Doc<"posts">>();
@@ -439,7 +451,7 @@ export const listFollowingFeed = viewerQuery({
     const authorIds = [
       viewer.actorStudent._id,
       ...follows.map((f) => f.followeeId),
-    ].slice(0, 40);
+    ].filter((id) => !viewer.blockedStudentIds.has(id));
 
     const [authorBatches, clubBatches, hubBatches] = await Promise.all([
       Promise.all(
@@ -452,12 +464,13 @@ export const listFollowingFeed = viewerQuery({
                 .eq("authorId", aid)
                 .eq("visibilityStatus", "visible")
             )
+            .filter((q) => q.eq(q.field("rootPostId"), undefined))
             .order("desc")
-            .take(5)
+            .take(limit)
         )
       ),
       Promise.all(
-        clubMemberships.slice(0, 15).map((cm) =>
+        clubMemberships.map((cm) =>
           ctx.db
             .query("posts")
             .withIndex("by_club", (q) =>
@@ -466,13 +479,13 @@ export const listFollowingFeed = viewerQuery({
                 .eq("clubId", cm.clubId)
                 .eq("visibilityStatus", "visible")
             )
+            .filter((q) => q.eq(q.field("rootPostId"), undefined))
             .order("desc")
-            .take(8)
+            .take(limit)
         )
       ),
       Promise.all(
-        Array.from(viewer.enrolledCourseHubIds)
-          .slice(0, 10)
+        Array.from(new Set(enrollments.map((row) => row.courseHubId)))
           .map((hid) =>
             ctx.db
               .query("posts")
@@ -482,8 +495,9 @@ export const listFollowingFeed = viewerQuery({
                   .eq("courseHubId", hid)
                   .eq("visibilityStatus", "visible")
               )
+              .filter((q) => q.eq(q.field("rootPostId"), undefined))
               .order("desc")
-              .take(10)
+              .take(limit)
           )
       ),
     ]);
@@ -568,10 +582,8 @@ export const getPostThread = viewerQuery({
       hydratePostCards(ctx, visibleReplies, viewer),
     ]);
 
-    return {
-      rootPost: hydratedRoot[0]!,
-      replies: hydratedReplies,
-    };
+    if (!hydratedRoot[0]) return null;
+    return { rootPost: hydratedRoot[0], replies: hydratedReplies };
   },
 });
 
@@ -591,7 +603,7 @@ export const createPost = viewerMutation({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     const { viewer } = ctx;
     const trimmedBody = args.body.trim();
 
@@ -623,7 +635,8 @@ export const createPost = viewerMutation({
       if (
         !asset ||
         asset.workspaceKey !== viewer.workspaceKey ||
-        asset.ownerStudentId !== viewer.actorStudent._id
+        asset.ownerStudentId !== viewer.actorStudent._id || asset.purpose !== "post" ||
+        asset.status !== "pending" || asset.deleteClaimedAt !== undefined
       ) {
         throw new ConvexError({
           code: "FORBIDDEN",
@@ -724,12 +737,13 @@ export const createPost = viewerMutation({
     });
 
     if (!rootPostId && tags.length > 0) {
-      await incrementHashtagCounts(
+      await adjustHashtagCounts(
         ctx,
         viewer.workspaceKey,
         effectiveCampus,
         tags,
-        now
+        now,
+        1,
       );
     }
 
@@ -792,7 +806,7 @@ export const editPost = viewerMutation({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     const post = await ctx.db.get(args.postId);
     if (
       !post ||
@@ -827,6 +841,12 @@ export const editPost = viewerMutation({
     assertPublishSafety(trimmed);
 
     const tags = extractHashtags(trimmed);
+    if (!post.rootPostId) {
+      await adjustHashtagCounts(ctx, post.workspaceKey, post.campus,
+        post.tags.filter((tag) => !tags.includes(tag)), post.publishedAt, -1);
+      await adjustHashtagCounts(ctx, post.workspaceKey, post.campus,
+        tags.filter((tag) => !post.tags.includes(tag)), post.publishedAt, 1);
+    }
     // Intentionally NEVER re-triggers @scrappy on typo edits per SPEC §6.1!
     await ctx.db.patch(post._id, {
       body: trimmed,
@@ -856,24 +876,14 @@ export const deletePost = viewerMutation({
       });
     }
 
-    // Purge attached uploaded WebP images
-    const fileKeys: string[] = [];
     for (const mid of post.mediaAssetIds) {
       const asset = await ctx.db.get(mid);
-      if (asset && asset.status !== "deleted") {
-        fileKeys.push(asset.fileKey);
-        await ctx.db.patch(asset._id, { status: "deleted" });
+      if (asset && asset.workspaceKey === post.workspaceKey && asset.ownerStudentId === post.authorId) {
+        await queueMediaDeletion(ctx, asset);
       }
     }
-    if (
-      fileKeys.length > 0 &&
-      process.env.KSUX_SKIP_STORAGE_SCHEDULER !== "true"
-    ) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.storageNode.deleteUploadThingFiles,
-        { fileKeys }
-      );
+    if (!post.rootPostId && post.visibilityStatus === "visible") {
+      await adjustHashtagCounts(ctx, post.workspaceKey, post.campus, post.tags, post.publishedAt, -1);
     }
 
     // Check if child replies exist under this root Post

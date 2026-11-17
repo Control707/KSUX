@@ -1,3 +1,4 @@
+import { TEST_SERVER_SECRET, requestTestOtp } from "../helpers/authTest";
 import { beforeEach, describe, expect, it } from "vitest";
 import { api } from "../../convex/_generated/api";
 import { assertPublishSafety } from "../../convex/lib/safety";
@@ -8,6 +9,7 @@ import {
 
 describe("Seam 1 — Publish Safety Guardrails, Mutual Block, 1-Tap Report & Moderation Queue (#16)", () => {
   beforeEach(() => {
+    process.env.KSUX_SERVER_SECRET = TEST_SERVER_SECRET;
     process.env.KSUX_SKIP_OTP_SCHEDULER = "true";
     process.env.KSUX_SKIP_STORAGE_SCHEDULER = "true";
     process.env.KSUX_ALLOW_DEV_OTP_LOG = "true";
@@ -116,6 +118,23 @@ describe("Seam 1 — Publish Safety Guardrails, Mutual Block, 1-Tap Report & Mod
         messageSeq: 1,
         lastMessageAt: Date.now(),
       });
+      for (const studentId of [alice.studentId, bob.studentId]) {
+        await ctx.db.insert("chatMembers", {
+          workspaceKey: "prod",
+          chatId: cid,
+          studentId,
+          chatKind: "dm",
+          role: "member",
+          badgeMode: "count",
+          lastReadSeq: 1,
+          lastReadAt: Date.now(),
+          hasUnread: false,
+          isMuted: false,
+          isArchived: false,
+          lastChatMessageAt: Date.now(),
+          joinedAt: Date.now(),
+        });
+      }
       return { dmChatId: cid };
     });
 
@@ -139,8 +158,11 @@ describe("Seam 1 — Publish Safety Guardrails, Mutual Block, 1-Tap Report & Mod
     expect(bobViewingAlice?.isBlocked).toBe(true);
     expect(bobViewingAlice?.student.isRemoved).toBe(true);
 
-    const dmAfterBlock = await t.run((ctx) => ctx.db.get(dmChatId));
-    expect(dmAfterBlock?.requestStatus).toBe("locked_readonly");
+    const dmAfterBlock = await t.query(api.chats.getChatThread, {
+      sessionToken: bob.sessionToken,
+      chatId: dmChatId,
+    });
+    expect(dmAfterBlock?.chat.isReadOnlyLocked).toBe(true);
   });
 
   it("hides reported items immediately, triggers KSU Police flag on campus_safety, and auto-quarantines at 3 distinct reporters", async () => {
@@ -314,7 +336,7 @@ describe("Seam 1 — Publish Safety Guardrails, Mutual Block, 1-Tap Report & Mod
     });
 
     await expect(
-      t.mutation(api.auth.requestEmailOtp, {
+      requestTestOtp(t, {
         email: "spammer+bypass@students.kennesaw.edu",
       })
     ).rejects.toThrowError(/suspended/);

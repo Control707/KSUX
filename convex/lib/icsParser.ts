@@ -1,3 +1,5 @@
+import { localTimestamp, zonedDateParts } from "./easternDate";
+
 export interface ParsedIcsClassBlock {
   uid: string;
   summary: string;
@@ -53,7 +55,7 @@ function stripAnyTokenUrls(text: string): string {
   return text.replace(/https?:\/\/\S+/gi, "").trim();
 }
 
-function parseIcsTimestamp(rawVal: string): {
+function parseIcsTimestamp(rawVal: string, timeZone?: string): {
   epochMs: number;
   minutesOfDay: number;
 } | null {
@@ -64,22 +66,20 @@ function parseIcsTimestamp(rawVal: string): {
   );
   if (!m) return null;
   const year = Number(m[1]);
-  const month = Number(m[2]) - 1;
+  const month = Number(m[2]);
   const day = Number(m[3]);
   const hour = m[4] ? Number(m[4]) : 23;
   const min = m[5] ? Number(m[5]) : 59;
   const sec = m[6] ? Number(m[6]) : 0;
   const isUtc = m[7] === "Z";
 
-  const epochMs = isUtc
-    ? Date.UTC(year, month, day, hour, min, sec)
-    : Date.UTC(year, month, day, hour + 5, min, sec); // Approximate America/New_York EST when floating/TZID
-
-  // Local wall-clock minutes when floating/TZID, or converted to EST (-5h) when Z
-  const estHour = isUtc ? (hour + 19) % 24 : hour;
+  const epochMs = localTimestamp({ year, month, day, hour, minute: min, second: sec },
+    isUtc ? "UTC" : timeZone);
+  if (epochMs === null) return null;
+  const eastern = zonedDateParts(epochMs);
   return {
     epochMs,
-    minutesOfDay: estHour * 60 + min,
+    minutesOfDay: eastern.hour * 60 + eastern.minute,
   };
 }
 
@@ -102,11 +102,13 @@ export function parseStatelessScheduleIcs(
 
   let inEvent = false;
   let fields: Record<string, string> = {};
+  let timeZones: Record<string, string | undefined> = {};
 
   for (const line of lines) {
     if (line.toUpperCase() === "BEGIN:VEVENT") {
       inEvent = true;
       fields = {};
+      timeZones = {};
       continue;
     }
     if (line.toUpperCase() === "END:VEVENT") {
@@ -124,8 +126,8 @@ export function parseStatelessScheduleIcs(
         unescapeIcsText(fields.UID ?? "") ||
         `ics-${classBlocks.length + deadlines.length + 1}`;
       const rrule = (fields.RRULE ?? "").toUpperCase();
-      const dtStart = fields.DTSTART ? parseIcsTimestamp(fields.DTSTART) : null;
-      const dtEnd = fields.DTEND ? parseIcsTimestamp(fields.DTEND) : null;
+      const dtStart = fields.DTSTART ? parseIcsTimestamp(fields.DTSTART, timeZones.DTSTART) : null;
+      const dtEnd = fields.DTEND ? parseIcsTimestamp(fields.DTEND, timeZones.DTEND) : null;
 
       const combinedText = `${summary} ${description}`;
       const crnMatch = combinedText.match(/\b(?:CRN[:\s#-]*)?(\d{5})\b/i);
@@ -167,9 +169,14 @@ export function parseStatelessScheduleIcs(
     if (inEvent) {
       const colonIdx = line.indexOf(":");
       if (colonIdx > 0) {
-        const rawKey = line.slice(0, colonIdx).split(";")[0]!.toUpperCase();
+        const [key, ...parameters] = line.slice(0, colonIdx).split(";");
+        const rawKey = key!.toUpperCase();
         const rawVal = line.slice(colonIdx + 1);
         fields[rawKey] = rawVal;
+        if (rawKey === "DTSTART" || rawKey === "DTEND") {
+          const zone = parameters.find((parameter) => /^TZID=/i.test(parameter));
+          timeZones[rawKey] = zone?.slice(5).replace(/^"|"$/g, "");
+        }
       }
     }
   }
