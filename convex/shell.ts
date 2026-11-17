@@ -11,6 +11,32 @@ import {
   evaluateParkingLotFullness,
 } from "./lib/parkingMath";
 import { Doc, Id } from "./_generated/dataModel";
+import { easternDate, zonedDateParts } from "./lib/easternDate";
+import { freshShuttleEta } from "./lib/shuttleRead";
+import type { QueryCtx } from "./_generated/server";
+import { isCurrentCampusChatMember } from "./lib/campusChat";
+import { makeStudentPairKey } from "./lib/crypto";
+import { getChatPreview } from "./lib/chatPreview";
+
+const INTERCAMPUS_ROUTE = "74760";
+const LIVE_STUDY_AGE_MS = 15 * 60_000;
+
+async function listCampusShuttleRoutes(ctx: QueryCtx, campus: "Kennesaw" | "Marietta" | "All KSU", limit: number) {
+  const candidates = campus === "All KSU" ? ctx.db.query("shuttleRoutes").take(limit)
+    : Promise.all(([campus, "Both"] as const).map((scope) => ctx.db.query("shuttleRoutes")
+      .withIndex("by_campus_scope", (q) => q.eq("campusScope", scope)).take(limit)))
+      .then((groups) => groups.flat().sort((a, b) => a._creationTime - b._creationTime));
+  const [routes, intercampus] = await Promise.all([
+    candidates,
+    ctx.db.query("shuttleRoutes")
+      .withIndex("by_passio_id", (q) => q.eq("passioRouteId", INTERCAMPUS_ROUTE))
+      .unique(),
+  ]);
+  const visible = routes.slice(0, limit);
+  return intercampus && !visible.some((route) => route._id === intercampus._id)
+    ? [...visible.slice(0, limit - 1), intercampus]
+    : visible;
+}
 
 export const setCampusFilter = viewerMutation({
   args: {
@@ -57,11 +83,15 @@ export const shellSummary = viewerQuery({
       preview?: string;
       lastMessageAt: number;
     } | null = null;
+    const blockedPairs = new Set(Array.from(viewer.blockedStudentIds, (id) =>
+      makeStudentPairKey(viewer.actorStudent._id, id)));
 
     for (const m of unreadMemberships) {
       if (m.isArchived) continue;
       const chat = await ctx.db.get(m.chatId);
-      if (!chat || chat.requestStatus === "declined") continue;
+      if (!chat || chat.requestStatus === "declined" ||
+          (chat.dmPairKey && blockedPairs.has(chat.dmPairKey)) ||
+          !await isCurrentCampusChatMember(ctx, chat, viewer.actorStudent._id)) continue;
       const diff = Math.max(0, chat.messageSeq - m.lastReadSeq);
       if (diff <= 0) continue;
 
@@ -85,7 +115,7 @@ export const shellSummary = viewerQuery({
                 ? `@${chat.lastSenderHandle ?? "student"}`
                 : "Campus Chat"),
             senderHandle: chat.lastSenderHandle,
-            preview: chat.lastMessagePreview,
+            preview: await getChatPreview(ctx, chat, viewer),
             lastMessageAt: chat.lastMessageAt,
           };
         }
@@ -93,9 +123,9 @@ export const shellSummary = viewerQuery({
     }
 
     // 2. Desktop right Campus Pulse rail: live Shuttle Routes + top Parking Lots
-    const [allRoutes, latestShuttleSnap, kennesawLots, mariettaLots] =
+    const [routes, latestShuttleSnap, kennesawLots, mariettaLots] =
       await Promise.all([
-        ctx.db.query("shuttleRoutes").take(15),
+        listCampusShuttleRoutes(ctx, campusFilter, 5),
         ctx.db
           .query("shuttleSnapshots")
           .withIndex("by_singleton", (q) => q.eq("singletonKey", "latest"))
@@ -114,18 +144,8 @@ export const shellSummary = viewerQuery({
               .take(35),
       ]);
 
-    // Always preserve intercampus Kennesaw-Marietta Shuttle Route across Campus switches!
-    const scopedRoutes = allRoutes
-      .filter((r) => {
-        if (r.campusScope === "Both" || r.passioRouteId === "74760") return true;
-        if (campusFilter === "All KSU") return true;
-        return r.campusScope === campusFilter;
-      })
-      .slice(0, 5)
-      .map((r) => {
-        const etaMatch = latestShuttleSnap?.stopEtas.find(
-          (e) => e.passioRouteId === r.passioRouteId
-        );
+    const scopedRoutes = routes.map((r) => {
+        const etaMatch = freshShuttleEta(latestShuttleSnap, r.passioRouteId, now, viewer.mode === "demo");
         return {
           _id: r._id,
           passioRouteId: r.passioRouteId,
@@ -133,8 +153,9 @@ export const shellSummary = viewerQuery({
           name: r.name,
           campusScope: r.campusScope,
           colorHex: r.colorHex,
-          nextEtaMinutes: etaMatch?.etaMinutes ?? 6,
-          loadLabel: etaMatch?.loadLabel ?? "Seats Open",
+          nextEtaMinutes: etaMatch?.etaMinutes ?? null,
+          loadLabel: etaMatch?.loadLabel ?? null,
+          isFixture: Boolean(etaMatch && latestShuttleSnap?.isFixture),
         };
       });
 
@@ -244,17 +265,18 @@ export const getNowHud = viewerQuery({
         ctx.db.get(enr.courseHubId),
         enr.sectionId ? ctx.db.get(enr.sectionId) : Promise.resolve(null),
       ]);
-      if (hub) {
+      if (hub && !hub.isRetiredFixture) {
+        const activeSection = section?.isRetiredFixture ? null : section;
         enrolledCourses.push({
           enrollmentId: enr._id,
           courseHubId: hub._id,
           subjectCourse: hub.subjectCourse,
           title: hub.title,
           termCode: enr.termCode,
-          crn: enr.crn,
-          campus: section?.campus ?? hub.campuses[0] ?? "Kennesaw",
-          instructorName: section?.instructorName,
-          meetings: section?.meetings ?? [],
+          crn: activeSection ? enr.crn : undefined,
+          campus: activeSection?.campus ?? hub.campuses[0] ?? "Kennesaw",
+          instructorName: activeSection?.instructorName,
+          meetings: activeSection?.meetings ?? [],
         });
       }
       for (const dl of enr.personalDeadlines) {
@@ -320,8 +342,8 @@ export const getNowHud = viewerQuery({
       ),
     ].slice(0, 3);
 
-    const [allRoutes, latestShuttleSnap] = await Promise.all([
-      ctx.db.query("shuttleRoutes").take(15),
+    const [scopedRoutes, latestShuttleSnap] = await Promise.all([
+      listCampusShuttleRoutes(ctx, campusFilter, 4),
       ctx.db
         .query("shuttleSnapshots")
         .withIndex("by_singleton", (q) => q.eq("singletonKey", "latest"))
@@ -391,17 +413,18 @@ export const getNowHud = viewerQuery({
             );
             if (overflowEval.effectiveTier <= 1) {
               const routeId = overflowLot.servedByShuttleRouteIds[0];
-              const route = allRoutes.find((r) => r.passioRouteId === routeId);
-              const eta = latestShuttleSnap?.stopEtas.find(
-                (e) => e.passioRouteId === routeId
-              );
+              const route = routeId ? await ctx.db
+                .query("shuttleRoutes")
+                .withIndex("by_passio_id", (q) => q.eq("passioRouteId", routeId))
+                .unique() : null;
+              const eta = routeId && freshShuttleEta(latestShuttleSnap, routeId, now, viewer.mode === "demo");
               overflowSuggestion = {
                 lotId: overflowLot._id,
                 slug: overflowLot.slug,
                 name: overflowLot.name,
                 tierLabel: overflowEval.tierLabel,
                 shuttleName: route?.name,
-                shuttleEtaMinutes: eta?.etaMinutes ?? 5,
+                shuttleEtaMinutes: eta ? eta.etaMinutes : undefined,
               };
               break;
             }
@@ -429,17 +452,9 @@ export const getNowHud = viewerQuery({
     );
 
     // 4. Next Big Owl Bus Shuttle Routes (always keeping intercampus 74760)
-    const shuttleCards = allRoutes
-      .filter((r) => {
-        if (r.campusScope === "Both" || r.passioRouteId === "74760") return true;
-        if (campusFilter === "All KSU") return true;
-        return r.campusScope === campusFilter;
-      })
-      .slice(0, 4)
-      .map((r) => {
-        const eta = latestShuttleSnap?.stopEtas.find(
-          (e) => e.passioRouteId === r.passioRouteId
-        );
+    const shuttleCards = scopedRoutes.map((r) => {
+        const eta = freshShuttleEta(latestShuttleSnap, r.passioRouteId, now, viewer.mode === "demo");
+        const nextStop = eta && r.stops.find((stop) => stop.stopId === eta.stopId);
         return {
           _id: r._id,
           passioRouteId: r.passioRouteId,
@@ -447,9 +462,10 @@ export const getNowHud = viewerQuery({
           name: r.name,
           campusScope: r.campusScope,
           colorHex: r.colorHex,
-          nextStopName: r.stops[0]?.name ?? "Campus Transit Hub",
-          etaMinutes: eta?.etaMinutes ?? 6,
-          loadLabel: eta?.loadLabel ?? "Seats Open",
+          nextStopName: nextStop ? nextStop.name : null,
+          etaMinutes: eta?.etaMinutes ?? null,
+          loadLabel: eta?.loadLabel ?? null,
+          isFixture: Boolean(eta && latestShuttleSnap?.isFixture),
         };
       });
 
@@ -462,20 +478,35 @@ export const getNowHud = viewerQuery({
               .withIndex("by_campus_kind", (q) =>
                 q.eq("campus", "Kennesaw").eq("roomKind", "libcal")
               )
-              .take(6)),
+              .take(50)),
             ...(await ctx.db
               .query("studyRooms")
               .withIndex("by_campus_kind", (q) =>
                 q.eq("campus", "Marietta").eq("roomKind", "libcal")
               )
-              .take(6)),
+              .take(50)),
           ]
         : await ctx.db
             .query("studyRooms")
             .withIndex("by_campus_kind", (q) =>
               q.eq("campus", campusFilter).eq("roomKind", "libcal")
             )
-            .take(12);
+            .take(50);
+
+    const roomSnapshots = await ctx.db.query("studyRoomSnapshots")
+      .withIndex("by_date", (q) => q.eq("dateET", easternDate(now)))
+      .take(100);
+    const roomSnapshotById = new Map(roomSnapshots.map((snapshot) => [snapshot.studyRoomId, snapshot]));
+    const { hour, minute } = zonedDateParts(now);
+    const slot = BigInt(hour * 2 + Math.floor(minute / 30));
+    const openRooms = studyRoomsSample.flatMap((room) => {
+      const snapshot = roomSnapshotById.get(room._id);
+      if (!snapshot || (snapshot.isFixture && viewer.mode !== "demo")) return [];
+      if (!snapshot.isFixture && (now - snapshot.updatedAt > LIVE_STUDY_AGE_MS)) return [];
+      return (snapshot.slotMask48 & (1n << slot)) === 0n
+        ? []
+        : [{ ...room, isFixture: snapshot.isFixture ?? false }];
+    });
 
     const openSessionsCampus =
       campusFilter === "All KSU"
@@ -598,6 +629,7 @@ export const getNowHud = viewerQuery({
           campus: venue.campus,
           venueKind: venue.venueKind,
           openStatus,
+          hoursAreFixture: venue.isFixtureHours ?? false,
           lineLabel,
           stationChip: latestLine?.stationChips?.[0],
           lastMenuSyncAt: venue.lastMenuSyncAt,
@@ -610,35 +642,38 @@ export const getNowHud = viewerQuery({
       if (campusFilter === "All KSU") {
         return ctx.db
           .query("events")
-          .withIndex("by_all_start", (q) =>
+          .withIndex("by_all_end", (q) =>
             q
               .eq("workspaceKey", wsKey)
               .eq("visibilityStatus", "visible")
-              .gt("startTime", now - 2 * 3600_000)
+              .eq("status", "scheduled")
+              .gt("endTime", now)
           )
-          .take(6);
+          .take(25);
       }
       const [localRows, bothRows] = await Promise.all([
         ctx.db
           .query("events")
-          .withIndex("by_scope_start", (q) =>
+          .withIndex("by_scope_end", (q) =>
             q
               .eq("workspaceKey", wsKey)
               .eq("visibilityStatus", "visible")
+              .eq("status", "scheduled")
               .eq("campusScope", campusFilter)
-              .gt("startTime", now - 2 * 3600_000)
+              .gt("endTime", now)
           )
-          .take(5),
+          .take(20),
         ctx.db
           .query("events")
-          .withIndex("by_scope_start", (q) =>
+          .withIndex("by_scope_end", (q) =>
             q
               .eq("workspaceKey", wsKey)
               .eq("visibilityStatus", "visible")
+              .eq("status", "scheduled")
               .eq("campusScope", "Both")
-              .gt("startTime", now - 2 * 3600_000)
+              .gt("endTime", now)
           )
-          .take(4),
+          .take(15),
       ]);
       return [...localRows, ...bothRows];
     };
@@ -649,7 +684,7 @@ export const getNowHud = viewerQuery({
     ]);
 
     const mergedEvents = [...ksuEvents, ...wsEvents]
-      .filter((e) => e.status !== "cancelled")
+      .filter((event) => !event.organizerStudentId || !viewer.blockedStudentIds.has(event.organizerStudentId))
       .sort((a, b) => a.startTime - b.startTime)
       .slice(0, 5);
 
@@ -667,6 +702,7 @@ export const getNowHud = viewerQuery({
         return {
           _id: ev._id,
           title: ev.title,
+          isFixture: ev.isFixture ?? false,
           campus: ev.campus,
           campusScope: ev.campusScope,
           isVirtual: ev.isVirtual,
@@ -689,8 +725,8 @@ export const getNowHud = viewerQuery({
       parkingCards,
       shuttleCards,
       studySummary: {
-        openRoomSampleCount: studyRoomsSample.length,
-        featuredRooms: studyRoomsSample.slice(0, 4).map((r) => ({
+        openRoomSampleCount: openRooms.length,
+        featuredRooms: openRooms.slice(0, 4).map((r) => ({
           _id: r._id,
           slug: r.slug,
           buildingName: r.buildingName,
@@ -698,6 +734,7 @@ export const getNowHud = viewerQuery({
           campus: r.campus,
           capacity: r.capacity,
           bookingUrl: r.bookingUrl,
+          isFixture: r.isFixture,
         })),
         activeSessions: visibleStudySessions.map((s) => ({
           _id: s._id,

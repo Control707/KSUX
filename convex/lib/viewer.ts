@@ -7,7 +7,8 @@ import {
   QueryCtx,
 } from "../_generated/server";
 import { Doc, Id } from "../_generated/dataModel";
-import { canonicalizeKsuEmail, sha256Hex } from "./crypto";
+import { canonicalizeKsuEmail } from "./crypto";
+import { resolveStudentSessionHash } from "./sessionCredential";
 
 export const viewerAuthArgs = {
   sessionToken: v.optional(v.string()),
@@ -17,6 +18,10 @@ export const viewerAuthArgs = {
 
 export interface ViewerContext {
   mode: "student" | "demo";
+  studentSessionId?: Id<"studentSessions">;
+  studentSessionTokenHash?: string;
+  studentSessionExpiresAt?: number;
+  isBrowserCredential?: boolean;
   workspaceKey: string;
   demoSessionId?: Id<"demoSessions">;
   demoShortCode?: string;
@@ -108,13 +113,19 @@ export async function resolveViewerFromDb(
   let demoShortCode: string | undefined;
   let actorStudent: Doc<"students"> | null = null;
   let isModerator = false;
+  let studentSessionId: Id<"studentSessions"> | undefined;
+  let studentSessionTokenHash: string | undefined;
+  let studentSessionExpiresAt: number | undefined;
+  let isBrowserCredential: boolean | undefined;
 
   if (auth.sessionToken && auth.sessionToken.trim().length > 0) {
-    const tokenHash = await sha256Hex(auth.sessionToken.trim());
-    const session = await ctx.db
+    const token = auth.sessionToken.trim();
+    isBrowserCredential = token.startsWith("b1.");
+    const tokenHash = await resolveStudentSessionHash(token, now);
+    const session = tokenHash ? await ctx.db
       .query("studentSessions")
       .withIndex("by_token_hash", (q) => q.eq("tokenHash", tokenHash))
-      .unique();
+      .unique() : null;
 
     if (!session || session.expiresAt <= now) {
       throw new ConvexError({
@@ -135,14 +146,18 @@ export async function resolveViewerFromDb(
       });
     }
 
+    studentSessionId = session._id;
+    studentSessionTokenHash = session.tokenHash;
+    studentSessionExpiresAt = session.expiresAt;
     if (
       options.isMutation &&
       "patch" in ctx.db &&
       now - session.lastRefreshedAt >= SLIDING_REFRESH_INTERVAL_MS
     ) {
+      studentSessionExpiresAt = now + SESSION_DURATION_MS;
       await (ctx as MutationCtx).db.patch(session._id, {
         lastRefreshedAt: now,
-        expiresAt: now + SESSION_DURATION_MS,
+        expiresAt: studentSessionExpiresAt,
       });
     }
 
@@ -223,30 +238,49 @@ export async function resolveViewerFromDb(
     });
   }
 
+  return loadViewerScope(ctx, {
+    mode,
+    studentSessionId,
+    studentSessionTokenHash,
+    studentSessionExpiresAt,
+    isBrowserCredential,
+    workspaceKey,
+    demoSessionId,
+    demoShortCode,
+    actorStudent,
+    isModerator,
+  });
+}
+
+export async function loadViewerScope(
+  ctx: QueryCtx | MutationCtx,
+  identity: Omit<ViewerContext, "blockedStudentIds" | "hiddenTargetKeys" | "enrolledCourseHubIds">
+): Promise<ViewerContext> {
+  const { workspaceKey, actorStudent } = identity;
   const [blocksByMe, blocksAgainstMe, myReports, myEnrollments] =
     await Promise.all([
       ctx.db
         .query("studentBlocks")
         .withIndex("by_blocker", (q) =>
-          q.eq("workspaceKey", workspaceKey).eq("blockerId", actorStudent!._id)
+          q.eq("workspaceKey", workspaceKey).eq("blockerId", actorStudent._id)
         )
         .take(200),
       ctx.db
         .query("studentBlocks")
         .withIndex("by_blocked", (q) =>
-          q.eq("workspaceKey", workspaceKey).eq("blockedId", actorStudent!._id)
+          q.eq("workspaceKey", workspaceKey).eq("blockedId", actorStudent._id)
         )
         .take(200),
       ctx.db
         .query("moderationReports")
         .withIndex("by_reporter", (q) =>
-          q.eq("workspaceKey", workspaceKey).eq("reporterId", actorStudent!._id)
+          q.eq("workspaceKey", workspaceKey).eq("reporterId", actorStudent._id)
         )
         .take(200),
       ctx.db
         .query("studentEnrollments")
         .withIndex("by_student_hub", (q) =>
-          q.eq("workspaceKey", workspaceKey).eq("studentId", actorStudent!._id)
+          q.eq("workspaceKey", workspaceKey).eq("studentId", actorStudent._id)
         )
         .take(50),
     ]);
@@ -268,15 +302,10 @@ export async function resolveViewerFromDb(
   }
 
   return {
-    mode,
-    workspaceKey,
-    demoSessionId,
-    demoShortCode,
-    actorStudent,
+    ...identity,
     blockedStudentIds,
     hiddenTargetKeys,
     enrolledCourseHubIds,
-    isModerator,
   };
 }
 

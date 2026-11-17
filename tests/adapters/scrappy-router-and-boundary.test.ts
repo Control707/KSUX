@@ -14,6 +14,32 @@ import {
 } from "../../convex/scrappy/router";
 
 describe("Seam 2 — Scrappy Static Chat/Mutation Boundary & 3-Tier LLM Router Failover (#25)", () => {
+  it("relays provider deltas before completion and preserves their exact assembled text", async () => {
+    const encoder = new TextEncoder();
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    const stream = new ReadableStream<Uint8Array>({ start: (value) => { controller = value; } });
+    const frame = (text: string) => `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\r\n\r\n`;
+    controller.enqueue(encoder.encode(frame("First line\n")));
+    const deltas: string[] = [];
+    const result = await invokeThreeTierScrappyCompletion({
+      mode: "ask_scrappy",
+      env: { groqApiKey: "test-key" },
+      messages: [{ role: "user", content: "Summarize Parking Lots" }],
+      onDelta(text) {
+        deltas.push(text);
+        if (deltas.length === 1) {
+          controller.enqueue(encoder.encode(frame("Second line") + "data: [DONE]\r\n\r\n"));
+          controller.close();
+        }
+      },
+      fetchImpl: async (_url, init) => {
+        expect(JSON.parse(String(init.body)).stream).toBe(true);
+        return new Response(stream, { headers: { "Content-Type": "text/event-stream" } });
+      },
+    });
+    expect(deltas).toEqual(["First line\n", "Second line"]);
+    expect(result.content).toBe(deltas.join(""));
+  });
   it("statically guarantees convex/scrappy/ contains zero references to chats, chatMembers, or chatMessages and zero mutation tools", () => {
     const scrappyDir = path.resolve(process.cwd(), "convex", "scrappy");
     const files = fs

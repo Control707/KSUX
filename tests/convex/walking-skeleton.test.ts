@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { TEST_SERVER_SECRET, reserveTestUpload } from "../helpers/authTest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../../convex/_generated/api";
 import {
   createTestConvex,
@@ -6,6 +7,36 @@ import {
 } from "../helpers/convexTestEnv";
 
 describe("Seam 1 — Walking Skeleton viewerContext & Judge Demo Mode Isolation (#14)", () => {
+  beforeEach(() => { vi.stubEnv("KSUX_SERVER_SECRET", TEST_SERVER_SECRET); });
+  afterEach(() => { vi.unstubAllEnvs(); });
+
+  it("seeds published Banner sections and retires legacy synthetic campus observations", async () => {
+    const t = createTestConvex();
+    const now = Date.UTC(2026, 10, 17, 16);
+    await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: true, now });
+    await t.mutation(internal.seed.bootstrapKsu, { now });
+    await t.mutation(internal.seed.bootstrapKsu, { now });
+    const data = await t.run(async ({ db }) => {
+      const course = await db.query("courseHubs").withIndex("by_subject_course", (q) => q.eq("subjectCourse", "CS 3305")).unique();
+      const section = await db.query("courseSections")
+        .withIndex("by_term_crn", (q) => q.eq("termCode", "202608").eq("crn", "83190")).unique();
+      return {
+        course,
+        section,
+        shuttle: await db.query("shuttleSnapshots").first(),
+        study: await db.query("studyRoomSnapshots").first(),
+        sampleEvent: await db.query("events").first(),
+        sampleClub: await db.query("clubs").first(),
+      };
+    });
+    expect(data.course).toMatchObject({ catalogSource: "banner_verified", prodEnrollmentCount: 0 });
+    expect(data.section).toMatchObject({ campus: "Marietta", meetings: [{ startMinutes: 670 }] });
+    expect(data.shuttle).toBeNull();
+    expect(data.study).toBeNull();
+    expect(data.sampleEvent?.visibilityStatus).toBe("removed");
+    expect(data.sampleClub?.visibilityStatus).toBe("removed");
+  });
+
   it("rejects unauthenticated callers on viewerQuery and viewerMutation", async () => {
     const t = createTestConvex();
 
@@ -20,7 +51,7 @@ describe("Seam 1 — Walking Skeleton viewerContext & Judge Demo Mode Isolation 
     ).rejects.toThrowError(/Sign in with KSU \.edu email or enter Judge Demo Mode/);
 
     await expect(
-      t.mutation(api.uploads.registerMediaAsset, {
+      reserveTestUpload(t, {
         fileKey: "unauth-key",
         url: "https://utfs.io/f/unauth",
         purpose: "post",
@@ -131,7 +162,7 @@ describe("Seam 1 — Walking Skeleton viewerContext & Judge Demo Mode Isolation 
     });
 
     for (let i = 0; i < 20; i++) {
-      await t.mutation(api.uploads.registerMediaAsset, {
+      await t.mutation(api.uploads.registerMediaAsset, await reserveTestUpload(t, {
         demoShortCode: demo.shortCode,
         demoPersonaHandle: "maya_cs",
         fileKey: `demo-asset-${i}`,
@@ -140,12 +171,12 @@ describe("Seam 1 — Walking Skeleton viewerContext & Judge Demo Mode Isolation 
         byteSize: 40_000,
         width: 1024,
         height: 768,
-      });
+      }));
     }
 
     // 21st upload is rejected by viewerContext 20-upload quota
     await expect(
-      t.mutation(api.uploads.registerMediaAsset, {
+      reserveTestUpload(t, {
         demoShortCode: demo.shortCode,
         demoPersonaHandle: "maya_cs",
         fileKey: "demo-asset-20",
@@ -181,7 +212,7 @@ describe("Seam 1 — Walking Skeleton viewerContext & Judge Demo Mode Isolation 
   it("idempotently bootstraps all KSU institutional catalogs and scopes Now HUD across Campus switches", async () => {
     const t = createTestConvex();
 
-    const firstSeed = await t.mutation(internal.seed.bootstrapKsu, {});
+    const firstSeed = await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: true });
     expect(firstSeed.parkingInserted).toBe(72);
     expect(firstSeed.studyRoomsInserted).toBe(57);
     expect(firstSeed.shuttleInserted).toBe(11);
@@ -192,7 +223,7 @@ describe("Seam 1 — Walking Skeleton viewerContext & Judge Demo Mode Isolation 
     expect(firstSeed.sectionsInserted).toBeGreaterThanOrEqual(400);
 
     // Re-running bootstrapKsu is 100% idempotent
-    const secondSeed = await t.mutation(internal.seed.bootstrapKsu, {});
+    const secondSeed = await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: true });
     expect(secondSeed.parkingInserted).toBe(0);
     expect(secondSeed.clubsInserted).toBe(0);
 

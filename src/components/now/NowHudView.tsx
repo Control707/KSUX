@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -16,48 +16,23 @@ import {
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import {
-  COMMUTER_CACHE_STORAGE_KEY,
+  getCommuterScope,
+  useViewerClient,
   useViewerQuery,
 } from "@/lib/viewerClient";
+import { saveCommuterSnapshot } from "@/lib/commuterCache";
 import { InstallHomeScreenCard } from "@/components/pwa/PwaSupport";
 
 export function NowHudView() {
+  const { auth } = useViewerClient();
   const hud = useViewerQuery(api.shell.getNowHud, {});
-  const [cachedHud, setCachedHud] = useState<any | null>(null);
 
-  // Persist privacy-safe read-only commuter snapshot (NEVER chatMessages!)
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (hud) {
-      const snapshot = {
-        savedAt: Date.now(),
-        campusFilter: hud.campusFilter,
-        schedule: hud.schedule,
-        parkingCards: hud.parkingCards,
-        diningCards: hud.diningCards,
-      };
-      try {
-        window.localStorage.setItem(
-          COMMUTER_CACHE_STORAGE_KEY,
-          JSON.stringify(snapshot)
-        );
-      } catch {
-        // Ignore quota errors
-      }
-      setCachedHud(snapshot);
-    } else {
-      try {
-        const raw = window.localStorage.getItem(COMMUTER_CACHE_STORAGE_KEY);
-        if (raw) {
-          setCachedHud(JSON.parse(raw));
-        }
-      } catch {
-        // Ignore parse errors
-      }
-    }
-  }, [hud]);
+    const scope = getCommuterScope(auth);
+    if (scope && hud) saveCommuterSnapshot(scope, hud);
+  }, [auth, hud]);
 
-  const activeData = hud ?? cachedHud;
+  const activeData = hud;
 
   if (!activeData) {
     return (
@@ -254,7 +229,7 @@ export function NowHudView() {
                       <strong>{lot.overflowSuggestion.name}</strong> is{" "}
                       {lot.overflowSuggestion.tierLabel}
                       {lot.overflowSuggestion.shuttleName
-                        ? ` · ${lot.overflowSuggestion.shuttleName} in ${lot.overflowSuggestion.shuttleEtaMinutes}m`
+                        ? ` · ${lot.overflowSuggestion.shuttleName}${lot.overflowSuggestion.shuttleEtaMinutes == null ? "" : ` in ${lot.overflowSuggestion.shuttleEtaMinutes}m`}`
                         : ""}
                     </div>
                   )}
@@ -278,7 +253,7 @@ export function NowHudView() {
               href="/transit"
               className="text-xs font-bold text-[#1E3A8A] hover:underline"
             >
-              Live GPS →
+              Shuttle tracker →
             </Link>
           </div>
 
@@ -297,11 +272,11 @@ export function NowHudView() {
                     <span className="truncate">{route.name}</span>
                   </div>
                   <div className="text-[11px] text-[#5E6675]">
-                    Next: {route.nextStopName} · {route.loadLabel}
+                    {[route.nextStopName, route.loadLabel].filter(Boolean).join(" · ")}
                   </div>
                 </div>
                 <span className="rounded-xl bg-[#111317] px-2.5 py-1 text-xs font-black text-[#FDBB30]">
-                  {route.etaMinutes} min
+                  {route.etaMinutes == null ? "No ETA" : `${route.etaMinutes} min`}
                 </span>
               </div>
             ))}
@@ -328,6 +303,9 @@ export function NowHudView() {
 
           {studySummary ? (
             <div className="mt-2.5 space-y-2">
+              {studySummary.featuredRooms.length === 0 && (
+                <p className="text-xs text-[#5E6675]">No current availability shown. Check LibCal.</p>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 {studySummary.featuredRooms.slice(0, 2).map((rm: any) => (
                   <div
@@ -338,7 +316,7 @@ export function NowHudView() {
                       {rm.roomNumber}
                     </div>
                     <div className="truncate text-[11px] text-[#5E6675]">
-                      {rm.buildingName} · Cap {rm.capacity}
+                      {rm.buildingName} · Cap {rm.capacity}{rm.isFixture ? " · Demo" : ""}
                     </div>
                   </div>
                 ))}
@@ -408,7 +386,7 @@ export function NowHudView() {
                         : "bg-[#E4E7EE] text-[#5E6675]"
                   }`}
                 >
-                  {v.openStatus.label}
+                  {v.hoursAreFixture ? "Demo hours · " : ""}{v.openStatus.label}
                 </span>
               </div>
             ))}
@@ -451,7 +429,7 @@ export function NowHudView() {
                   )}
                 </div>
                 <div className="mt-1.5 line-clamp-2 font-extrabold text-[#111317]">
-                  {ev.title}
+                  {ev.title}{ev.isFixture ? " · Demo" : ""}
                 </div>
                 <div className="mt-1 truncate text-[11px] text-[#5E6675]">
                   {ev.locationName}

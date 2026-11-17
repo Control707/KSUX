@@ -12,7 +12,7 @@ describe("Seam 1 — Study Rooms (48-bit LibCal SWR + Walk-in Vibes) & Study Ses
 
   it("enforces single-flight 60s SWR lease locking, 45m walk-in vibe decay, atomic maxSeats, and Course Hub Members Only gating", async () => {
     const t = createTestConvex();
-    await t.mutation(internal.seed.bootstrapKsu, {});
+    await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: true });
 
     const maya = await createVerifiedTestStudent(t, {
       handle: "study_maya",

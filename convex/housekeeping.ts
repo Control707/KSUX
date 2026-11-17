@@ -1,304 +1,189 @@
 import { v } from "convex/values";
 import { internalAction, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { queueMediaDeletion } from "./lib/mediaCleanup";
+import type { Doc, Id, TableNames } from "./_generated/dataModel";
 
 const BATCH_LIMIT = 200;
-const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
-const ONE_HOUR_MS = 60 * 60 * 1000;
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR = 60 * 60 * 1000;
+
+const demoIndexes = {
+  scrappyMessages: "by_thread_created",
+  scrappyThreads: "by_student_recent",
+  chatMessages: "by_chat_seq",
+  chatMembers: "by_chat_student",
+  chats: "by_workspace_parent",
+  savedInteractions: "by_student_kind_target",
+  hashtagDailyCounts: "by_day_campus_count",
+  parkingReports: "by_lot_active",
+  campusPulses: "by_target_active",
+  studySessions: "by_campus_end",
+  studentEnrollments: "by_student_term",
+  eventRsvps: "by_event_student",
+  clubMembers: "by_club_student",
+  moderationReports: "by_reporter",
+  studentBlocks: "by_blocker",
+  studentFollows: "by_follower",
+  interpersonalLedgers: "by_pair_kind",
+  handleReservations: "by_workspace_handle",
+  listings: "by_seller",
+  posts: "by_author",
+  clubs: "by_workspace_slug",
+  events: "by_all_start",
+  students: "by_workspace_handle",
+} satisfies Partial<Record<TableNames, string>>;
 
 export const collectPurgeableMediaKeys = internalMutation({
-  args: {
-    now: v.optional(v.number()),
-  },
+  args: { now: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const now = args.now ?? Date.now();
     const expiredDemos = await ctx.db
       .query("demoSessions")
-      .withIndex("by_expires", (q) => q.lt("expiresAt", now))
-      .take(25);
+      .withIndex("by_expires", (q) => q.lte("expiresAt", now))
+      .take(5);
 
-    const fileKeys: string[] = [];
-    const assetIds: string[] = [];
-
+    const assets = new Map<string, Doc<"mediaAssets">>();
+    const collect = (rows: Doc<"mediaAssets">[]) => {
+      for (const asset of rows) assets.set(asset.fileKey, asset);
+    };
     for (const demo of expiredDemos) {
-      const assets = await ctx.db
+      if (assets.size === BATCH_LIMIT) break;
+      collect(await ctx.db
         .query("mediaAssets")
         .withIndex("by_demo_session", (q) => q.eq("demoSessionId", demo._id))
-        .take(BATCH_LIMIT);
-      for (const a of assets) {
-        if (a.status !== "deleted") {
-          fileKeys.push(a.fileKey);
-          assetIds.push(String(a._id));
-        }
+        .take(BATCH_LIMIT - assets.size));
+    }
+
+    if (assets.size < BATCH_LIMIT) {
+      collect(await ctx.db.query("mediaAssets")
+        .withIndex("by_status_created", (q) => q.eq("status", "deleted"))
+        .take(BATCH_LIMIT - assets.size));
+    }
+    if (assets.size < BATCH_LIMIT) {
+      collect(await ctx.db.query("mediaAssets")
+        .withIndex("by_status_created", (q) => q.eq("status", "pending").lt("createdAt", now - 2 * HOUR))
+        .take(BATCH_LIMIT - assets.size));
+    }
+
+    // Claiming a pending upload prevents simultaneous attachment while storage is being cleaned.
+    for (const asset of assets.values()) {
+      if (asset.status !== "deleted" && asset.deleteClaimedAt === undefined) {
+        await ctx.db.patch(asset._id, { deleteClaimedAt: now });
       }
     }
-
-    // Abandoned pending composer uploads older than 2 hours
-    const abandoned = await ctx.db
-      .query("mediaAssets")
-      .withIndex("by_status_created", (q) =>
-        q.eq("status", "pending").lt("createdAt", now - TWO_HOURS_MS)
-      )
-      .take(BATCH_LIMIT);
-
-    for (const a of abandoned) {
-      fileKeys.push(a.fileKey);
-      assetIds.push(String(a._id));
-    }
-
     return {
-      fileKeys: Array.from(new Set(fileKeys)),
-      assetIds: Array.from(new Set(assetIds)),
-      expiredDemoIds: expiredDemos.map((d) => d._id),
+      fileKeys: Array.from(assets.keys()),
+      assetIds: Array.from(assets.values(), (asset) => asset._id),
+      expiredDemoIds: expiredDemos.map((demo) => demo._id),
     };
   },
 });
 
 export const executePurgeBatch = internalMutation({
-  args: {
-    now: v.optional(v.number()),
-    deletedFileKeys: v.array(v.string()),
-  },
+  args: { now: v.optional(v.number()), deletedFileKeys: v.array(v.string()) },
   handler: async (ctx, args) => {
     const now = args.now ?? Date.now();
     let deletedCount = 0;
+    const budget = () => BATCH_LIMIT - deletedCount;
+    const deleteRows = async (rows: ReadonlyArray<{ _id: Id<TableNames> }>) => {
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        deletedCount++;
+      }
+    };
 
-    // 1. Delete cleaned mediaAsset records
-    for (const fk of args.deletedFileKeys.slice(0, BATCH_LIMIT)) {
+    for (const fileKey of args.deletedFileKeys.slice(0, BATCH_LIMIT)) {
       const asset = await ctx.db
         .query("mediaAssets")
-        .withIndex("by_file_key", (q) => q.eq("fileKey", fk))
+        .withIndex("by_file_key", (q) => q.eq("fileKey", fileKey))
         .unique();
-      if (asset) {
-        await ctx.db.delete(asset._id);
-        deletedCount++;
+      if (asset && (asset.status === "deleted" || asset.deleteClaimedAt !== undefined)) {
+        await deleteRows([asset]);
       }
     }
 
-    // 2. Cascade-delete expired demoSessionId rows in <= 200-doc cursor batches
     const expiredDemos = await ctx.db
       .query("demoSessions")
-      .withIndex("by_expires", (q) => q.lt("expiresAt", now))
-      .take(5);
-
-    let hasMoreDemoRows = false;
-    const demoChildTables = [
-      "scrappyMessages",
-      "scrappyThreads",
-      "chatMessages",
-      "chatMembers",
-      "chats",
-      "savedInteractions",
-      "hashtagDailyCounts",
-      "parkingReports",
-      "campusPulses",
-      "studySessions",
-      "studentEnrollments",
-      "eventRsvps",
-      "clubMembers",
-      "moderationReports",
-      "studentBlocks",
-      "studentFollows",
-      "interpersonalLedgers",
-      "handleReservations",
-      "mediaAssets",
-      "listings",
-      "posts",
-      "students",
-    ] as const;
-
-    for (const demo of expiredDemos) {
-      if (deletedCount >= BATCH_LIMIT) {
+      .withIndex("by_expires", (q) => q.lte("expiresAt", now))
+      .take(6);
+    let hasMoreDemoRows = expiredDemos.length > 5;
+    for (const demo of expiredDemos.slice(0, 5)) {
+      if (budget() === 0) {
         hasMoreDemoRows = true;
         break;
       }
-      const wsKey = `demo:${demo._id}`;
-      let remainingForDemo = false;
-
-      for (const table of demoChildTables) {
-        const budget = BATCH_LIMIT - deletedCount;
-        if (budget <= 0) {
-          remainingForDemo = true;
-          hasMoreDemoRows = true;
-          break;
-        }
-        const rows = await (ctx.db.query(table as any) as any)
-          .filter((q: any) => q.eq(q.field("workspaceKey"), wsKey))
-          .take(budget);
-        for (const r of rows) {
-          await ctx.db.delete(r._id);
-          deletedCount++;
-        }
-        if (rows.length === budget) {
-          remainingForDemo = true;
-          hasMoreDemoRows = true;
-          break;
-        }
+      const assets = await ctx.db.query("mediaAssets")
+        .withIndex("by_demo_session", (q) => q.eq("demoSessionId", demo._id))
+        .take(budget());
+      for (const asset of assets) {
+        await queueMediaDeletion(ctx, asset);
+        deletedCount++;
       }
 
-      if (!remainingForDemo && deletedCount < BATCH_LIMIT) {
-        const demoClubs = await ctx.db
-          .query("clubs")
-          .withIndex("by_workspace_slug", (q) => q.eq("workspaceKey", wsKey))
-          .take(25);
-        for (const c of demoClubs) {
-          await ctx.db.delete(c._id);
-          deletedCount++;
-        }
-        const demoEvents = await ctx.db
-          .query("events")
-          .withIndex("by_all_start", (q) => q.eq("workspaceKey", wsKey))
-          .take(25);
-        for (const e of demoEvents) {
-          await ctx.db.delete(e._id);
-          deletedCount++;
-        }
-        await ctx.db.delete(demo._id);
+      for (const [table, index] of Object.entries(demoIndexes)) {
+        if (budget() === 0) break;
+        // Each index in this map starts with workspaceKey.
+        const rows = await ctx.db.query(table as keyof typeof demoIndexes)
+          .withIndex(index as never, (q: any) => q.eq("workspaceKey", `demo:${demo._id}`))
+          .take(budget());
+        await deleteRows(rows);
+      }
+      if (budget() > 0) {
+        const leases = await ctx.db.query("uploadReservations")
+          .withIndex("by_demo_session", (q) => q.eq("demoSessionId", demo._id))
+          .take(budget());
+        await deleteRows(leases);
+      }
+      if (budget() === 0) {
+        hasMoreDemoRows = true;
+        break;
+      }
+      await deleteRows([demo]);
+    }
+
+    const pruneQueries = [
+      () => ctx.db.query("uploadReservations").withIndex("by_expires", (q) => q.lte("expiresAt", now)),
+      () => ctx.db.query("emailOtps").withIndex("by_expires", (q) => q.lt("expiresAt", now - HOUR)),
+      () => ctx.db.query("studentSessions").withIndex("by_expires", (q) => q.lte("expiresAt", now)),
+      () => ctx.db.query("rateLimitBuckets").withIndex("by_expires", (q) => q.lte("expiresAt", now)),
+      () => ctx.db.query("interpersonalLedgers").withIndex("by_expires", (q) => q.lte("expiresAt", now)),
+      () => ctx.db.query("handleReservations").withIndex("by_expires", (q) => q.gt("expiresAt", 0).lte("expiresAt", now)),
+      () => ctx.db.query("parkingReports").withIndex("by_expires", (q) => q.lt("expiresAt", now - 24 * HOUR)),
+      () => ctx.db.query("campusPulses").withIndex("by_expires", (q) => q.lt("expiresAt", now - 24 * HOUR)),
+    ];
+    for (const query of pruneQueries) {
+      if (budget() === 0) break;
+      await deleteRows(await query().take(budget()));
+    }
+    if (budget() > 0) {
+      const listings = await ctx.db.query("listings")
+        .withIndex("by_status_expires", (q) => q.eq("status", "available").lte("expiresAt", now))
+        .take(budget());
+      for (const listing of listings) {
+        await ctx.db.patch(listing._id, { status: "expired", isBrowseable: false });
         deletedCount++;
       }
     }
-
-    // 3. Prune expired OTPs (>1h past expiry), studentSessions, rateLimitBuckets, interpersonalLedgers, handleReservations, aged pulses (>24h), and >30d Listings
-    if (deletedCount < BATCH_LIMIT) {
-      const oldOtps = await ctx.db
-        .query("emailOtps")
-        .withIndex("by_expires", (q) => q.lt("expiresAt", now - ONE_HOUR_MS))
-        .take(Math.max(1, BATCH_LIMIT - deletedCount));
-      for (const r of oldOtps) {
-        await ctx.db.delete(r._id);
-        deletedCount++;
-      }
-    }
-
-    if (deletedCount < BATCH_LIMIT) {
-      const oldSessions = await ctx.db
-        .query("studentSessions")
-        .withIndex("by_expires", (q) => q.lt("expiresAt", now))
-        .take(Math.max(1, BATCH_LIMIT - deletedCount));
-      for (const r of oldSessions) {
-        await ctx.db.delete(r._id);
-        deletedCount++;
-      }
-    }
-
-    if (deletedCount < BATCH_LIMIT) {
-      const oldBuckets = await ctx.db
-        .query("rateLimitBuckets")
-        .withIndex("by_expires", (q) => q.lt("expiresAt", now))
-        .take(Math.max(1, BATCH_LIMIT - deletedCount));
-      for (const r of oldBuckets) {
-        await ctx.db.delete(r._id);
-        deletedCount++;
-      }
-    }
-
-    if (deletedCount < BATCH_LIMIT) {
-      const oldLedgers = await ctx.db
-        .query("interpersonalLedgers")
-        .withIndex("by_expires", (q) => q.lt("expiresAt", now))
-        .take(Math.max(1, BATCH_LIMIT - deletedCount));
-      for (const r of oldLedgers) {
-        await ctx.db.delete(r._id);
-        deletedCount++;
-      }
-    }
-
-    if (deletedCount < BATCH_LIMIT) {
-      const oldReservations = await ctx.db
-        .query("handleReservations")
-        .withIndex("by_expires", (q) =>
-          q.gt("expiresAt", 0).lt("expiresAt", now)
-        )
-        .take(Math.max(1, BATCH_LIMIT - deletedCount));
-      for (const r of oldReservations) {
-        await ctx.db.delete(r._id);
-        deletedCount++;
-      }
-    }
-
-    if (deletedCount < BATCH_LIMIT) {
-      const agedParking = await ctx.db
-        .query("parkingReports")
-        .withIndex("by_expires", (q) => q.lt("expiresAt", now - ONE_DAY_MS))
-        .take(Math.max(1, BATCH_LIMIT - deletedCount));
-      for (const r of agedParking) {
-        await ctx.db.delete(r._id);
-        deletedCount++;
-      }
-    }
-
-    if (deletedCount < BATCH_LIMIT) {
-      const agedPulses = await ctx.db
-        .query("campusPulses")
-        .withIndex("by_expires", (q) => q.lt("expiresAt", now - ONE_DAY_MS))
-        .take(Math.max(1, BATCH_LIMIT - deletedCount));
-      for (const r of agedPulses) {
-        await ctx.db.delete(r._id);
-        deletedCount++;
-      }
-    }
-
-    if (deletedCount < BATCH_LIMIT) {
-      const expiredListings = await ctx.db
-        .query("listings")
-        .withIndex("by_status_expires", (q) =>
-          q.eq("status", "available").lt("expiresAt", now)
-        )
-        .take(Math.max(1, BATCH_LIMIT - deletedCount));
-      for (const l of expiredListings) {
-        await ctx.db.patch(l._id, {
-          status: "expired",
-          isBrowseable: false,
-        });
-        deletedCount++;
-      }
-    }
-
-    return {
-      deletedCount,
-      hasMoreDemoRows,
-    };
+    return { deletedCount, hasMoreDemoRows };
   },
 });
 
 export const runHourlyPurge = internalAction({
-  args: {
-    now: v.optional(v.number()),
-  },
+  args: { now: v.optional(v.number()) },
   handler: async (ctx, args): Promise<{ totalProcessed: number; rounds: number }> => {
     const now = args.now ?? Date.now();
-    const collected = await ctx.runMutation(
-      internal.housekeeping.collectPurgeableMediaKeys,
-      { now }
-    );
-
-    if (collected.fileKeys.length > 0) {
-      await ctx.runAction(internal.storageNode.deleteUploadThingFiles, {
-        fileKeys: collected.fileKeys,
-      });
-    }
-
     let totalProcessed = 0;
     let rounds = 0;
-    let keysToClear = collected.fileKeys;
-
     while (rounds < 10) {
       rounds++;
-      const batch = await ctx.runMutation(
-        internal.housekeeping.executePurgeBatch,
-        {
-          now,
-          deletedFileKeys: keysToClear,
-        }
-      );
-      keysToClear = [];
+      const { fileKeys } = await ctx.runMutation(internal.housekeeping.collectPurgeableMediaKeys, { now });
+      const { deletedFileKeys } = fileKeys.length
+        ? await ctx.runAction(internal.storageNode.deleteUploadThingFiles, { fileKeys })
+        : { deletedFileKeys: [] };
+      const batch = await ctx.runMutation(internal.housekeeping.executePurgeBatch, { now, deletedFileKeys });
       totalProcessed += batch.deletedCount;
-      if (!batch.hasMoreDemoRows && batch.deletedCount < BATCH_LIMIT) {
-        break;
-      }
+      if (!batch.hasMoreDemoRows && batch.deletedCount < BATCH_LIMIT) break;
     }
-
     return { totalProcessed, rounds };
   },
 });

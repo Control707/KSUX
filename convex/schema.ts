@@ -124,6 +124,7 @@ export default defineSchema({
       v.literal("suspended")
     ),
     lastHandleChangedAt: v.optional(v.number()),
+    visibilityStatus: v.optional(v.union(v.literal("visible"), v.literal("under_review"))),
     joinedAt: v.number(),
   })
     .index("by_workspace_handle", ["workspaceKey", "handleLower"])
@@ -431,6 +432,7 @@ export default defineSchema({
       "publishedAt",
     ])
     .index("by_all_browse", ["workspaceKey", "isBrowseable", "publishedAt"])
+    .index("by_all_category", ["workspaceKey", "isBrowseable", "category", "publishedAt"])
     .index("by_campus_category", [
       "workspaceKey",
       "isBrowseable",
@@ -439,6 +441,7 @@ export default defineSchema({
       "publishedAt",
     ])
     .index("by_seller", ["workspaceKey", "sellerId", "publishedAt"])
+    .index("by_seller_status_expiry", ["workspaceKey", "sellerId", "status", "expiresAt"])
     .index("by_status_expires", ["status", "expiresAt"])
     .searchIndex("search_listings", {
       searchField: "searchText",
@@ -491,6 +494,7 @@ export default defineSchema({
       v.literal("locked_readonly")
     ),
     requestInitiatorId: v.optional(v.id("students")),
+    requestOpenerSeq: v.optional(v.number()),
     title: v.optional(v.string()),
     listingId: v.optional(v.id("listings")),
     primarySellerId: v.optional(v.id("students")),
@@ -545,6 +549,7 @@ export default defineSchema({
       "lastChatMessageAt",
     ])
     .index("by_student_unread", ["workspaceKey", "studentId", "hasUnread"])
+    .index("by_student_kind_inbox", ["workspaceKey", "studentId", "isArchived", "chatKind", "lastChatMessageAt"])
     .index("by_chat_student", ["workspaceKey", "chatId", "studentId"]),
 
   chatMessages: defineTable({
@@ -575,6 +580,7 @@ export default defineSchema({
     ),
     scamWarningTriggered: v.boolean(),
     isDeleted: v.boolean(),
+    visibilityStatus: v.optional(v.union(v.literal("visible"), v.literal("under_review"))),
     publishedAt: v.number(),
     editedAt: v.optional(v.number()),
   }).index("by_chat_seq", ["workspaceKey", "chatId", "seq"]),
@@ -645,6 +651,7 @@ export default defineSchema({
       "reportKind",
       "expiresAt",
     ])
+    .index("by_author_status", ["workspaceKey", "authorId", "status"])
     .index("by_expires", ["expiresAt"]),
 
   studyRooms: defineTable({
@@ -670,6 +677,7 @@ export default defineSchema({
     dateET: v.string(),
     slotMask48: v.int64(),
     updatedAt: v.number(),
+    isFixture: v.optional(v.boolean()),
   })
     .index("by_room_date", ["studyRoomId", "dateET"])
     .index("by_date", ["dateET"]),
@@ -710,11 +718,14 @@ export default defineSchema({
       "endTime",
     ])
     .index("by_room_end", ["workspaceKey", "studyRoomId", "endTime"])
+    .index("by_host_status", ["workspaceKey", "hostId", "status"])
     .index("by_course_hub_end", ["workspaceKey", "courseHubId", "endTime"]),
 
   events: defineTable({
     workspaceKey: v.string(),
     externalKey: v.optional(v.string()),
+    sourceExternalKeys: v.optional(v.array(v.string())),
+    isFixture: v.optional(v.boolean()),
     source: v.union(
       v.literal("localist"),
       v.literal("engage"),
@@ -758,6 +769,8 @@ export default defineSchema({
       "startTime",
     ])
     .index("by_all_start", ["workspaceKey", "visibilityStatus", "startTime"])
+    .index("by_all_end", ["workspaceKey", "visibilityStatus", "status", "endTime"])
+    .index("by_scope_end", ["workspaceKey", "visibilityStatus", "status", "campusScope", "endTime"])
     .index("by_external_key", ["externalKey"])
     .index("by_club_start", ["workspaceKey", "clubId", "startTime"])
     .searchIndex("search_events", {
@@ -778,10 +791,17 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_event_student", ["workspaceKey", "eventId", "studentId"])
+    .index("by_event", ["eventId"])
     .index("by_student", ["workspaceKey", "studentId", "updatedAt"]),
+
+  eventSourceAliases: defineTable({
+    sourceKey: v.string(),
+    eventId: v.id("events"),
+  }).index("by_source_key", ["sourceKey"]),
 
   clubs: defineTable({
     workspaceKey: v.string(),
+    isFixture: v.optional(v.boolean()),
     externalEngageId: v.optional(v.string()),
     slug: v.string(),
     clubKind: v.union(
@@ -840,6 +860,8 @@ export default defineSchema({
 
   courseHubs: defineTable({
     subjectCourse: v.string(),
+    catalogSource: v.optional(v.union(v.literal("fixture"), v.literal("banner_verified"))),
+    isRetiredFixture: v.optional(v.boolean()),
     subjectCode: v.string(),
     courseNumber: v.string(),
     title: v.string(),
@@ -858,6 +880,8 @@ export default defineSchema({
   // Strictly 2 B-tree indexes, 0 search/vector indexes per ADR-0006
   courseSections: defineTable({
     termCode: v.string(),
+    isFixture: v.optional(v.boolean()),
+    isRetiredFixture: v.optional(v.boolean()),
     crn: v.string(),
     courseHubId: v.id("courseHubs"),
     sectionNumber: v.string(),
@@ -962,6 +986,7 @@ export default defineSchema({
         passioRouteId: v.string(),
         etaMinutes: v.number(),
         loadLabel: v.string(),
+        arrivalAt: v.optional(v.number()),
       })
     ),
     serviceAlerts: v.array(
@@ -973,6 +998,10 @@ export default defineSchema({
       })
     ),
     fetchedAt: v.number(),
+    isFixture: v.optional(v.boolean()),
+    vehiclesFetchedAt: v.optional(v.number()),
+    etasFetchedAt: v.optional(v.number()),
+    alertsFetchedAt: v.optional(v.number()),
   }).index("by_singleton", ["singletonKey"]),
 
   diningVenues: defineTable({
@@ -987,6 +1016,10 @@ export default defineSchema({
     hoursScheduleJson: v.string(),
     todayMenuJson: v.string(),
     tomorrowMenuJson: v.string(),
+    todayMenuDateET: v.optional(v.string()),
+    tomorrowMenuDateET: v.optional(v.string()),
+    isFixtureMenu: v.optional(v.boolean()),
+    isFixtureHours: v.optional(v.boolean()),
     lastHoursSyncAt: v.number(),
     lastMenuSyncAt: v.number(),
   })
@@ -1067,11 +1100,26 @@ export default defineSchema({
       v.literal("deleted")
     ),
     createdAt: v.number(),
+    deleteClaimedAt: v.optional(v.number()),
   })
     .index("by_file_key", ["fileKey"])
     .index("by_demo_session", ["demoSessionId"])
     .index("by_owner", ["workspaceKey", "ownerStudentId"])
+    .index("by_owner_status", ["workspaceKey", "ownerStudentId", "status"])
     .index("by_status_created", ["status", "createdAt"]),
+
+  uploadReservations: defineTable({
+    workspaceKey: v.string(),
+    demoSessionId: v.optional(v.id("demoSessions")),
+    ownerStudentId: v.id("students"),
+    purpose: v.union(v.literal("avatar"), v.literal("post"), v.literal("listing"), v.literal("chat")),
+    byteSize: v.number(),
+    width: v.number(),
+    height: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_expires", ["expiresAt"])
+    .index("by_demo_session", ["demoSessionId", "expiresAt"]),
 
   rateLimitBuckets: defineTable({
     key: v.string(),

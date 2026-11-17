@@ -27,10 +27,10 @@ crons.interval(
   {}
 );
 
-// Twice-daily Nutrislice + hours-locations.php Dining Venues sync (10:15 & 16:15 UTC = ~05:15 & 11:15 ET)
+// The action gates each feed by its Eastern wall-clock schedule across DST.
 crons.cron(
   "sync-nutrislice-dining",
-  "15 10,16 * * *",
+  "0,15 9,10,15,16 * * *",
   internal.sync.transitDiningSync.runScheduledDiningSync,
   {}
 );

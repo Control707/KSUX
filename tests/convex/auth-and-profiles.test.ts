@@ -1,3 +1,4 @@
+import { TEST_SERVER_SECRET, requestTestOtp, verifyTestOtp, reserveTestUpload } from "../helpers/authTest";
 import { beforeEach, describe, expect, it } from "vitest";
 import { api, internal } from "../../convex/_generated/api";
 import {
@@ -7,6 +8,7 @@ import {
 
 describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge (#15)", () => {
   beforeEach(() => {
+    process.env.KSUX_SERVER_SECRET = TEST_SERVER_SECRET;
     process.env.KSUX_SKIP_OTP_SCHEDULER = "true";
     process.env.KSUX_SKIP_STORAGE_SCHEDULER = "true";
     process.env.KSUX_ALLOW_DEV_OTP_LOG = "true";
@@ -17,13 +19,13 @@ describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge
     const t0 = 1_760_000_000_000;
 
     await expect(
-      t.mutation(api.auth.requestEmailOtp, {
+      requestTestOtp(t, {
         email: "outsider@gmail.com",
         nowOverride: t0,
       })
     ).rejects.toThrowError(/Only @students\.kennesaw\.edu and @kennesaw\.edu/);
 
-    const studentOtp = await t.mutation(api.auth.requestEmailOtp, {
+    const studentOtp = await requestTestOtp(t, {
       email: "  Maya.Patel+Clubs@Students.Kennesaw.EDU ",
       clientIpHint: "10.0.0.1",
       nowOverride: t0,
@@ -31,7 +33,7 @@ describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge
     expect(studentOtp.devCodePreview).toMatch(/^\d{6}$/);
 
     // Verify using the base canonical email without +Clubs
-    const verified = await t.mutation(api.auth.verifyEmailOtp, {
+    const verified = await verifyTestOtp(t, {
       email: "maya.patel@students.kennesaw.edu",
       code: studentOtp.devCodePreview!,
       nowOverride: t0 + 5_000,
@@ -43,12 +45,12 @@ describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge
     expect("canonicalEmail" in verified.student).toBe(false);
 
     // Faculty/Staff domain maps to faculty_staff badge
-    const facOtp = await t.mutation(api.auth.requestEmailOtp, {
+    const facOtp = await requestTestOtp(t, {
       email: "Dr.Vance+Syllabus@Kennesaw.edu",
       clientIpHint: "10.0.0.2",
       nowOverride: t0,
     });
-    const facVerified = await t.mutation(api.auth.verifyEmailOtp, {
+    const facVerified = await verifyTestOtp(t, {
       email: "dr.vance@kennesaw.edu",
       code: facOtp.devCodePreview!,
       nowOverride: t0 + 5_000,
@@ -63,7 +65,7 @@ describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge
     const t = createTestConvex();
     const base = 1_760_100_000_000;
 
-    const first = await t.mutation(api.auth.requestEmailOtp, {
+    const first = await requestTestOtp(t, {
       email: "owl1@students.kennesaw.edu",
       clientIpHint: "192.168.1.10",
       nowOverride: base,
@@ -71,7 +73,7 @@ describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge
 
     // Immediate resend within 60s is blocked
     await expect(
-      t.mutation(api.auth.requestEmailOtp, {
+      requestTestOtp(t, {
         email: "owl1@students.kennesaw.edu",
         clientIpHint: "192.168.1.10",
         nowOverride: base + 30_000,
@@ -81,7 +83,7 @@ describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge
     // Request codes #2..#5 spaced >60s apart
     let latestCode = first.devCodePreview!;
     for (let i = 1; i < 5; i++) {
-      const next = await t.mutation(api.auth.requestEmailOtp, {
+      const next = await requestTestOtp(t, {
         email: "owl1@students.kennesaw.edu",
         clientIpHint: `192.168.1.${10 + i}`,
         nowOverride: base + i * 70_000,
@@ -91,7 +93,7 @@ describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge
 
     // 6th OTP within 24h is rejected
     await expect(
-      t.mutation(api.auth.requestEmailOtp, {
+      requestTestOtp(t, {
         email: "owl1@students.kennesaw.edu",
         clientIpHint: "192.168.1.99",
         nowOverride: base + 6 * 70_000,
@@ -101,7 +103,7 @@ describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge
     // 5 wrong verification attempts invalidate the active OTP
     const wrongCode = latestCode === "000000" ? "999999" : "000000";
     for (let attempt = 1; attempt <= 4; attempt++) {
-      const res = await t.mutation(api.auth.verifyEmailOtp, {
+      const res = await verifyTestOtp(t, {
         email: "owl1@students.kennesaw.edu",
         code: wrongCode,
         nowOverride: base + 6 * 70_000 + attempt * 1000,
@@ -110,7 +112,7 @@ describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge
       if (!res.ok) expect(res.code).toBe("INVALID_OTP");
     }
 
-    const fifth = await t.mutation(api.auth.verifyEmailOtp, {
+    const fifth = await verifyTestOtp(t, {
       email: "owl1@students.kennesaw.edu",
       code: wrongCode,
       nowOverride: base + 6 * 70_000 + 5_000,
@@ -119,7 +121,7 @@ describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge
     if (!fifth.ok) expect(fifth.code).toBe("OTP_LOCKED");
 
     // 6th attempt EVEN WITH THE EXACT CODE fails because code is invalidated!
-    const sixth = await t.mutation(api.auth.verifyEmailOtp, {
+    const sixth = await verifyTestOtp(t, {
       email: "owl1@students.kennesaw.edu",
       code: latestCode,
       nowOverride: base + 6 * 70_000 + 6_000,
@@ -129,14 +131,14 @@ describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge
 
     // IP cap: 10 OTPs / hr from a single IP across distinct emails
     for (let i = 0; i < 10; i++) {
-      await t.mutation(api.auth.requestEmailOtp, {
+      await requestTestOtp(t, {
         email: `ipuser${i}@students.kennesaw.edu`,
         clientIpHint: "203.0.113.5",
         nowOverride: base + i * 1000,
       });
     }
     await expect(
-      t.mutation(api.auth.requestEmailOtp, {
+      requestTestOtp(t, {
         email: "ipuser10@students.kennesaw.edu",
         clientIpHint: "203.0.113.5",
         nowOverride: base + 15_000,
@@ -146,10 +148,10 @@ describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge
 
   it("blocks reserved & tombstoned handles, enforces 30d rename cooldown, caps Follow at 200, and preserves [Removed Student] on self-delete", async () => {
     const t = createTestConvex();
-    const otp = await t.mutation(api.auth.requestEmailOtp, {
+    const otp = await requestTestOtp(t, {
       email: "fresh@students.kennesaw.edu",
     });
-    const verified = await t.mutation(api.auth.verifyEmailOtp, {
+    const verified = await verifyTestOtp(t, {
       email: "fresh@students.kennesaw.edu",
       code: otp.devCodePreview!,
     });
@@ -216,10 +218,10 @@ describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge
     ).rejects.toThrowError(/Session expired or invalid/);
 
     // Another Student trying to claim @fresh_owl within 30d is blocked against impersonation
-    const impersonatorOtp = await t.mutation(api.auth.requestEmailOtp, {
+    const impersonatorOtp = await requestTestOtp(t, {
       email: "impersonator@students.kennesaw.edu",
     });
-    const impVer = await t.mutation(api.auth.verifyEmailOtp, {
+    const impVer = await verifyTestOtp(t, {
       email: "impersonator@students.kennesaw.edu",
       code: impersonatorOtp.devCodePreview!,
     });
@@ -257,7 +259,7 @@ describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge
     );
 
     // Register an upload on expiredDemo, then backdate expiredDemo's expiresAt and add an >30d prod Listing
-    await t.mutation(api.uploads.registerMediaAsset, {
+    await t.mutation(api.uploads.registerMediaAsset, await reserveTestUpload(t, {
       demoShortCode: expiredDemo.shortCode,
       demoPersonaHandle: "maya_cs",
       fileKey: "ut_expired_demo_img_1",
@@ -266,7 +268,7 @@ describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge
       byteSize: 20_000,
       width: 600,
       height: 600,
-    });
+    }));
 
     const prodSeller = await createVerifiedTestStudent(t, {
       handle: "seller_owl",

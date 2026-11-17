@@ -180,7 +180,7 @@ export function EventsCalendarView() {
               href={`/events/${ev._id}`}
               className="mt-1.5 block text-sm font-black text-[#111317] hover:underline"
             >
-              {ev.title}
+              {ev.title}{ev.isFixture ? " · Demo" : ""}
             </Link>
             <p className="mt-1 flex items-center gap-1 text-xs text-[#5E6675]">
               <MapPin className="h-3.5 w-3.5" />
@@ -289,7 +289,7 @@ export function EventDetailView({ eventId }: { eventId: string }) {
         </div>
 
         <h1 className="mt-2 text-xl font-black text-[#111317]">
-          {event.title}
+          {event.title}{event.isFixture ? " · Demo" : ""}
         </h1>
         <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-[#5E6675]">
           <Calendar className="h-3.5 w-3.5" />

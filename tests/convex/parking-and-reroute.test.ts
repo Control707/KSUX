@@ -8,7 +8,7 @@ import {
 describe("Seam 1 — Parking Lots, 45m Recency Decay, Outlier Trimming, Spot Opening & Rerouting (#20)", () => {
   it("enforces 10m per-lot report cooldowns, 45m decay into 168-hr priors, >=3-report outlier trimming, 2-vote Gone clearing, and overflow Shuttle rerouting", async () => {
     const t = createTestConvex();
-    await t.mutation(internal.seed.bootstrapKsu, {});
+    await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: true });
 
     const s1 = await createVerifiedTestStudent(t, {
       handle: "park_one",
@@ -28,7 +28,7 @@ describe("Seam 1 — Parking Lots, 45m Recency Decay, Outlier Trimming, Spot Ope
 
     const baseNow = Date.now();
 
-    // 0 active reports -> provenance is "Estimated · Typical ... class load"
+    // Zero active reports fall back to the labeled modeled baseline.
     const initial = await t.query(api.parking.listParkingLots, {
       sessionToken: s1.sessionToken,
       campusOverride: "Kennesaw",
@@ -39,7 +39,7 @@ describe("Seam 1 — Parking Lots, 45m Recency Decay, Outlier Trimming, Spot Ope
       (l) => l.slug === "central-parking-deck"
     )!;
     expect(central.provenanceKind).toBe("baseline_prior");
-    expect(central.provenanceLabel).toMatch(/Estimated · Typical/);
+    expect(central.provenanceLabel).toMatch(/Estimated · Modeled/);
 
     // Pin up to 2 favorite lots; 3rd pin rejected
     const eastDeck = initial.lots.find((l) => l.slug === "east-parking-deck")!;

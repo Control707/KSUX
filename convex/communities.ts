@@ -1,4 +1,6 @@
 import { ConvexError, v } from "convex/values";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { removeCommunityChatMember } from "./lib/campusChat";
 import { campusFilterValidator, campusValidator } from "./schema";
 import { assertPublishSafety } from "./lib/safety";
 import { formatStalenessBadge } from "./lib/syncGuard";
@@ -20,6 +22,52 @@ function slugifyClubName(name: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 48);
+}
+
+async function getClubMemberCount(ctx: QueryCtx, club: Doc<"clubs">, workspaceKey: string) {
+  if (workspaceKey === "prod") return club.prodMemberCount;
+  const roster = await ctx.db.query("clubMembers")
+    .withIndex("by_club_student", (q) => q.eq("workspaceKey", workspaceKey).eq("clubId", club._id))
+    .take(10);
+  return (club.workspaceKey === "ksu" ? club.prodMemberCount : 0) + roster.length;
+}
+
+async function getEventCounts(ctx: QueryCtx, event: Doc<"events">, workspaceKey: string) {
+  if (workspaceKey === "prod") {
+    return { goingCount: event.prodGoingCount, interestedCount: event.prodInterestedCount };
+  }
+  const base = event.workspaceKey === "ksu";
+  const rsvps = await ctx.db.query("eventRsvps")
+    .withIndex("by_event_student", (q) => q.eq("workspaceKey", workspaceKey).eq("eventId", event._id))
+    .take(10);
+  return {
+    goingCount: (base ? event.prodGoingCount : 0) + rsvps.filter((row) => row.rsvpStatus === "going").length,
+    interestedCount: (base ? event.prodInterestedCount : 0) + rsvps.filter((row) => row.rsvpStatus === "interested").length,
+  };
+}
+
+export async function setClubMembershipRole(
+  ctx: MutationCtx,
+  club: Doc<"clubs">,
+  workspaceKey: string,
+  studentId: Doc<"students">["_id"],
+  role: Doc<"clubMembers">["role"],
+  now: number
+) {
+  const membership = await ctx.db.query("clubMembers")
+    .withIndex("by_club_student", (q) => q.eq("workspaceKey", workspaceKey)
+      .eq("clubId", club._id).eq("studentId", studentId))
+    .unique();
+  if (!membership) {
+    await ctx.db.insert("clubMembers", { workspaceKey, clubId: club._id, studentId, role, joinedAt: now });
+    if (workspaceKey === "prod") await ctx.db.patch(club._id, { prodMemberCount: club.prodMemberCount + 1 });
+  } else if (membership.role !== role) {
+    await ctx.db.patch(membership._id, { role });
+  }
+  return ensureLazyCommunityGroupChat(ctx, {
+    workspaceKey, studentId, parentType: "club", parentId: String(club._id),
+    title: club.name, role: role === "officer" ? "admin" : "member", now,
+  });
 }
 
 export const listClubs = viewerQuery({
@@ -120,17 +168,18 @@ export const listClubs = viewerQuery({
       .filter((c) => !args.clubKindFilter || c.clubKind === args.clubKindFilter)
       .slice(0, limit);
 
-    return combined.map((c) => ({
+    return Promise.all(combined.map(async (c) => ({
       _id: c._id,
       slug: c.slug,
       clubKind: c.clubKind,
       campus: c.campus,
       name: c.name,
+      isFixture: c.isFixture ?? false,
       shortName: c.shortName,
       summary: c.summary,
-      memberCount: c.prodMemberCount + (viewer.mode === "demo" && roleByClubId.has(String(c._id)) ? 1 : 0),
+      memberCount: await getClubMemberCount(ctx, c, viewer.workspaceKey),
       myRole: roleByClubId.get(String(c._id)) ?? null,
-    }));
+    })));
   },
 });
 
@@ -231,10 +280,11 @@ export const getClubBySlug = viewerQuery({
         clubKind: club.clubKind,
         campus: club.campus,
         name: club.name,
+        isFixture: club.isFixture ?? false,
         shortName: club.shortName,
         summary: club.summary,
         description: club.description,
-        prodMemberCount: club.prodMemberCount,
+        prodMemberCount: await getClubMemberCount(ctx, club, viewer.workspaceKey),
       },
       myRole: myMembership?.role ?? null,
       groupChatId: groupChat?._id ?? null,
@@ -277,32 +327,12 @@ export const toggleJoinClub = viewerMutation({
           prodMemberCount: Math.max(0, club.prodMemberCount - 1),
         });
       }
+      await removeCommunityChatMember(ctx, viewer.workspaceKey, "club", club._id, viewer.actorStudent._id);
       return { joined: false, groupChatId: null };
     }
 
-    await ctx.db.insert("clubMembers", {
-      workspaceKey: viewer.workspaceKey,
-      clubId: club._id,
-      studentId: viewer.actorStudent._id,
-      role: "member",
-      joinedAt: now,
-    });
-
-    // Immutable "ksu" guardrail: ONLY prod mutations increment prodMemberCount on "ksu" rows!
-    if (viewer.workspaceKey === "prod") {
-      await ctx.db.patch(club._id, {
-        prodMemberCount: club.prodMemberCount + 1,
-      });
-    }
-
-    const groupChatId = await ensureLazyCommunityGroupChat(ctx, {
-      workspaceKey: viewer.workspaceKey,
-      studentId: viewer.actorStudent._id,
-      parentType: "club",
-      parentId: String(club._id),
-      title: club.name,
-      now,
-    });
+    const groupChatId = await setClubMembershipRole(ctx, club, viewer.workspaceKey,
+      viewer.actorStudent._id, "member", now);
 
     return { joined: true, groupChatId };
   },
@@ -395,7 +425,8 @@ export const claimClubOfficerRole = viewerMutation({
     const club = await ctx.db.get(args.clubId);
     if (
       !club ||
-      (club.workspaceKey !== "ksu" && club.workspaceKey !== viewer.workspaceKey)
+      (club.workspaceKey !== "ksu" && club.workspaceKey !== viewer.workspaceKey) ||
+      club.visibilityStatus !== "visible"
     ) {
       throw new ConvexError({ code: "NOT_FOUND", message: "Club not found." });
     }
@@ -422,35 +453,14 @@ export const claimClubOfficerRole = viewerMutation({
       )
       .unique();
 
-    if (existing) {
-      if (existing.role !== "officer") {
-        await ctx.db.patch(existing._id, { role: assignedRole });
-      }
-    } else {
-      await ctx.db.insert("clubMembers", {
-        workspaceKey: viewer.workspaceKey,
-        clubId: club._id,
-        studentId: viewer.actorStudent._id,
-        role: assignedRole,
-        joinedAt: now,
-      });
-    }
-
-    await ensureLazyCommunityGroupChat(ctx, {
-      workspaceKey: viewer.workspaceKey,
-      studentId: viewer.actorStudent._id,
-      parentType: "club",
-      parentId: String(club._id),
-      title: club.name,
-      role: autoApproved ? "admin" : "member",
-      now,
-    });
+    const role = existing?.role === "officer" ? "officer" : assignedRole;
+    await setClubMembershipRole(ctx, club, viewer.workspaceKey, viewer.actorStudent._id, role, now);
 
     return {
-      status: autoApproved
+      status: role === "officer"
         ? ("auto_approved" as const)
         : ("routed_to_moderation" as const),
-      role: assignedRole,
+      role,
     };
   },
 });
@@ -593,17 +603,10 @@ export const listEvents = viewerQuery({
 
     const items = await Promise.all(
       merged.map(async (ev) => {
-        // Overlay demo RSVPs without mutating "ksu" counters!
-        let demoGoingBoost = 0;
-        let demoInterestedBoost = 0;
-        if (viewer.mode === "demo") {
-          const myStatus = myRsvpMap.get(String(ev._id));
-          if (myStatus === "going") demoGoingBoost = 1;
-          if (myStatus === "interested") demoInterestedBoost = 1;
-        }
         return {
           _id: ev._id,
           source: ev.source,
+          isFixture: ev.isFixture ?? false,
           campus: ev.campus,
           campusScope: ev.campusScope,
           isVirtual: ev.isVirtual,
@@ -616,8 +619,7 @@ export const listEvents = viewerQuery({
           startTime: ev.startTime,
           endTime: ev.endTime,
           status: ev.status,
-          goingCount: ev.prodGoingCount + demoGoingBoost,
-          interestedCount: ev.prodInterestedCount + demoInterestedBoost,
+          ...await getEventCounts(ctx, ev, viewer.workspaceKey),
           myRsvpStatus: myRsvpMap.get(String(ev._id)) ?? null,
         };
       })
@@ -664,12 +666,7 @@ export const getEventDetail = viewerQuery({
         ? { _id: club._id, slug: club.slug, name: club.name }
         : null,
       myRsvpStatus: myRsvp?.rsvpStatus ?? null,
-      goingCount:
-        ev.prodGoingCount +
-        (viewer.mode === "demo" && myRsvp?.rsvpStatus === "going" ? 1 : 0),
-      interestedCount:
-        ev.prodInterestedCount +
-        (viewer.mode === "demo" && myRsvp?.rsvpStatus === "interested" ? 1 : 0),
+      ...await getEventCounts(ctx, ev, viewer.workspaceKey),
     };
   },
 });

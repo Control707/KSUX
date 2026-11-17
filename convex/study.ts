@@ -1,8 +1,11 @@
+import { workflowTime } from "./lib/workflowTime";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { campusFilterValidator } from "./schema";
 import { assertPublishSafety } from "./lib/safety";
 import { formatStalenessBadge } from "./lib/syncGuard";
+import { easternDate, zonedDateParts } from "./lib/easternDate";
+import { removeCampusChatMember } from "./lib/campusChat";
 import {
   filterVisibleContent,
   toPublicStudent,
@@ -10,27 +13,18 @@ import {
   viewerQuery,
 } from "./lib/viewer";
 import {
+  acquireLibCalLease,
   countOpenHalfHourSlots,
   decodeSlotMask48Slots,
 } from "./sync/libcalSync";
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
-const ONE_MINUTE_MS = 60 * 1000;
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 const THIRTY_MINUTES_MS = 30 * 60 * 1000;
 const FORTY_FIVE_MINUTES_MS = 45 * 60 * 1000;
 const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-
-function formatDateET(ms: number): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(ms));
-}
 
 export const listStudyRoomsAndSessions = viewerQuery({
   args: {
@@ -39,14 +33,11 @@ export const listStudyRoomsAndSessions = viewerQuery({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     const { viewer } = ctx;
     const campusFilter =
       args.campusOverride ?? viewer.actorStudent.activeCampusFilter;
-    const targetDateET =
-      args.dateChoice === "tomorrow"
-        ? formatDateET(now + TWENTY_FOUR_HOURS_MS)
-        : formatDateET(now);
+    const targetDateET = easternDate(now, args.dateChoice === "tomorrow" ? 1 : 0);
 
     const fetchCampusRooms = async (c: "Kennesaw" | "Marietta") => {
       const [libcal, walkIn] = await Promise.all([
@@ -80,20 +71,25 @@ export const listStudyRoomsAndSessions = viewerQuery({
     ]);
 
     const rawRooms = [...kRooms, ...mRooms];
-    const snapshotMaskByRoomId = new Map<string, bigint>();
+    const roomSnapshots = new Map<string, Promise<Doc<"studyRoomSnapshots"> | null>>();
+    const getSnapshot = (roomId: Id<"studyRooms">, dateET: string) => {
+      const key = `${roomId}:${dateET}`;
+      const pending = roomSnapshots.get(key);
+      if (pending) return pending;
+      const request = ctx.db.query("studyRoomSnapshots")
+        .withIndex("by_room_date", (q) => q.eq("studyRoomId", roomId).eq("dateET", dateET))
+        .unique()
+        .then((row) => row?.isFixture && viewer.mode !== "demo" ? null : row);
+      roomSnapshots.set(key, request);
+      return request;
+    };
 
     const rooms = await Promise.all(
       rawRooms.map(async (rm) => {
         if (rm.roomKind === "libcal") {
-          const snap = await ctx.db
-            .query("studyRoomSnapshots")
-            .withIndex("by_room_date", (q) =>
-              q.eq("studyRoomId", rm._id).eq("dateET", targetDateET)
-            )
-            .unique();
+          const snap = await getSnapshot(rm._id, targetDateET);
           const mask = snap?.slotMask48 ?? 0n;
-          snapshotMaskByRoomId.set(String(rm._id), mask);
-          const openSlotsCount = countOpenHalfHourSlots(mask);
+          const openSlotsCount = snap ? countOpenHalfHourSlots(mask) : null;
           // Return daytime 08:00-22:00 (bits 16..43) boolean array for compact grid UI
           const decodedAll = decodeSlotMask48Slots(mask);
           return {
@@ -109,7 +105,8 @@ export const listStudyRoomsAndSessions = viewerQuery({
             bookingUrl: rm.bookingUrl,
             todayHoursLabel: rm.todayHoursLabel,
             openHalfHourSlotsCount: openSlotsCount,
-            daytimeSlotsOpen: decodedAll.slice(16, 44), // 8:00 AM .. 10:00 PM
+            daytimeSlotsOpen: snap ? decodedAll.slice(16, 44) : [], // 8:00 AM .. 10:00 PM
+            isFixtureSnapshot: Boolean(snap?.isFixture),
             vibe: null,
           };
         }
@@ -143,6 +140,7 @@ export const listStudyRoomsAndSessions = viewerQuery({
           todayHoursLabel: rm.todayHoursLabel,
           openHalfHourSlotsCount: null,
           daytimeSlotsOpen: [],
+          isFixtureSnapshot: false,
           vibe: latestVibe
             ? {
                 tierValue: latestVibe.tierValue,
@@ -242,24 +240,14 @@ export const listStudyRoomsAndSessions = viewerQuery({
           if (!s.libcalHostConfirmed) {
             unreservedLibCalWarning = true;
           } else {
-            const mask = snapshotMaskByRoomId.get(String(room._id));
-            if (mask !== undefined) {
-              // If any slot in the session's window is still open (1n) on LibCal, warn that it hasn't been checked out upstream!
-              const startParts = new Intl.DateTimeFormat("en-US", {
-                timeZone: "America/New_York",
-                hour: "numeric",
-                minute: "numeric",
-                hour12: false,
-              }).formatToParts(new Date(s.startTime));
-              const hr = Number(
-                startParts.find((p) => p.type === "hour")?.value ?? 12
-              );
-              const mn = Number(
-                startParts.find((p) => p.type === "minute")?.value ?? 0
-              );
-              const bit = (hr === 24 ? 0 : hr) * 2 + (mn >= 30 ? 1 : 0);
-              if (bit >= 0 && bit < 48 && ((mask >> BigInt(bit)) & 1n) === 1n) {
+            const firstSlot = Math.floor(s.startTime / THIRTY_MINUTES_MS) * THIRTY_MINUTES_MS;
+            for (let slot = firstSlot; slot < s.endTime; slot += THIRTY_MINUTES_MS) {
+              const snapshot = await getSnapshot(room._id, easternDate(slot));
+              const { hour, minute } = zonedDateParts(slot);
+              const bit = BigInt(hour * 2 + Math.floor(minute / 30));
+              if (snapshot && ((snapshot.slotMask48 >> bit) & 1n) === 1n) {
                 unreservedLibCalWarning = true;
+                break;
               }
             }
           }
@@ -328,49 +316,15 @@ export const triggerStudySwrRefresh = viewerMutation({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
-    const state = await ctx.db
-      .query("feedSyncState")
-      .withIndex("by_source", (q) => q.eq("sourceKey", "libcal_study_rooms"))
-      .unique();
-
-    if (
-      state &&
-      state.lastSuccessAt &&
-      now - state.lastSuccessAt <= FIVE_MINUTES_MS
-    ) {
-      return { acquired: false, reason: "fresh_within_5m_ttl" as const };
-    }
-    if (state?.backoffUntil && state.backoffUntil > now) {
-      return { acquired: false, reason: "circuit_open" as const };
-    }
-    if (state?.refreshInFlightUntil && state.refreshInFlightUntil > now) {
-      return { acquired: false, reason: "lease_already_held" as const };
-    }
-
-    const leaseUntil = now + ONE_MINUTE_MS;
-    if (state) {
-      await ctx.db.patch(state._id, {
-        refreshInFlightUntil: leaseUntil,
-      });
-    } else {
-      await ctx.db.insert("feedSyncState", {
-        sourceKey: "libcal_study_rooms",
-        consecutiveFailures: 0,
-        refreshInFlightUntil: leaseUntil,
-        activeRecordCount: 47,
-      });
-    }
-
-    if (process.env.KSUX_SKIP_LIBCAL_SCHEDULER !== "true") {
+    const now = workflowTime(args.nowOverride);
+    const result = await acquireLibCalLease(ctx, now);
+    if (result.acquired && process.env.KSUX_SKIP_LIBCAL_SCHEDULER !== "true") {
       await ctx.scheduler.runAfter(
-        0,
-        internal.sync.libcalSync.runSequentialLibCalRefresh,
-        { fromWarmCron: false }
+        0, internal.sync.libcalSync.runSequentialLibCalRefresh,
+        { scheduledLeaseUntil: result.leaseUntil }
       );
     }
-
-    return { acquired: true, leaseUntil };
+    return result;
   },
 });
 
@@ -385,7 +339,7 @@ export const submitWalkInVibe = viewerMutation({
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const now = args.nowOverride ?? Date.now();
+    const now = workflowTime(args.nowOverride);
     await ctx.db.insert("campusPulses", {
       workspaceKey: ctx.viewer.workspaceKey,
       targetType: "study_room",
@@ -572,6 +526,10 @@ export const toggleStudySessionAttendance = viewerMutation({
         (id) => id !== viewer.actorStudent._id
       );
       await ctx.db.patch(session._id, { attendeeIds: nextAttendees });
+      if (session.groupChatId) {
+        const chat = await ctx.db.get(session.groupChatId);
+        if (chat?.kind === "study_group") await removeCampusChatMember(ctx, chat, viewer.actorStudent._id);
+      }
       return { attending: false, seatCount: nextAttendees.length };
     }
 
@@ -666,14 +624,16 @@ export const endStudySession = viewerMutation({
         message: "Only the host can end this Study Session.",
       });
     }
-    await ctx.db.patch(session._id, {
-      status: "ended",
-      endTime: Math.min(session.endTime, now),
-    });
+    const endTime = Math.min(session.endTime, now);
+    if (session.status !== "ended") {
+      await ctx.db.patch(session._id, { status: "ended", endTime });
+    }
     if (session.groupChatId) {
-      await ctx.db.patch(session.groupChatId, {
-        readonlyAfter: now + TWENTY_FOUR_HOURS_MS,
-      });
+      const chat = await ctx.db.get(session.groupChatId);
+      const readonlyAfter = endTime + TWENTY_FOUR_HOURS_MS;
+      if (chat?.kind === "study_group" && chat.readonlyAfter !== readonlyAfter) {
+        await ctx.db.patch(session.groupChatId, { readonlyAfter });
+      }
     }
     return { ok: true };
   },

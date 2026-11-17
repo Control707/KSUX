@@ -13,7 +13,7 @@ describe("Seam 1 — Peer-to-Peer Marketplace Listings, Isolated Deal Chats & Me
 
   it("isolates Deal Chats per (Listing, primaryBuyer), rejects blocked co-party invites, flags Zelle/Venmo scam keywords, enforces seller-only Pending/Sold, and caps buyer-confirmed trust increments at 1/7d per pair", async () => {
     const t = createTestConvex();
-    await t.mutation(internal.seed.bootstrapKsu, {});
+    await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: true });
 
     const seller = await createVerifiedTestStudent(t, {
       handle: "seller_alex",

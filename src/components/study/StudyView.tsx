@@ -23,7 +23,12 @@ import { ReportTrigger } from "@/components/shared/ReportTrigger";
 
 export function StudyView() {
   const searchParams = useSearchParams();
-  const { pendingDraftCard, setPendingDraftCard } = useViewerClient();
+  const {
+    pendingDraftCard,
+    setPendingDraftCard,
+    quickComposerKind,
+    setQuickComposerKind,
+  } = useViewerClient();
   const [dateChoice, setDateChoice] = useState<"today" | "tomorrow">("today");
   const [hostOpen, setHostOpen] = useState(searchParams.get("host") === "1");
   const [selectedRoomId, setSelectedRoomId] = useState<string>("");
@@ -62,6 +67,13 @@ export function StudyView() {
       void triggerSwr({}).catch(() => {});
     }
   }, [data?.needsSwrRefresh, triggerSwr]);
+
+  useEffect(() => {
+    if (quickComposerKind === "study_session") {
+      setHostOpen(true);
+      setQuickComposerKind(null);
+    }
+  }, [quickComposerKind, setQuickComposerKind]);
 
   useEffect(() => {
     if (pendingDraftCard && pendingDraftCard.draftKind === "study_session") {

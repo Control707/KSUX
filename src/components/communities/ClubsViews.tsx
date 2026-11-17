@@ -175,7 +175,7 @@ export function ClubsDirectoryView() {
                 href={`/clubs/${club.slug}`}
                 className="mt-1.5 block text-sm font-black text-[#111317] hover:underline"
               >
-                {club.name}
+                {club.name}{club.isFixture ? " · Demo" : ""}
               </Link>
               <p className="mt-1 line-clamp-2 text-xs text-[#5E6675]">
                 {club.summary}
@@ -270,7 +270,7 @@ export function ClubProfileView({ slug }: { slug: string }) {
               {club.campus} Campus
             </span>
             <h1 className="mt-1.5 text-xl font-black text-[#111317]">
-              {club.name}
+              {club.name}{club.isFixture ? " · Demo" : ""}
             </h1>
             <p className="mt-1 text-xs leading-relaxed text-[#5E6675]">
               {club.description}

@@ -1,7 +1,8 @@
 import { ConvexError, v } from "convex/values";
-import { internal } from "./_generated/api";
+import { setClubMembershipRole } from "./communities";
 import { makeStudentPairKey, sha256Hex } from "./lib/crypto";
 import {
+  isItemVisibleToViewer,
   makeTargetKey,
   moderatorMutation,
   toPublicStudent,
@@ -10,6 +11,8 @@ import {
 } from "./lib/viewer";
 import { closeStudentArtifactsAndMedia } from "./students";
 import { Id } from "./_generated/dataModel";
+import { getChatMembership, updateLatestMessagePreview } from "./chats";
+import { queueMediaDeletion } from "./lib/mediaCleanup";
 
 export const toggleBlockStudent = viewerMutation({
   args: {
@@ -24,22 +27,19 @@ export const toggleBlockStudent = viewerMutation({
       });
     }
 
-    const existingByMe = await ctx.db
-      .query("studentBlocks")
-      .withIndex("by_blocker", (q) =>
-        q
-          .eq("workspaceKey", viewer.workspaceKey)
-          .eq("blockerId", viewer.actorStudent._id)
-      )
-      .take(200);
-    const match = existingByMe.find(
-      (b) => b.blockedId === args.targetStudentId
-    );
+    const target = await ctx.db.get(args.targetStudentId);
+    if (!target || target.workspaceKey !== viewer.workspaceKey || target.accountStatus !== "active") {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Student not found." });
+    }
 
     const dmPairKey = makeStudentPairKey(
       String(viewer.actorStudent._id),
       String(args.targetStudentId)
     );
+    const blocks = await ctx.db.query("studentBlocks").withIndex("by_pair", (q) =>
+      q.eq("workspaceKey", viewer.workspaceKey).eq("pairKey", dmPairKey),
+    ).collect();
+    const match = blocks.find((block) => block.blockerId === viewer.actorStudent._id);
     const dmChat = await ctx.db
       .query("chats")
       .withIndex("by_dm_pair", (q) =>
@@ -49,24 +49,22 @@ export const toggleBlockStudent = viewerMutation({
 
     if (match) {
       await ctx.db.delete(match._id);
-      // Unfreeze 1:1 DM only if counterparty has not also blocked viewer
-      const reverseBlocks = await ctx.db
-        .query("studentBlocks")
-        .withIndex("by_blocker", (q) =>
-          q
-            .eq("workspaceKey", viewer.workspaceKey)
-            .eq("blockerId", args.targetStudentId)
-        )
-        .take(200);
-      const stillBlockedByCounterparty = reverseBlocks.some(
-        (b) => b.blockedId === viewer.actorStudent._id
-      );
+      const stillBlockedByCounterparty = blocks.some((block) => block.blockerId === target._id);
       if (
         dmChat &&
         dmChat.requestStatus === "locked_readonly" &&
         !stillBlockedByCounterparty
       ) {
-        await ctx.db.patch(dmChat._id, { requestStatus: "active" });
+        // Legacy DMs stored Block in requestStatus and discarded the earlier state.
+        const initiator = dmChat.requestInitiatorId;
+        const recipient = initiator === target._id ? viewer.actorStudent._id : target._id;
+        const decline = initiator ? await ctx.db.query("interpersonalLedgers").withIndex("by_pair_kind", (q) =>
+          q.eq("workspaceKey", viewer.workspaceKey).eq("kind", "dm_decline_cooldown")
+            .eq("pairKey", `${initiator}->${recipient}`),
+        ).unique() : null;
+        await ctx.db.patch(dmChat._id, {
+          requestStatus: decline ? "declined" : initiator ? "pending_request" : "active",
+        });
       }
       return { blocked: false };
     }
@@ -102,11 +100,6 @@ export const toggleBlockStudent = viewerMutation({
     ]);
     if (f1) await ctx.db.delete(f1._id);
     if (f2) await ctx.db.delete(f2._id);
-
-    // Freeze any existing 1:1 Direct Message between them
-    if (dmChat) {
-      await ctx.db.patch(dmChat._id, { requestStatus: "locked_readonly" });
-    }
 
     return { blocked: true };
   },
@@ -162,6 +155,9 @@ export const submitReport = viewerMutation({
     const now = Date.now();
     const { viewer } = ctx;
     const targetKey = makeTargetKey(args.targetType, args.targetId);
+    if (viewer.mode === "student" && !viewer.actorStudent.canonicalEmail) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Only verified Students can report items." });
+    }
 
     const existingReports = await ctx.db
       .query("moderationReports")
@@ -175,6 +171,75 @@ export const submitReport = viewerMutation({
         r.reporterId === viewer.actorStudent._id &&
         r.queueStatus !== "restored"
     );
+
+    let quarantineTarget: (() => Promise<void>) | undefined;
+    let authorId: Id<"students"> | undefined;
+    let visibilityStatus: string | undefined;
+    if (!alreadyByMe) {
+      switch (args.targetType) {
+        case "post": {
+          const id = ctx.db.normalizeId("posts", args.targetId);
+          const post = id && await ctx.db.get(id);
+          if (post && post.workspaceKey === viewer.workspaceKey) {
+            authorId = post.authorId;
+            visibilityStatus = post.visibilityStatus;
+            quarantineTarget = () => ctx.db.patch(post._id, { visibilityStatus: "under_review", showInCampusFeed: false });
+          }
+          break;
+        }
+        case "listing": {
+          const id = ctx.db.normalizeId("listings", args.targetId);
+          const listing = id && await ctx.db.get(id);
+          if (listing && listing.workspaceKey === viewer.workspaceKey) {
+            authorId = listing.sellerId;
+            visibilityStatus = listing.visibilityStatus;
+            quarantineTarget = () => ctx.db.patch(listing._id, { visibilityStatus: "under_review", isBrowseable: false });
+          }
+          break;
+        }
+        case "study_session": {
+          const id = ctx.db.normalizeId("studySessions", args.targetId);
+          const session = id && await ctx.db.get(id);
+          if (session && session.workspaceKey === viewer.workspaceKey) {
+            authorId = session.hostId;
+            visibilityStatus = session.visibilityStatus;
+            quarantineTarget = () => ctx.db.patch(session._id, { visibilityStatus: "under_review" });
+          }
+          break;
+        }
+        case "student": {
+          const id = ctx.db.normalizeId("students", args.targetId);
+          const student = id && await ctx.db.get(id);
+          if (student && student.workspaceKey === viewer.workspaceKey && student.accountStatus === "active") {
+            authorId = student._id;
+            visibilityStatus = student.visibilityStatus;
+            quarantineTarget = () => ctx.db.patch(student._id, { visibilityStatus: "under_review" });
+          }
+          break;
+        }
+        case "chat_message": {
+          const id = ctx.db.normalizeId("chatMessages", args.targetId);
+          const message = id && await ctx.db.get(id);
+          const chat = message && !message.isDeleted && message.workspaceKey === viewer.workspaceKey
+            ? await ctx.db.get(message.chatId) : null;
+          if (chat && message && chat.workspaceKey === viewer.workspaceKey &&
+              await getChatMembership(ctx, chat, viewer.actorStudent._id)) {
+            authorId = message.senderId;
+            visibilityStatus = message.visibilityStatus;
+            quarantineTarget = async () => {
+              await ctx.db.patch(message._id, { visibilityStatus: "under_review" });
+              await updateLatestMessagePreview(ctx, chat, { ...message, visibilityStatus: "under_review" });
+            };
+          }
+          break;
+        }
+      }
+      if (!quarantineTarget || authorId === viewer.actorStudent._id || !isItemVisibleToViewer(viewer, {
+        targetType: args.targetType, targetId: args.targetId, authorId, visibilityStatus,
+      })) {
+        throw new ConvexError({ code: "NOT_FOUND", message: "This item is not available for reporting." });
+      }
+    }
 
     if (!alreadyByMe) {
       await ctx.db.insert("moderationReports", {
@@ -197,59 +262,24 @@ export const submitReport = viewerMutation({
       )
       .take(100);
 
-    const distinctReporters = new Set(
+    const reporterIds = new Set(
       allReportsAfter
         .filter((r) => r.queueStatus === "open" || r.queueStatus === "quarantined")
-        .map((r) => String(r.reporterId))
+        .map((r) => r.reporterId)
     );
+    const reporterRows = await Promise.all([...reporterIds].map((id) => ctx.db.get(id)));
+    const distinctReporterCount = reporterRows.filter((reporter) =>
+      reporter?.workspaceKey === viewer.workspaceKey && reporter.accountStatus === "active" &&
+      (viewer.mode === "demo" || reporter.canonicalEmail),
+    ).length;
 
     let quarantined = false;
-    if (distinctReporters.size >= 3) {
-      if (args.targetType === "post") {
-        const post = await ctx.db.get(args.targetId as Id<"posts">);
-        if (
-          post &&
-          post.workspaceKey === viewer.workspaceKey &&
-          post.visibilityStatus === "visible"
-        ) {
-          await ctx.db.patch(post._id, {
-            visibilityStatus: "under_review",
-            showInCampusFeed: false,
-          });
-          quarantined = true;
-        }
-      } else if (args.targetType === "listing") {
-        const listing = await ctx.db.get(args.targetId as Id<"listings">);
-        if (
-          listing &&
-          listing.workspaceKey === viewer.workspaceKey &&
-          listing.visibilityStatus === "visible"
-        ) {
-          await ctx.db.patch(listing._id, {
-            visibilityStatus: "under_review",
-            isBrowseable: false,
-          });
-          quarantined = true;
-        }
-      } else if (args.targetType === "study_session") {
-        const session = await ctx.db.get(args.targetId as Id<"studySessions">);
-        if (
-          session &&
-          session.workspaceKey === viewer.workspaceKey &&
-          session.visibilityStatus === "visible"
-        ) {
-          await ctx.db.patch(session._id, {
-            visibilityStatus: "under_review",
-          });
-          quarantined = true;
-        }
-      }
-
-      if (quarantined) {
-        for (const r of allReportsAfter) {
-          if (r.queueStatus === "open") {
-            await ctx.db.patch(r._id, { queueStatus: "quarantined" });
-          }
+    if (distinctReporterCount >= 3 && quarantineTarget) {
+      await quarantineTarget();
+      quarantined = true;
+      for (const r of allReportsAfter) {
+        if (r.queueStatus === "open") {
+          await ctx.db.patch(r._id, { queueStatus: "quarantined" });
         }
       }
     }
@@ -257,7 +287,7 @@ export const submitReport = viewerMutation({
     return {
       ok: true,
       quarantined,
-      distinctReporterCount: distinctReporters.size,
+      distinctReporterCount,
       showKsuPoliceCallout: args.reason === "campus_safety",
     };
   },
@@ -461,9 +491,7 @@ export const reviewModerationTarget = moderatorMutation({
       if (args.decision === "restore") {
         await ctx.db.patch(post._id, {
           visibilityStatus: "visible",
-          showInCampusFeed:
-            !post.rootPostId &&
-            (!post.courseHubId || post.crossPostToCampusFeed),
+          showInCampusFeed: !post.rootPostId && post.crossPostToCampusFeed,
         });
       } else {
         await ctx.db.patch(post._id, {
@@ -513,17 +541,31 @@ export const reviewModerationTarget = moderatorMutation({
         });
       }
     } else if (args.targetType === "student") {
-      targetAuthorId = args.targetId as Id<"students">;
+      const studentId = ctx.db.normalizeId("students", args.targetId);
+      const student = studentId && await ctx.db.get(studentId);
+      if (!student || student.workspaceKey !== wsKey) {
+        throw new ConvexError({ code: "NOT_FOUND", message: "Student not found." });
+      }
+      targetAuthorId = student._id;
+      if (args.decision !== "suspend_student") {
+        await ctx.db.patch(student._id, { visibilityStatus: args.decision === "restore" ? "visible" : "under_review" });
+      }
     } else if (args.targetType === "chat_message") {
       const msg = await ctx.db.get(args.targetId as Id<"chatMessages">);
       if (msg && msg.workspaceKey === wsKey) {
         targetAuthorId = msg.senderId;
-        if (args.decision !== "restore") {
-          await ctx.db.patch(msg._id, {
-            isDeleted: true,
-            body: "[Message deleted]",
-          });
+        const updated = args.decision === "restore" ? { visibilityStatus: "visible" as const }
+          : { isDeleted: true, body: "[Message deleted]", visibilityStatus: "visible" as const,
+              mediaAssetId: undefined, linkEmbed: undefined };
+        if (args.decision !== "restore" && msg.mediaAssetId) {
+          const asset = await ctx.db.get(msg.mediaAssetId);
+          if (asset && asset.workspaceKey === wsKey && asset.ownerStudentId === msg.senderId) {
+            await queueMediaDeletion(ctx, asset);
+          }
         }
+        await ctx.db.patch(msg._id, updated);
+        const chat = await ctx.db.get(msg.chatId);
+        if (chat) await updateLatestMessagePreview(ctx, chat, { ...msg, ...updated });
       }
     }
 
@@ -548,7 +590,7 @@ export const reviewModerationTarget = moderatorMutation({
           expiresAt: undefined,
         });
 
-        const fileKeys = await closeStudentArtifactsAndMedia(
+        await closeStudentArtifactsAndMedia(
           ctx,
           wsKey,
           student._id
@@ -566,16 +608,6 @@ export const reviewModerationTarget = moderatorMutation({
           accountStatus: "suspended",
         });
 
-        if (
-          fileKeys.length > 0 &&
-          process.env.KSUX_SKIP_STORAGE_SCHEDULER !== "true"
-        ) {
-          await ctx.scheduler.runAfter(
-            0,
-            internal.storageNode.deleteUploadThingFiles,
-            { fileKeys }
-          );
-        }
       }
     }
 
@@ -609,9 +641,15 @@ export const reviewOfficerClaim = moderatorMutation({
         message: "Officer claim not found in this workspace.",
       });
     }
-    await ctx.db.patch(membership._id, {
-      role: args.approve ? "officer" : "member",
-    });
-    return { ok: true, role: args.approve ? "officer" : "member" };
+    const role = args.approve ? "officer" : "member";
+    const club = await ctx.db.get(membership.clubId);
+    if (!club || (club.workspaceKey !== "ksu" && club.workspaceKey !== membership.workspaceKey)) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Club not found." });
+    }
+    if (membership.role !== "pending_officer_claim" && membership.role !== role) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "The officer claim has already been resolved." });
+    }
+    await setClubMembershipRole(ctx, club, membership.workspaceKey, membership.studentId, role, Date.now());
+    return { ok: true, role };
   },
 });

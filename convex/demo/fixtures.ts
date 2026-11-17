@@ -4,62 +4,6 @@ import { makeStudentPairKey } from "../lib/crypto";
 import { computePostHotScore } from "../lib/safety";
 import { makeTargetKey } from "../lib/viewer";
 
-const STUDENT_TABLES_BY_WORKSPACE = [
-  "scrappyMessages",
-  "scrappyThreads",
-  "chatMessages",
-  "chatMembers",
-  "chats",
-  "savedInteractions",
-  "hashtagDailyCounts",
-  "parkingReports",
-  "campusPulses",
-  "studySessions",
-  "studentEnrollments",
-  "eventRsvps",
-  "clubMembers",
-  "moderationReports",
-  "studentBlocks",
-  "studentFollows",
-  "interpersonalLedgers",
-  "handleReservations",
-  "mediaAssets",
-  "listings",
-  "posts",
-  "students",
-] as const;
-
-export async function wipeWorkspaceRows(
-  ctx: MutationCtx,
-  workspaceKey: string
-): Promise<void> {
-  if (!workspaceKey.startsWith("demo:")) {
-    throw new Error("Refusing to wipe non-demo workspace");
-  }
-
-  for (const table of STUDENT_TABLES_BY_WORKSPACE) {
-    // Query rows scoped strictly to this demo workspace (~50-200 rows max)
-    const rows = await (ctx.db.query(table as any) as any)
-      .filter((q: any) => q.eq(q.field("workspaceKey"), workspaceKey))
-      .take(500);
-    for (const row of rows) {
-      await ctx.db.delete(row._id);
-    }
-  }
-  // Also delete any club/event rows created inside this demo workspace
-  const demoClubs = await ctx.db
-    .query("clubs")
-    .withIndex("by_workspace_slug", (q) => q.eq("workspaceKey", workspaceKey))
-    .take(200);
-  for (const c of demoClubs) await ctx.db.delete(c._id);
-
-  const demoEvents = await ctx.db
-    .query("events")
-    .withIndex("by_all_start", (q) => q.eq("workspaceKey", workspaceKey))
-    .take(200);
-  for (const e of demoEvents) await ctx.db.delete(e._id);
-}
-
 function dayKeyET(ms: number): string {
   const d = new Date(ms - 5 * 3600_000);
   return d.toISOString().slice(0, 10);

@@ -82,7 +82,7 @@ export function MarketplaceView() {
         };
         if (parsed.title) setTitle(parsed.title);
         if (parsed.description) setDescription(parsed.description);
-        if (parsed.priceDollars) setPriceDollars(String(parsed.priceDollars));
+        setPriceDollars(parsed.priceDollars === undefined ? "" : String(parsed.priceDollars));
       } catch {
         setTitle(pendingDraftCard.title);
         setDescription(pendingDraftCard.summary);
@@ -125,6 +125,10 @@ export function MarketplaceView() {
   const handleCreateListing = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (newPricingMode === "fixed_obo" && !priceDollars.trim()) {
+      setError("Enter a price before publishing.");
+      return;
+    }
     try {
       await createListing({
         title,

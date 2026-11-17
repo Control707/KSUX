@@ -1,3 +1,4 @@
+import { createScrappyEventStream } from "@convex/lib/scrappyStream";
 import { NextResponse } from "next/server";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
@@ -5,6 +6,22 @@ import {
   createServerConvexClient,
   extractForwardedAuthEnvelope,
 } from "@/lib/convexHttp";
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isContextEntity(value: unknown): value is {
+  entityType: string;
+  entityId: string;
+  label: string;
+} {
+  return isObject(value) &&
+    Object.keys(value).length === 3 &&
+    [value.entityType, value.entityId, value.label].every(
+      (field) => typeof field === "string" && field.trim().length > 0 && field.length <= 240
+    );
+}
 
 /**
  * Stateless HTTP SSE Route Handler for 1:1 Ask Scrappy threads.
@@ -19,81 +36,56 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = (await request.json().catch(() => ({}))) as {
-    threadId?: string;
-    prompt?: string;
-    contextEntity?: {
-      entityType: string;
-      entityId: string;
-      label: string;
-    };
-  };
+  const body: unknown = await request.json().catch(() => null);
+  if (!isObject(body) || typeof body.prompt !== "string") {
+    return NextResponse.json({ error: "A string prompt is required." }, { status: 400 });
+  }
 
-  const prompt = body.prompt?.trim();
+  const prompt = body.prompt.trim();
   if (!prompt) {
     return NextResponse.json({ error: "Missing prompt." }, { status: 400 });
   }
+  if (prompt.length > 1500) {
+    return NextResponse.json({ error: "Ask Scrappy prompt must be 1–1,500 characters." }, { status: 400 });
+  }
 
-  const client = createServerConvexClient();
-  const encoder = new TextEncoder();
+  const { threadId, contextEntity } = body;
+  if ((threadId !== undefined && (typeof threadId !== "string" || !threadId.trim())) ||
+      (contextEntity !== undefined && !isContextEntity(contextEntity))) {
+    return NextResponse.json({ error: "Invalid thread or entity context." }, { status: 400 });
+  }
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      const sendEvent = (event: string, data: unknown) => {
-        controller.enqueue(
-          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-        );
-      };
-
-      try {
-        const result = await client.action(
-          api.scrappy.threads.askScrappyAction,
-          {
-            ...authEnvelope,
-            threadId: body.threadId
-              ? (body.threadId as Id<"scrappyThreads">)
-              : undefined,
-            prompt,
-            contextEntity: body.contextEntity,
-          }
-        );
-
-        sendEvent("meta", {
-          threadId: result.threadId,
-          providerUsed: result.providerUsed,
+  const args = {
+    ...authEnvelope,
+    threadId: threadId as Id<"scrappyThreads"> | undefined,
+    prompt,
+    contextEntity,
+  };
+  const siteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL;
+  const credential = process.env.KSUX_SERVER_SECRET;
+  if (siteUrl && credential) {
+    try {
+      const upstream = await fetch(new URL("/scrappy/stream", siteUrl), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-ksux-server-credential": credential,
+        },
+        body: JSON.stringify(args),
+        cache: "no-store",
+        redirect: "error",
+        signal: request.signal,
+      });
+      if (upstream.ok && upstream.body && upstream.headers.get("content-type")?.includes("text/event-stream")) {
+        return new Response(upstream.body, {
+          headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store, no-transform" },
         });
-
-        // Stream tokens cleanly in word-group SSE deltas
-        const chunks = result.content.match(/.{1,36}(\s|$)/g) ?? [
-          result.content,
-        ];
-        for (const chunk of chunks) {
-          sendEvent("delta", { text: chunk });
-        }
-
-        if (result.citations.length > 0) {
-          sendEvent("citations", { citations: result.citations });
-        }
-        if (result.draftCard) {
-          sendEvent("draft", { draftCard: result.draftCard });
-        }
-        sendEvent("done", { threadId: result.threadId });
-      } catch (err: any) {
-        sendEvent("error", {
-          message:
-            err?.data?.message || err?.message || "Ask Scrappy turn failed.",
-        });
-      } finally {
-        controller.close();
       }
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-    },
-  });
+    } catch {
+      // The upstream turn may have started, so avoid submitting a second copy.
+    }
+    return NextResponse.json({ error: "The Scrappy stream is temporarily unavailable." }, { status: 502 });
+  }
+  const client = createServerConvexClient();
+  return createScrappyEventStream(() => client.action(api.scrappy.threads.askScrappyAction, args));
 }

@@ -1,13 +1,15 @@
-import { v } from "convex/values";
-import { internalQuery } from "../_generated/server";
+import { ConvexError, v } from "convex/values";
+import { internalQuery, type QueryCtx } from "../_generated/server";
+import type { Id } from "../_generated/dataModel";
 import {
   evaluateDiningOpenStatus,
   evaluateParkingLotFullness,
 } from "../lib/parkingMath";
+import { freshShuttleEta } from "../lib/shuttleRead";
 import {
   filterVisibleContent,
+  loadViewerScope,
   resolveViewerFromDb,
-  toPublicStudent,
   viewerAuthArgs,
 } from "../lib/viewer";
 import { normalizeSubjectCourse } from "../courses";
@@ -15,6 +17,40 @@ import { countOpenHalfHourSlots } from "../sync/libcalSync";
 import { fenceUntrustedCampusText, ScrappyToolSpec } from "./router";
 
 const MAX_TOOL_ROWS = 8;
+const publicToolAuthArgs = {
+  ...viewerAuthArgs,
+  mentionPostId: v.optional(v.id("posts")),
+};
+
+async function resolvePublicToolViewer(ctx: QueryCtx, args: {
+  sessionToken?: string;
+  demoShortCode?: string;
+  demoPersonaHandle?: string;
+  mentionPostId?: Id<"posts">;
+}) {
+  if (!args.mentionPostId) return resolveViewerFromDb(ctx, args);
+
+  const trigger = await ctx.db.get(args.mentionPostId);
+  const author = trigger && await ctx.db.get(trigger.authorId);
+  if (!trigger || trigger.authorIsScrappy || trigger.visibilityStatus !== "visible" ||
+      !author || author.accountStatus !== "active" || author.workspaceKey !== trigger.workspaceKey) {
+    throw new ConvexError({ code: "NOT_FOUND", message: "Scrappy mention is unavailable." });
+  }
+  if (trigger.workspaceKey === "prod") {
+    return loadViewerScope(ctx, {
+      mode: "student", workspaceKey: trigger.workspaceKey, actorStudent: author, isModerator: false,
+    });
+  }
+  const demoId = ctx.db.normalizeId("demoSessions", trigger.workspaceKey.slice("demo:".length));
+  const demo = trigger.workspaceKey.startsWith("demo:") && demoId ? await ctx.db.get(demoId) : null;
+  if (!demo || demo.expiresAt <= Date.now()) {
+    throw new ConvexError({ code: "NOT_FOUND", message: "Scrappy mention is unavailable." });
+  }
+  return loadViewerScope(ctx, {
+    mode: "demo", workspaceKey: trigger.workspaceKey, demoSessionId: demo._id,
+    demoShortCode: demo.shortCode, actorStudent: author, isModerator: false,
+  });
+}
 
 const PUBLIC_SIX_TOOL_SPECS: ScrappyToolSpec[] = [
   {
@@ -121,13 +157,14 @@ export const ASK_SCRAPPY_TOOLS: readonly ScrappyToolSpec[] = Object.freeze([
 
 export const searchFeedPosts = internalQuery({
   args: {
-    ...viewerAuthArgs,
+    ...publicToolAuthArgs,
     queryText: v.optional(v.string()),
     campus: v.optional(v.union(v.literal("Kennesaw"), v.literal("Marietta"))),
   },
   handler: async (ctx, args) => {
-    const viewer = await resolveViewerFromDb(ctx, args);
+    const viewer = await resolvePublicToolViewer(ctx, args);
     const qText = args.queryText?.trim();
+    const campus = args.campus;
 
     const raw = qText
       ? await ctx.db
@@ -141,7 +178,12 @@ export const searchFeedPosts = internalQuery({
             return sq;
           })
           .take(16)
-      : await ctx.db
+      : campus
+        ? await ctx.db.query("posts")
+          .withIndex("by_campus_feed", (q) => q.eq("workspaceKey", viewer.workspaceKey)
+            .eq("showInCampusFeed", true).eq("campus", campus))
+          .order("desc").take(16)
+        : await ctx.db
           .query("posts")
           .withIndex("by_all_feed", (q) =>
             q
@@ -151,29 +193,24 @@ export const searchFeedPosts = internalQuery({
           .order("desc")
           .take(16);
 
-    const visible = filterVisibleContent(raw, viewer, {
+    const candidates = filterVisibleContent(raw, viewer, {
       targetType: "post",
       getAuthorId: (p) => p.authorId,
-    })
-      .filter((p) => !p.authorIsScrappy)
-      .slice(0, MAX_TOOL_ROWS);
-
-    const rows = await Promise.all(
-      visible.map(async (p) => {
-        const author = toPublicStudent(await ctx.db.get(p.authorId));
-        return {
-          id: String(p._id),
-          campus: p.campus,
-          authorHandle: `@${author.handle}`,
-          body: fenceUntrustedCampusText(p.body),
-          likes: p.likeCount,
-        };
-      })
-    );
+    }).filter((p) => p.showInCampusFeed && !p.authorIsScrappy);
+    const visible = (await Promise.all(candidates.map(async (post) => {
+      const author = await ctx.db.get(post.authorId);
+      return author?.accountStatus === "active" ? { post, author } : null;
+    }))).filter((entry) => entry !== null).slice(0, MAX_TOOL_ROWS);
 
     return {
-      rows,
-      citations: visible.slice(0, 3).map((p) => ({
+      rows: visible.map(({ post, author }) => ({
+        id: String(post._id),
+        campus: post.campus,
+        authorHandle: `@${author.handle}`,
+        body: fenceUntrustedCampusText(post.body),
+        likes: post.likeCount,
+      })),
+      citations: visible.slice(0, 3).map(({ post: p }) => ({
         entityType: "post",
         entityId: String(p._id),
         label: `Campus Feed (${p.campus})`,
@@ -186,14 +223,15 @@ export const searchFeedPosts = internalQuery({
 
 export const searchMarketplaceListings = internalQuery({
   args: {
-    ...viewerAuthArgs,
+    ...publicToolAuthArgs,
     queryText: v.optional(v.string()),
     campus: v.optional(v.union(v.literal("Kennesaw"), v.literal("Marietta"))),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    const viewer = await resolveViewerFromDb(ctx, args);
+    const viewer = await resolvePublicToolViewer(ctx, args);
     const qText = args.queryText?.trim();
+    const campus = args.campus;
 
     const raw = qText
       ? await ctx.db
@@ -207,7 +245,12 @@ export const searchMarketplaceListings = internalQuery({
             return sq;
           })
           .take(16)
-      : await ctx.db
+      : campus
+        ? await ctx.db.query("listings")
+          .withIndex("by_campus_browse", (q) => q.eq("workspaceKey", viewer.workspaceKey)
+            .eq("isBrowseable", true).eq("campus", campus))
+          .order("desc").take(16)
+        : await ctx.db
           .query("listings")
           .withIndex("by_all_browse", (q) =>
             q.eq("workspaceKey", viewer.workspaceKey).eq("isBrowseable", true)
@@ -215,22 +258,22 @@ export const searchMarketplaceListings = internalQuery({
           .order("desc")
           .take(16);
 
-    const visible = filterVisibleContent(raw, viewer, {
+    const candidates = filterVisibleContent(raw, viewer, {
       targetType: "listing",
       getAuthorId: (l) => l.sellerId,
-    })
-      .filter((l) => l.expiresAt > now)
-      .slice(0, MAX_TOOL_ROWS);
+    }).filter((l) => l.expiresAt > now);
+    const visible = (await Promise.all(candidates.map(async (listing) => {
+      const seller = await ctx.db.get(listing.sellerId);
+      return seller?.accountStatus === "active" ? { listing, seller } : null;
+    }))).filter((entry) => entry !== null).slice(0, MAX_TOOL_ROWS);
 
-    const rows = await Promise.all(
-      visible.map(async (l) => {
-        const seller = toPublicStudent(await ctx.db.get(l.sellerId));
+    const rows = visible.map(({ listing: l, seller }) => {
         const price =
           l.pricingMode === "free_pickup"
             ? "Free Pickup"
             : l.pricingMode === "open_to_trade"
               ? "Open to Trade"
-              : `$${((l.priceCents ?? 0) / 100).toFixed(0)}`;
+              : `$${((l.priceCents ?? 0) / 100).toFixed(2)}`;
         return {
           id: String(l._id),
           campus: l.campus,
@@ -239,12 +282,11 @@ export const searchMarketplaceListings = internalQuery({
           title: fenceUntrustedCampusText(l.title, 100),
           description: fenceUntrustedCampusText(l.description, 180),
         };
-      })
-    );
+    });
 
     return {
       rows,
-      citations: visible.slice(0, 3).map((l) => ({
+      citations: visible.slice(0, 3).map(({ listing: l }) => ({
         entityType: "listing",
         entityId: String(l._id),
         label: `Marketplace · ${l.title.slice(0, 34)}`,
@@ -257,14 +299,20 @@ export const searchMarketplaceListings = internalQuery({
 
 export const searchEventsAndClubs = internalQuery({
   args: {
-    ...viewerAuthArgs,
+    ...publicToolAuthArgs,
     queryText: v.optional(v.string()),
     campus: v.optional(v.union(v.literal("Kennesaw"), v.literal("Marietta"))),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    const viewer = await resolveViewerFromDb(ctx, args);
+    const viewer = await resolvePublicToolViewer(ctx, args);
     const qText = args.queryText?.trim();
+    const campuses = args.campus ? [args.campus] : ["Kennesaw", "Marietta"] as const;
+    const findScopedClubs = async (workspaceKey: string) => (await Promise.all(campuses.map((campus) =>
+      ctx.db.query("clubs").withIndex("by_workspace_campus", (q) =>
+        q.eq("workspaceKey", workspaceKey).eq("visibilityStatus", "visible").eq("campus", campus)
+      ).take(2)
+    ))).flat();
 
     // Dual-scope read across shared "ksu" catalog + viewer.workspaceKey!
     const [ksuEvents, wsEvents, ksuClubs, wsClubs] = await Promise.all([
@@ -316,15 +364,7 @@ export const searchEventsAndClubs = internalQuery({
                 .eq("visibilityStatus", "visible")
             )
             .take(MAX_TOOL_ROWS)
-        : ctx.db
-            .query("clubs")
-            .withIndex("by_workspace_campus", (q) =>
-              q
-                .eq("workspaceKey", "ksu")
-                .eq("visibilityStatus", "visible")
-                .eq("campus", args.campus ?? "Kennesaw")
-            )
-            .take(4),
+        : findScopedClubs("ksu"),
       qText
         ? ctx.db
             .query("clubs")
@@ -335,12 +375,12 @@ export const searchEventsAndClubs = internalQuery({
                 .eq("visibilityStatus", "visible")
             )
             .take(MAX_TOOL_ROWS)
-        : Promise.resolve([]),
+        : findScopedClubs(viewer.workspaceKey),
     ]);
 
-    const events = [...wsEvents, ...ksuEvents]
+    const eventCandidates = [...wsEvents, ...ksuEvents]
       .filter((e) => {
-        if (e.status === "cancelled") return false;
+        if (e.status !== "scheduled" || e.endTime <= now) return false;
         if (
           args.campus &&
           e.campusScope !== "Both" &&
@@ -349,8 +389,13 @@ export const searchEventsAndClubs = internalQuery({
           return false;
         }
         return true;
-      })
-      .slice(0, 4);
+      });
+    const events = (await Promise.all(eventCandidates.map(async (event) => {
+      if (!event.organizerStudentId) return event;
+      if (viewer.blockedStudentIds.has(event.organizerStudentId)) return null;
+      const organizer = await ctx.db.get(event.organizerStudentId);
+      return organizer?.accountStatus === "active" ? event : null;
+    }))).filter((event) => event !== null).sort((a, b) => a.startTime - b.startTime).slice(0, 4);
 
     const clubs = [...wsClubs, ...ksuClubs]
       .filter((c) => !args.campus || c.campus === args.campus)
@@ -361,7 +406,7 @@ export const searchEventsAndClubs = internalQuery({
         id: String(e._id),
         title: fenceUntrustedCampusText(e.title, 100),
         campus: e.isVirtual ? "Both (Virtual)" : e.campus,
-        locationName: e.locationName,
+        locationName: fenceUntrustedCampusText(e.locationName, 100),
         startTimeIso: new Date(e.startTime).toISOString(),
       })),
       clubs: clubs.map((c) => ({
@@ -392,12 +437,12 @@ export const searchEventsAndClubs = internalQuery({
 
 export const getCampusDailyPulse = internalQuery({
   args: {
-    ...viewerAuthArgs,
+    ...publicToolAuthArgs,
     campus: v.optional(v.union(v.literal("Kennesaw"), v.literal("Marietta"))),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    const viewer = await resolveViewerFromDb(ctx, args);
+    const viewer = await resolvePublicToolViewer(ctx, args);
     const targetCampus =
       args.campus ??
       (viewer.actorStudent.activeCampusFilter === "Marietta"
@@ -449,19 +494,17 @@ export const getCampusDailyPulse = internalQuery({
       })
     );
 
-    const shuttles = routes
+    const scopedRoutes = routes
       .filter(
         (r) => r.campusScope === "Both" || r.campusScope === targetCampus
       )
-      .slice(0, 4)
-      .map((r) => {
-        const eta = shuttleSnap?.stopEtas.find(
-          (e) => e.passioRouteId === r.passioRouteId
-        );
+      .slice(0, 4);
+    const shuttles = scopedRoutes.map((r) => {
+        const eta = freshShuttleEta(shuttleSnap, r.passioRouteId, now, viewer.mode === "demo");
         return {
           name: r.name,
-          etaMinutes: eta?.etaMinutes ?? 6,
-          load: eta?.loadLabel ?? "Seats Open",
+          etaMinutes: eta?.etaMinutes ?? null,
+          load: eta?.loadLabel ?? null,
         };
       });
 
@@ -483,7 +526,8 @@ export const getCampusDailyPulse = internalQuery({
         return {
           building: rm.buildingName,
           room: rm.roomNumber,
-          openHalfHourSlots: countOpenHalfHourSlots(snap?.slotMask48 ?? 0n),
+          openHalfHourSlots: snap && (!snap.isFixture || viewer.mode === "demo")
+            ? countOpenHalfHourSlots(snap.slotMask48) : null,
         };
       })
     );
@@ -507,6 +551,13 @@ export const getCampusDailyPulse = internalQuery({
           href: "/parking",
           campus: targetCampus,
         },
+        ...(scopedRoutes[0] ? [{
+          entityType: "shuttle_route",
+          entityId: String(scopedRoutes[0]._id),
+          label: `${targetCampus} Shuttle Routes`,
+          href: "/transit",
+          campus: targetCampus,
+        }] : []),
         {
           entityType: "study_room",
           entityId: studyRooms[0] ? String(studyRooms[0]._id) : targetCampus,
@@ -530,17 +581,17 @@ export const getCampusDailyPulse = internalQuery({
 
 export const lookupCourseHubAndSyllabus = internalQuery({
   args: {
-    ...viewerAuthArgs,
+    ...publicToolAuthArgs,
     subjectCourse: v.string(),
   },
   handler: async (ctx, args) => {
-    await resolveViewerFromDb(ctx, args);
+    await resolvePublicToolViewer(ctx, args);
     const normalized = normalizeSubjectCourse(args.subjectCourse);
     const hub = await ctx.db
       .query("courseHubs")
       .withIndex("by_subject_course", (q) => q.eq("subjectCourse", normalized))
       .unique();
-    if (!hub) {
+    if (!hub || hub.isRetiredFixture) {
       return { found: false, citations: [] };
     }
 
@@ -550,6 +601,7 @@ export const lookupCourseHubAndSyllabus = internalQuery({
         .withIndex("by_hub_term", (q) =>
           q.eq("courseHubId", hub._id).eq("termCode", "202608")
         )
+        .filter((q) => q.neq(q.field("isRetiredFixture"), true))
         .take(6),
       ctx.db
         .query("courseSyllabiCache")
@@ -591,7 +643,7 @@ export const lookupCourseHubAndSyllabus = internalQuery({
 
 export const getEntityDetail = internalQuery({
   args: {
-    ...viewerAuthArgs,
+    ...publicToolAuthArgs,
     entityType: v.union(
       v.literal("parking_lot"),
       v.literal("dining_venue"),
@@ -602,7 +654,7 @@ export const getEntityDetail = internalQuery({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    const viewer = await resolveViewerFromDb(ctx, args);
+    const viewer = await resolvePublicToolViewer(ctx, args);
     const key = args.slugOrCode.trim();
 
     if (args.entityType === "parking_lot") {
@@ -712,7 +764,7 @@ export const getEntityDetail = internalQuery({
       .query("courseHubs")
       .withIndex("by_subject_course", (q) => q.eq("subjectCourse", norm))
       .unique();
-    if (!hub) return { found: false, citations: [] };
+    if (!hub || hub.isRetiredFixture) return { found: false, citations: [] };
     return {
       found: true,
       detail: {

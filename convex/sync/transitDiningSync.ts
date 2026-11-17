@@ -6,6 +6,7 @@ import {
 } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { getEasternDayAndHour } from "../lib/parkingMath";
+import { fetchOfficialDiningHours, fetchNutrisliceDirectory, fetchNutrisliceMenus } from "../lib/diningFeeds";
 import {
   computePayloadHash,
   evaluateFailureStatePatch,
@@ -13,6 +14,9 @@ import {
   isSuddenDropOrEmpty,
   UpstreamFetchFn,
 } from "../lib/syncGuard";
+
+import { runPassioShuttleIngestCycle } from "../lib/passio";
+export { runPassioShuttleIngestCycle } from "../lib/passio";
 
 export function isBigOwlBusOperatingHours(nowMs: number): boolean {
   const { dayOfWeek, minuteOfDay } = getEasternDayAndHour(nowMs);
@@ -23,170 +27,6 @@ export function isBigOwlBusOperatingHours(nowMs: number): boolean {
   }
   // Mon-Fri 06:30 - 23:30 ET
   return minuteOfDay >= 390 && minuteOfDay <= 1410;
-}
-
-export async function runPassioShuttleIngestCycle(params: {
-  syncState: {
-    consecutiveFailures: number;
-    backoffUntil?: number;
-    lastPayloadHash?: string;
-    activeRecordCount: number;
-  };
-  nowMs: number;
-  fetchImpl?: UpstreamFetchFn;
-}): Promise<
-  | { status: "circuit_open" }
-  | { status: "noop_unchanged"; payloadHash: string }
-  | {
-      status: "failed";
-      failurePatch: ReturnType<typeof evaluateFailureStatePatch>;
-      reason: string;
-    }
-  | {
-      status: "ready_to_upsert";
-      payloadHash: string;
-      vehicles: Array<{
-        busId: string;
-        busName: string;
-        passioRouteId: string;
-        latitude: number;
-        longitude: number;
-        heading: number;
-        paxLoad: number;
-        totalCap: number;
-      }>;
-      stopEtas: Array<{
-        stopId: string;
-        passioRouteId: string;
-        etaMinutes: number;
-        loadLabel: string;
-      }>;
-      serviceAlerts: Array<{
-        alertId: string;
-        title: string;
-        body: string;
-        passioRouteIds: string[];
-      }>;
-    }
-> {
-  const { syncState, nowMs, fetchImpl } = params;
-  if (syncState.backoffUntil && syncState.backoffUntil > nowMs) {
-    return { status: "circuit_open" };
-  }
-
-  try {
-    const [vehResp, tripResp, alertResp] = await Promise.all([
-      fetchUpstreamWithRetry(
-        "https://passio3.com/kennesaw/passioTransit/gtfs/realtime/vehiclePositions.json",
-        { headers: { Accept: "application/json" } },
-        fetchImpl
-      ),
-      fetchUpstreamWithRetry(
-        "https://passio3.com/kennesaw/passioTransit/gtfs/realtime/tripUpdates.json",
-        { headers: { Accept: "application/json" } },
-        fetchImpl
-      ),
-      fetchUpstreamWithRetry(
-        "https://passio3.com/kennesaw/passioTransit/gtfs/realtime/serviceAlerts.json",
-        { headers: { Accept: "application/json" } },
-        fetchImpl
-      ),
-    ]);
-
-    const [vehJson, tripJson, alertJson] = await Promise.all([
-      vehResp.json(),
-      tripResp.json(),
-      alertResp.json(),
-    ]);
-
-    const vehEntities: any[] = Array.isArray(vehJson?.entity)
-      ? vehJson.entity
-      : [];
-    const vehicles = vehEntities
-      .map((ent, idx) => {
-        const vObj = ent?.vehicle;
-        const pos = vObj?.position;
-        if (!pos || typeof pos.latitude !== "number") return null;
-        return {
-          busId: String(vObj?.vehicle?.id || ent.id || `bus-${idx}`),
-          busName: String(vObj?.vehicle?.label || `BOB #${idx + 1}`),
-          passioRouteId: String(vObj?.trip?.route_id || "74760"),
-          latitude: Number(pos.latitude),
-          longitude: Number(pos.longitude),
-          heading: Number(pos.bearing || 0),
-          paxLoad: Number(vObj?.occupancy_percentage || 15),
-          totalCap: 42,
-        };
-      })
-      .filter((x): x is NonNullable<typeof x> => Boolean(x));
-
-    const tripEntities: any[] = Array.isArray(tripJson?.entity)
-      ? tripJson.entity
-      : [];
-    const stopEtas = tripEntities
-      .slice(0, 35)
-      .map((ent) => {
-        const tu = ent?.trip_update;
-        const stu = tu?.stop_time_update?.[0];
-        if (!stu?.stop_id) return null;
-        const arrSec = Number(stu.arrival?.time || nowMs / 1000 + 300);
-        const etaMinutes = Math.max(
-          1,
-          Math.min(45, Math.round((arrSec * 1000 - nowMs) / 60_000))
-        );
-        return {
-          stopId: String(stu.stop_id),
-          passioRouteId: String(tu?.trip?.route_id || "74760"),
-          etaMinutes,
-          loadLabel: "Live GTFS-RT",
-        };
-      })
-      .filter((x): x is NonNullable<typeof x> => Boolean(x));
-
-    const alertEntities: any[] = Array.isArray(alertJson?.entity)
-      ? alertJson.entity
-      : [];
-    const serviceAlerts = alertEntities.slice(0, 10).map((ent, idx) => {
-      const al = ent?.alert ?? {};
-      const title =
-        al.header_text?.translation?.[0]?.text || "Big Owl Bus Service Alert";
-      const body =
-        al.description_text?.translation?.[0]?.text || "Check route map.";
-      const routeIds = Array.isArray(al.informed_entity)
-        ? al.informed_entity
-            .map((ie: any) => ie.route_id)
-            .filter(Boolean)
-            .map(String)
-        : [];
-      return {
-        alertId: String(ent?.id || `alert-${idx}`),
-        title: String(title),
-        body: String(body),
-        passioRouteIds: routeIds,
-      };
-    });
-
-    const combinedPayload = { vehicles, stopEtas, serviceAlerts };
-    const payloadHash = await computePayloadHash(combinedPayload);
-    if (payloadHash === syncState.lastPayloadHash) {
-      return { status: "noop_unchanged", payloadHash };
-    }
-
-    return {
-      status: "ready_to_upsert",
-      payloadHash,
-      vehicles,
-      stopEtas,
-      serviceAlerts,
-    };
-  } catch (err: any) {
-    const reason = err?.message || "Passio GO sync failed";
-    return {
-      status: "failed",
-      failurePatch: evaluateFailureStatePatch(syncState, nowMs, reason),
-      reason,
-    };
-  }
 }
 
 export async function runNutrisliceDiningIngestCycle(params: {
@@ -297,111 +137,116 @@ export const applyShuttleSyncInternal = internalMutation({
 
     if (args.status === "failed") {
       const patch = evaluateFailureStatePatch(
-        state ?? { consecutiveFailures: 0, activeRecordCount: 11 },
+        state ?? { consecutiveFailures: 0, activeRecordCount: 0 },
         args.now,
         args.failureReason ?? "Passio error"
       );
       if (state) await ctx.db.patch(state._id, patch);
+      else await ctx.db.insert("feedSyncState", {
+        sourceKey: "passio_shuttle", activeRecordCount: 0, ...patch,
+        consecutiveFailures: patch.consecutiveFailures ?? 1,
+      });
       return;
     }
 
-    if (args.status === "ready_to_upsert") {
-      const snap = await ctx.db
-        .query("shuttleSnapshots")
-        .withIndex("by_singleton", (q) => q.eq("singletonKey", "latest"))
-        .unique();
-      const nextVehicles = args.vehicles ?? snap?.vehicles ?? [];
-      const nextEtas =
-        (args.stopEtas?.length ?? 0) > 0
-          ? args.stopEtas!
-          : (snap?.stopEtas ?? []);
-      const nextAlerts = args.serviceAlerts ?? snap?.serviceAlerts ?? [];
+    const snap = await ctx.db.query("shuttleSnapshots")
+      .withIndex("by_singleton", (q) => q.eq("singletonKey", "latest")).unique();
+    const prior = snap?.isFixture ? null : snap;
+    const streamPatch = {
+      vehicles: args.vehicles ?? prior?.vehicles ?? [],
+      stopEtas: args.stopEtas ?? prior?.stopEtas ?? [],
+      serviceAlerts: args.serviceAlerts ?? prior?.serviceAlerts ?? [],
+      vehiclesFetchedAt: args.vehicles !== undefined ? args.now : prior?.vehiclesFetchedAt,
+      etasFetchedAt: args.stopEtas !== undefined ? args.now : prior?.etasFetchedAt,
+      alertsFetchedAt: args.serviceAlerts !== undefined ? args.now : prior?.alertsFetchedAt,
+      fetchedAt: args.now,
+      isFixture: undefined,
+    };
+    if (snap) await ctx.db.patch(snap._id, streamPatch);
+    else await ctx.db.insert("shuttleSnapshots", { singletonKey: "latest", ...streamPatch });
 
-      if (snap) {
-        await ctx.db.patch(snap._id, {
-          vehicles: nextVehicles,
-          stopEtas: nextEtas,
-          serviceAlerts: nextAlerts,
-          fetchedAt: args.now,
-        });
-      } else {
-        await ctx.db.insert("shuttleSnapshots", {
-          singletonKey: "latest",
-          vehicles: nextVehicles,
-          stopEtas: nextEtas,
-          serviceAlerts: nextAlerts,
-          fetchedAt: args.now,
-        });
-      }
-    }
-
-    if (state) {
-      await ctx.db.patch(state._id, {
-        lastSuccessAt: args.now,
-        lastAttemptAt: args.now,
-        consecutiveFailures: 0,
-        backoffUntil: undefined,
-        lastPayloadHash: args.payloadHash ?? state.lastPayloadHash,
-        lastError: undefined,
-      });
-    }
+    const allStreamsAvailable = args.vehicles !== undefined && args.stopEtas !== undefined
+      && args.serviceAlerts !== undefined;
+    const syncPatch = {
+      lastSuccessAt: allStreamsAvailable ? args.now : state?.lastSuccessAt,
+      lastAttemptAt: args.now,
+      consecutiveFailures: 0,
+      backoffUntil: undefined,
+      lastPayloadHash: allStreamsAvailable ? args.payloadHash : state?.lastPayloadHash,
+      activeRecordCount: streamPatch.vehicles.length,
+      lastError: allStreamsAvailable ? undefined : "Part of the Passio response was unavailable",
+    };
+    if (state) await ctx.db.patch(state._id, syncPatch);
+    else await ctx.db.insert("feedSyncState", { sourceKey: "passio_shuttle", ...syncPatch });
   },
+});
+
+export const listDiningVenuesForSync = internalQuery({
+  args: {},
+  handler: async ({ db }) => (await db.query("diningVenues").take(60)).map((venue) => ({
+    slug: venue.nutrisliceSlug, name: venue.name, campus: venue.campus,
+  })),
 });
 
 export const applyDiningSyncInternal = internalMutation({
   args: {
     now: v.number(),
-    status: v.union(
-      v.literal("noop_unchanged"),
-      v.literal("ready_to_upsert"),
-      v.literal("failed_or_aborted")
-    ),
+    stream: v.union(v.literal("hours"), v.literal("menus")),
     payloadHash: v.optional(v.string()),
     failureReason: v.optional(v.string()),
-    schools: v.optional(v.array(v.any())),
+    hours: v.optional(v.array(v.object({ slug: v.string(), hoursScheduleJson: v.string() }))),
+    menus: v.optional(v.array(v.object({
+      slug: v.string(), todayMenuDateET: v.string(), tomorrowMenuDateET: v.string(),
+      todayMenuJson: v.string(), tomorrowMenuJson: v.string(),
+    }))),
   },
-  handler: async (ctx, args) => {
-    const state = await ctx.db
-      .query("feedSyncState")
-      .withIndex("by_source", (q) => q.eq("sourceKey", "nutrislice_dining"))
-      .unique();
+  handler: async ({ db }, args) => {
+    const sourceKey = args.stream === "hours" ? "ksu_dining_hours" : "nutrislice_dining";
+    const state = await db.query("feedSyncState").withIndex("by_source", (q) => q.eq("sourceKey", sourceKey)).unique();
+    if (state?.lastAttemptAt !== undefined && state.lastAttemptAt > args.now) return { updated: 0 };
 
-    if (args.status === "failed_or_aborted") {
-      const patch = evaluateFailureStatePatch(
-        state ?? { consecutiveFailures: 0, activeRecordCount: 17 },
-        args.now,
-        args.failureReason ?? "Nutrislice error"
-      );
-      if (state) await ctx.db.patch(state._id, patch);
-      return;
-    }
-
-    if (args.status === "ready_to_upsert" && args.schools) {
-      for (const s of args.schools) {
-        const existing = await ctx.db
-          .query("diningVenues")
-          .withIndex("by_slug", (q) => q.eq("nutrisliceSlug", s.slug))
-          .unique();
-        if (existing) {
-          await ctx.db.patch(existing._id, {
-            lastMenuSyncAt: args.now,
-            lastHoursSyncAt: args.now,
-          });
-        }
-      }
-    }
-
-    if (state) {
-      await ctx.db.patch(state._id, {
-        lastSuccessAt: args.now,
-        lastAttemptAt: args.now,
-        consecutiveFailures: 0,
-        backoffUntil: undefined,
-        lastPayloadHash: args.payloadHash ?? state.lastPayloadHash,
-        activeRecordCount: args.schools?.length ?? state.activeRecordCount,
-        lastError: undefined,
+    const rows = args.stream === "hours" ? args.hours ?? [] : args.menus ?? [];
+    if (args.failureReason || !rows.length) {
+      const patch = evaluateFailureStatePatch(state ?? { consecutiveFailures: 0, activeRecordCount: 0 },
+        args.now, args.failureReason ?? "No validated dining results");
+      if (state) await db.patch(state._id, patch);
+      else await db.insert("feedSyncState", {
+        sourceKey, ...patch, activeRecordCount: 0, consecutiveFailures: patch.consecutiveFailures ?? 1,
       });
+      return { updated: 0 };
     }
+
+    let updated = 0;
+    for (const { slug, ...payload } of rows) {
+      const venue = await db.query("diningVenues").withIndex("by_slug", (q) => q.eq("nutrisliceSlug", slug)).unique();
+      if (!venue) continue;
+      if ("hoursScheduleJson" in payload) {
+        await db.patch(venue._id, {
+          hoursScheduleJson: payload.hoursScheduleJson,
+          lastHoursSyncAt: args.now,
+          isFixtureHours: undefined,
+        });
+      } else {
+        await db.patch(venue._id, {
+          ...payload,
+          lastMenuSyncAt: args.now,
+          isFixtureMenu: undefined,
+        });
+      }
+      updated++;
+    }
+    const next = {
+      lastSuccessAt: updated ? args.now : state?.lastSuccessAt,
+      lastAttemptAt: args.now,
+      lastPayloadHash: args.payloadHash,
+      activeRecordCount: updated,
+      consecutiveFailures: 0,
+      backoffUntil: undefined,
+      lastError: undefined,
+    };
+    if (state) await db.patch(state._id, next);
+    else await db.insert("feedSyncState", { sourceKey, ...next });
+    return { updated };
   },
 });
 
@@ -428,6 +273,7 @@ export const runScheduledShuttleSync = internalAction({
     const outcome = await runPassioShuttleIngestCycle({
       syncState: state,
       nowMs: now,
+      previousVehicleCount: isBigOwlBusOperatingHours(now) ? state.activeRecordCount : undefined,
     });
 
     if (outcome.status === "circuit_open") return { status: "circuit_open" };
@@ -442,83 +288,55 @@ export const runScheduledShuttleSync = internalAction({
       );
       return { status: "failed" };
     }
-    if (outcome.status === "noop_unchanged") {
-      await ctx.runMutation(
-        internal.sync.transitDiningSync.applyShuttleSyncInternal,
-        {
-          now,
-          status: "noop_unchanged",
-          payloadHash: outcome.payloadHash,
-        }
-      );
-      return { status: "noop_unchanged" };
-    }
-
     await ctx.runMutation(
       internal.sync.transitDiningSync.applyShuttleSyncInternal,
       {
         now,
-        status: "ready_to_upsert",
+        status: outcome.status,
         payloadHash: outcome.payloadHash,
         vehicles: outcome.vehicles,
         stopEtas: outcome.stopEtas,
         serviceAlerts: outcome.serviceAlerts,
       }
     );
-    return { status: "updated" };
+    return { status: outcome.status === "noop_unchanged" ? outcome.status : "updated" };
   },
 });
 
 export const runScheduledDiningSync = internalAction({
-  args: {},
-  handler: async (ctx): Promise<{ status: string }> => {
+  args: { force: v.optional(v.union(v.literal("hours"), v.literal("menus"))) },
+  handler: async (ctx, args): Promise<{ status: string }> => {
     const now = Date.now();
-    const state = (await ctx.runQuery(
-      internal.sync.transitDiningSync.getSyncStateInternal,
-      { sourceKey: "nutrislice_dining" }
-    )) ?? {
-      consecutiveFailures: 0,
-      activeRecordCount: 17,
-    };
+    const { minuteOfDay } = getEasternDayAndHour(now);
+    const stream = args.force ?? (
+      minuteOfDay >= 300 && minuteOfDay < 306 ? "hours" :
+      ((minuteOfDay >= 315 && minuteOfDay < 321) || (minuteOfDay >= 675 && minuteOfDay < 681)) ? "menus" : null
+    );
+    if (!stream) return { status: "skipped_outside_cadence" };
+    const sourceKey = stream === "hours" ? "ksu_dining_hours" : "nutrislice_dining";
+    const state = await ctx.runQuery(internal.sync.transitDiningSync.getSyncStateInternal, { sourceKey });
+    if (!args.force && state?.backoffUntil && state.backoffUntil > now) return { status: "circuit_open" };
 
-    const outcome = await runNutrisliceDiningIngestCycle({
-      syncState: state,
-      nowMs: now,
-    });
-
-    if (outcome.status === "circuit_open") return { status: "circuit_open" };
-    if (outcome.status === "failed_or_aborted") {
-      await ctx.runMutation(
-        internal.sync.transitDiningSync.applyDiningSyncInternal,
-        {
-          now,
-          status: "failed_or_aborted",
-          failureReason: outcome.reason,
-        }
-      );
+    try {
+      const venues = await ctx.runQuery(internal.sync.transitDiningSync.listDiningVenuesForSync, {});
+      const hours = stream === "hours" ? await fetchOfficialDiningHours(venues) : undefined;
+      const menus = stream === "menus" ? await fetchNutrisliceMenus(
+        await fetchNutrisliceDirectory(), new Set(venues.map((venue) => venue.slug)), now
+      ) : undefined;
+      const payload = hours ?? menus ?? [];
+      if (isSuddenDropOrEmpty(state?.activeRecordCount ?? 0, payload.length)) {
+        throw new Error("Dining results failed the coverage check");
+      }
+      const payloadHash = await computePayloadHash(payload);
+      await ctx.runMutation(internal.sync.transitDiningSync.applyDiningSyncInternal, {
+        now, stream, payloadHash, hours, menus,
+      });
+      return { status: payloadHash === state?.lastPayloadHash ? "noop_unchanged" : "updated" };
+    } catch (error) {
+      await ctx.runMutation(internal.sync.transitDiningSync.applyDiningSyncInternal, {
+        now, stream, failureReason: error instanceof Error ? error.message : "Dining request failed",
+      });
       return { status: "failed_or_aborted" };
     }
-    if (outcome.status === "noop_unchanged") {
-      await ctx.runMutation(
-        internal.sync.transitDiningSync.applyDiningSyncInternal,
-        {
-          now,
-          status: "noop_unchanged",
-          payloadHash: outcome.payloadHash,
-        }
-      );
-      return { status: "noop_unchanged" };
-    }
-
-    await ctx.runMutation(
-      internal.sync.transitDiningSync.applyDiningSyncInternal,
-      {
-        now,
-        status: "ready_to_upsert",
-        payloadHash: outcome.payloadHash,
-        schools: outcome.schools,
-      }
-    );
-    return { status: "updated" };
   },
 });

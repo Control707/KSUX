@@ -1,124 +1,119 @@
 import { NextResponse } from "next/server";
+import sharp from "sharp";
 import { UTApi } from "uploadthing/server";
 import { api } from "@convex/_generated/api";
-import {
-  createServerConvexClient,
-  extractForwardedAuthEnvelope,
-} from "@/lib/convexHttp";
+import type { Id } from "@convex/_generated/dataModel";
+import { createServerConvexClient, extractForwardedAuthEnvelope } from "@/lib/convexHttp";
 
-const MAX_WEBP_BYTES = 1_048_576; // 1 MB hard route cap
+export const runtime = "nodejs";
 
-/**
- * Stateless media upload Route Handler.
- * Forwards session cookie or Judge Demo Mode headers directly to Convex `viewerContext`
- * (`uploads:authorizeUpload` + `uploads:registerMediaAsset`) with zero duplicated auth logic.
- */
+const MAX_WEBP_BYTES = 1_048_576;
+const MAX_REQUEST_BYTES = MAX_WEBP_BYTES + 16_384;
+const MAX_DIMENSION = 1_440;
+
+async function readMultipart(request: Request) {
+  if (!request.headers.get("content-type")?.toLowerCase().startsWith("multipart/form-data")) {
+    return { error: "A multipart image request is required.", status: 415 } as const;
+  }
+  const reader = request.body?.getReader();
+  if (!reader) return { error: "Missing image request body.", status: 400 } as const;
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      bytes += chunk.value.byteLength;
+      if (bytes > MAX_REQUEST_BYTES) {
+        await reader.cancel();
+        return { error: "Image exceeds the 1 MB limit.", status: 413 } as const;
+      }
+      chunks.push(chunk.value);
+    }
+    const payload = new Uint8Array(Buffer.concat(chunks, bytes));
+    const form = await new Response(payload, {
+      headers: { "Content-Type": request.headers.get("content-type")! },
+    }).formData();
+    return { form } as const;
+  } catch {
+    return { error: "Invalid multipart image request.", status: 400 } as const;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function decodeWebP(file: File) {
+  const input = Buffer.from(await file.arrayBuffer());
+  const decoder = sharp(input, { limitInputPixels: MAX_DIMENSION ** 2, failOn: "warning" });
+  const { format, width, height, pages } = await decoder.metadata();
+  if (format !== "webp" || !width || !height || width > MAX_DIMENSION || height > MAX_DIMENSION ||
+      (pages ?? 1) !== 1) return null;
+  const sanitized = await decoder.webp({ quality: 82 }).toBuffer();
+  return { sanitized, width, height };
+}
+
 export async function POST(request: Request) {
   const authEnvelope = await extractForwardedAuthEnvelope(request);
   if (!authEnvelope.sessionToken && !authEnvelope.demoShortCode) {
-    return NextResponse.json(
-      { error: "Authentication required to upload media." },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+  }
+  const serverSecret = process.env.KSUX_SERVER_SECRET;
+  const uploadToken = process.env.UPLOADTHING_TOKEN?.trim();
+  if (!serverSecret || (!uploadToken && process.env.NODE_ENV === "production" && !authEnvelope.demoShortCode)) {
+    return NextResponse.json({ error: "Image upload is unavailable." }, { status: 503 });
   }
 
-  const formData = await request.formData();
-  const file = formData.get("file");
-  const purposeRaw = String(formData.get("purpose") ?? "post");
-  const width = Number(formData.get("width") ?? 0);
-  const height = Number(formData.get("height") ?? 0);
-
-  if (!(file instanceof File)) {
-    return NextResponse.json(
-      { error: "Missing WebP image file." },
-      { status: 400 }
-    );
+  const parsed = await readMultipart(request);
+  if (!parsed.form) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+  const file = parsed.form.get("file");
+  const purpose = parsed.form.get("purpose") ?? "post";
+  if (!(file instanceof File) || file.type !== "image/webp" ||
+      (purpose !== "avatar" && purpose !== "post" && purpose !== "listing" && purpose !== "chat")) {
+    return NextResponse.json({ error: "A still WebP file and valid upload purpose are required." }, { status: 400 });
   }
-
-  if (file.type !== "image/webp") {
-    return NextResponse.json(
-      { error: "Only client-encoded EXIF-stripped image/webp uploads are accepted." },
-      { status: 400 }
-    );
-  }
-
   if (file.size <= 0 || file.size > MAX_WEBP_BYTES) {
-    return NextResponse.json(
-      { error: "Image exceeds 1 MB hard limit." },
-      { status: 413 }
-    );
+    return NextResponse.json({ error: "Image exceeds the 1 MB limit." }, { status: 413 });
+  }
+  const image = await decodeWebP(file).catch(() => null);
+  if (!image) return NextResponse.json({ error: "Invalid WebP image or dimensions above 1440px." }, { status: 400 });
+  if (image.sanitized.length > MAX_WEBP_BYTES) {
+    return NextResponse.json({ error: "Encoded image exceeds the 1 MB limit." }, { status: 413 });
   }
 
-  const purpose = (
-    ["avatar", "post", "listing", "chat"].includes(purposeRaw)
-      ? purposeRaw
-      : "post"
-  ) as "avatar" | "post" | "listing" | "chat";
-
+  const { sanitized, width, height } = image;
+  const byteSize = sanitized.length;
   const client = createServerConvexClient();
-
+  let reservationId: Id<"uploadReservations"> | undefined;
+  let fileKey: string | undefined;
   try {
-    // 1. Validate viewerContext & demoSessionId 20-upload quota before storage
-    await client.query(api.uploads.authorizeUpload, {
-      ...authEnvelope,
-      purpose,
-      byteSize: file.size,
-      width,
-      height,
+    reservationId = await client.mutation(api.uploads.reserveUpload, {
+      ...authEnvelope, purpose, byteSize, width, height, serverSecret,
     });
-
-    let fileKey: string;
     let url: string;
-
-    const uploadThingToken = process.env.UPLOADTHING_TOKEN?.trim();
-    if (uploadThingToken) {
-      const utapi = new UTApi({ token: uploadThingToken });
-      const uploaded = await utapi.uploadFiles(file);
-      if (uploaded.error || !uploaded.data) {
-        return NextResponse.json(
-          { error: uploaded.error?.message ?? "UploadThing upload failed." },
-          { status: 502 }
-        );
-      }
+    if (uploadToken) {
+      const storage = new UTApi({ token: uploadToken });
+      const uploaded = await storage.uploadFiles(new File([new Uint8Array(sanitized)], "campus-image.webp", { type: "image/webp" }));
+      if (!uploaded.data) throw new Error("Image storage rejected the file.");
       fileKey = uploaded.data.key;
       url = uploaded.data.ufsUrl || uploaded.data.url;
     } else {
-      // Local dev / offline E2E fallback when UPLOADTHING_TOKEN is unset
-      const arrayBuf = await file.arrayBuffer();
-      const base64 = Buffer.from(arrayBuf).toString("base64");
       fileKey = `local-inline:${crypto.randomUUID()}`;
-      url = `data:image/webp;base64,${base64}`;
+      url = `data:image/webp;base64,${sanitized.toString("base64")}`;
     }
-
-    // 2. Register in Convex mediaAssets & increment demoSession.uploadCount
     const mediaAssetId = await client.mutation(api.uploads.registerMediaAsset, {
-      ...authEnvelope,
-      fileKey,
-      url,
-      purpose,
-      byteSize: file.size,
-      width,
-      height,
+      ...authEnvelope, reservationId, fileKey, url, serverSecret,
     });
-
-    return NextResponse.json({
-      mediaAssetId,
-      fileKey,
-      url,
-      width,
-      height,
-      byteSize: file.size,
-    });
-  } catch (err: any) {
-    const message =
-      err?.data?.message || err?.message || "Upload rejected by viewerContext.";
-    const code = err?.data?.code;
-    const status =
-      code === "UNAUTHENTICATED"
-        ? 401
-        : code === "QUOTA_EXCEEDED"
-          ? 429
-          : 400;
-    return NextResponse.json({ error: message, code }, { status });
+    return NextResponse.json({ mediaAssetId, fileKey, url, width, height, byteSize });
+  } catch (error) {
+    if (reservationId) {
+      try {
+        await client.mutation(api.uploads.abandonUpload, { reservationId, fileKey, serverSecret });
+      } catch {
+        console.error("Could not enqueue cleanup for a failed media upload");
+      }
+    }
+    const detail = (error as { data?: { code?: string; message?: string } })?.data;
+    const status = detail?.code === "UNAUTHENTICATED" ? 401 : detail?.code === "QUOTA_EXCEEDED" ? 429 : 502;
+    return NextResponse.json({ error: detail?.message ?? "The image could not be saved." }, { status });
   }
 }

@@ -4,16 +4,33 @@ import {
   runPassioShuttleIngestCycle,
 } from "../../convex/sync/transitDiningSync";
 import { evaluateDiningOpenStatus } from "../../convex/lib/parkingMath";
+import { parseOfficialDiningHours } from "../../convex/lib/diningFeeds";
 
 describe("Seam 2 — Passio GO & Nutrislice Payload-Hash Gating, >80% Drop Abort & Read-Time Hours (#21)", () => {
+  it("uses the published weekday hours and checks full campus closure ranges first", () => {
+    const html = [
+      "<h2>Fall 2026 Hours of Operation</h2>",
+      "<h3>Important Dates</h3><p>Saturday, November 21-Saturday, November 28 | All locations CLOSED</p>",
+      "<h2>Kennesaw Campus</h2><h3>The Commons Dining Hall</h3>",
+      "<p>Monday – Thursday | 7:00 AM – 9:00 PM</p><p>Friday | 7:00 AM – 7:00 PM</p>",
+      "<p>Saturday | 10:30 AM – 7:00 PM</p><p>Sunday | 10:30 AM – 9:00 PM</p>",
+    ].join("");
+    const [commons] = parseOfficialDiningHours(html, [{ slug: "the-commons", name: "The Commons", campus: "Kennesaw" }]);
+    expect(commons).toBeDefined();
+    const schedule = commons!.hoursScheduleJson;
+    expect(evaluateDiningOpenStatus(schedule, Date.UTC(2026, 10, 16, 13)).state).toBe("open");
+    expect(evaluateDiningOpenStatus(schedule, Date.UTC(2026, 10, 20, 1)).state).toBe("open");
+    expect(evaluateDiningOpenStatus(schedule, Date.UTC(2026, 10, 21, 1)).state).toBe("closed");
+    expect(evaluateDiningOpenStatus(schedule, Date.UTC(2026, 10, 23, 17)).label).toBe("Closed Today");
+  });
   it("short-circuits Passio GO snapshot writes as noop_unchanged when payload hash matches", async () => {
     const nowMs = Date.now();
-    const mockFetch = async () => ({
+    const mockFetch = async (url: string) => ({
       ok: true,
       status: 200,
       text: async () => "{}",
       json: async () => ({
-        entity: [
+        entity: url.includes("vehiclePositions") ? [
           {
             id: "v1",
             vehicle: {
@@ -22,7 +39,7 @@ describe("Seam 2 — Passio GO & Nutrislice Payload-Hash Gating, >80% Drop Abort
               position: { latitude: 34.038, longitude: -84.582, bearing: 90 },
             },
           },
-        ],
+        ] : [],
       }),
     });
 

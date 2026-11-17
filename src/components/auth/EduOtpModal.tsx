@@ -1,15 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
-import { useMutation } from "convex/react";
 import { Mail, ShieldCheck, X } from "lucide-react";
-import { api } from "@convex/_generated/api";
 import { useViewerClient } from "@/lib/viewerClient";
 
 export function EduOtpModal() {
   const { setOpenSignInModal, establishStudentSession } = useViewerClient();
-  const requestOtp = useMutation(api.auth.requestEmailOtp);
-  const verifyOtp = useMutation(api.auth.verifyEmailOtp);
 
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
@@ -23,8 +19,15 @@ export function EduOtpModal() {
     setLoading(true);
     setError(null);
     try {
-      const res = await requestOtp({ email });
-      if ("devCodePreview" in res && res.devCodePreview) {
+      const response = await fetch("/api/auth/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ operation: "request", email }),
+      });
+      const res = await response.json().catch(() => null);
+      if (!response.ok || !res?.ok) throw new Error(res?.error ?? "Could not send verification code.");
+      if (res.devCodePreview) {
         setDevPreviewCode(String(res.devCodePreview));
       } else {
         setDevPreviewCode(null);
@@ -46,17 +49,7 @@ export function EduOtpModal() {
     setLoading(true);
     setError(null);
     try {
-      const res = await verifyOtp({
-        email,
-        code,
-        userAgent:
-          typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-      });
-      if (!res.ok) {
-        setError(res.message);
-        return;
-      }
-      await establishStudentSession(res.sessionToken);
+      await establishStudentSession(email, code);
     } catch (err: any) {
       setError(
         err?.data?.message || err?.message || "Verification failed."

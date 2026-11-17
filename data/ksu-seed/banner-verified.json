@@ -1,0 +1,80 @@
+[
+  {
+    "subjectCourse": "CS 3305",
+    "title": "Data Structures",
+    "termCode": "202608",
+    "crn": "83190",
+    "sectionNumber": "01",
+    "campus": "Marietta",
+    "deliveryMode": "in_person",
+    "instructorName": "Hisham Haddad",
+    "meetings": [
+      { "days": ["T", "R"], "startMinutes": 670, "endMinutes": 750, "timeLabel": "TR 11:10 AM – 12:30 PM", "buildingName": "Atrium Building", "roomNumber": "1010" }
+    ]
+  },
+  {
+    "subjectCourse": "CS 3305",
+    "title": "Data Structures",
+    "termCode": "202701",
+    "crn": "10969",
+    "sectionNumber": "01",
+    "campus": "Marietta",
+    "deliveryMode": "in_person",
+    "instructorName": "Hisham Haddad",
+    "meetings": [
+      { "days": ["T", "R"], "startMinutes": 670, "endMinutes": 750, "timeLabel": "TR 11:10 AM – 12:30 PM", "buildingName": "Atrium Building", "roomNumber": "1010" }
+    ]
+  },
+  {
+    "subjectCourse": "SWE 3313",
+    "title": "Introduction to Software Engineering",
+    "termCode": "202608",
+    "crn": "87369",
+    "sectionNumber": "01",
+    "campus": "Marietta",
+    "deliveryMode": "in_person",
+    "instructorName": "Lavanya Pondichery Sekar",
+    "meetings": [
+      { "days": ["T", "R"], "startMinutes": 575, "endMinutes": 655, "timeLabel": "TR 9:35 AM – 10:55 AM", "buildingName": "Atrium Building", "roomNumber": "1113" }
+    ]
+  },
+  {
+    "subjectCourse": "SWE 3313",
+    "title": "Introduction to Software Engineering",
+    "termCode": "202701",
+    "crn": "15443",
+    "sectionNumber": "01",
+    "campus": "Marietta",
+    "deliveryMode": "hybrid",
+    "instructorName": "Lavanya Pondichery Sekar",
+    "meetings": [
+      { "days": ["M", "W"], "startMinutes": 550, "endMinutes": 605, "timeLabel": "MW 9:10 AM – 10:05 AM", "buildingName": "Engineering Technology Center", "roomNumber": "107" }
+    ]
+  },
+  {
+    "subjectCourse": "ME 3101",
+    "title": "Materials Science and Engineering",
+    "termCode": "202608",
+    "crn": "83854",
+    "sectionNumber": "01",
+    "campus": "Marietta",
+    "deliveryMode": "in_person",
+    "instructorName": "Amin Baghchesara",
+    "meetings": [
+      { "days": ["T", "R"], "startMinutes": 1065, "endMinutes": 1145, "timeLabel": "TR 5:45 PM – 7:05 PM", "buildingName": "Architecture", "roomNumber": "173" }
+    ]
+  },
+  {
+    "subjectCourse": "ME 3101",
+    "title": "Materials Science and Engineering",
+    "termCode": "202701",
+    "crn": "14458",
+    "sectionNumber": "01",
+    "campus": "Marietta",
+    "deliveryMode": "in_person",
+    "instructorName": "Hamdy Ibrahim",
+    "meetings": [
+      { "days": ["M", "W"], "startMinutes": 1065, "endMinutes": 1145, "timeLabel": "MW 5:45 PM – 7:05 PM", "buildingName": "Engineering Technology Center", "roomNumber": "207" }
+    ]
+  }
+]

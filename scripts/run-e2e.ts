@@ -1,131 +1,139 @@
 import fs from "node:fs";
 import path from "node:path";
-import { spawn, spawnSync, ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { createRequire } from "node:module";
+import { randomBytes } from "node:crypto";
 import net from "node:net";
+import { parseEnv } from "node:util";
 
-function checkPortOpen(port: number, host = "127.0.0.1"): Promise<boolean> {
+const require = createRequire(import.meta.url);
+const convexCli = path.join(path.dirname(require.resolve("convex/package.json")), "bin/main.js");
+const playwrightCli = require.resolve("@playwright/test/cli");
+const backendPort = 3210;
+
+function checkPortOpen(port: number): Promise<boolean> {
   return new Promise((resolve) => {
-    const sock = new net.Socket();
-    sock.setTimeout(800);
-    sock.once("connect", () => {
-      sock.destroy();
-      resolve(true);
-    });
-    sock.once("error", () => {
-      sock.destroy();
-      resolve(false);
-    });
-    sock.once("timeout", () => {
-      sock.destroy();
-      resolve(false);
-    });
-    sock.connect(port, host);
+    const socket = net.createConnection(port, "127.0.0.1");
+    const finish = (open: boolean) => {
+      socket.destroy();
+      resolve(open);
+    };
+    socket.setTimeout(800);
+    socket.once("connect", () => finish(true));
+    socket.once("error", () => finish(false));
+    socket.once("timeout", () => finish(false));
   });
 }
 
-function waitForConvexFunctionsReady(
-  proc: ChildProcess,
-  timeoutMs = 60_000
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    let settled = false;
-    const timer = setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        resolve(false);
-      }
-    }, timeoutMs);
-
+function waitForConvexFunctionsReady(child: ChildProcess): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let tail = "";
+    const timer = setTimeout(() => fail(new Error("Convex did not become ready within 90 seconds")), 90_000);
+    const fail = (error: Error) => {
+      clearTimeout(timer);
+      reject(error);
+    };
     const onChunk = (chunk: Buffer) => {
-      const text = chunk.toString("utf8");
-      process.stderr.write(text);
-      if (text.includes("Convex functions ready")) {
-        if (!settled) {
-          settled = true;
-          clearTimeout(timer);
-          resolve(true);
-        }
+      const output = chunk.toString("utf8");
+      process.stderr.write(output);
+      tail = (tail + output).slice(-2_000);
+      if (tail.includes("Convex functions ready")) {
+        clearTimeout(timer);
+        resolve();
       }
     };
-
-    proc.stdout?.on("data", onChunk);
-    proc.stderr?.on("data", onChunk);
-    proc.once("exit", () => {
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        resolve(false);
-      }
-    });
+    child.stdout?.on("data", onChunk);
+    child.stderr?.on("data", onChunk);
+    child.once("error", fail);
+    child.once("exit", (code) => fail(new Error(`Convex exited before readiness (status ${code})`)));
   });
+}
+
+function runCli(script: string, args: string[], env: NodeJS.ProcessEnv): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [script, ...args], { env, stdio: "inherit", windowsHide: true });
+    child.once("error", reject);
+    child.once("exit", (code) => resolve(code ?? 1));
+  });
+}
+
+function assertLocalDeployment() {
+  const settings = {
+    ...Object.assign({}, ...[".env", ".env.local"].map((file) =>
+      fs.existsSync(file) ? parseEnv(fs.readFileSync(file, "utf8")) : {}
+    )),
+    ...process.env,
+  };
+  if (settings.CONVEX_DEPLOY_KEY || settings.CONVEX_DEPLOYMENT_TOKEN ||
+      settings.CONVEX_SELF_HOSTED_URL || settings.CONVEX_SELF_HOSTED_ADMIN_KEY ||
+      (settings.CONVEX_DEPLOYMENT && !/^(anonymous|local):/.test(settings.CONVEX_DEPLOYMENT))) {
+    throw new Error("Playwright fixture seeding requires a local Convex deployment. Run the suite with local deployment settings.");
+  }
+  return settings.KSUX_SERVER_SECRET;
+}
+
+function stopBackend(child: ChildProcess | undefined) {
+  if (!child?.pid || child.exitCode !== null) return;
+  if (process.platform === "win32") {
+    spawnSync("taskkill.exe", ["/pid", String(child.pid), "/t", "/f"], {
+      stdio: "ignore",
+      windowsHide: true,
+    });
+  } else {
+    try {
+      process.kill(-child.pid, "SIGTERM");
+    } catch {
+      child.kill("SIGTERM");
+    }
+  }
 }
 
 async function main() {
-  const localBrowsersDir = path.join(process.cwd(), ".playwright-browsers");
+  const configuredSecret = assertLocalDeployment();
+  const browsersDir = path.join(process.cwd(), ".playwright-browsers");
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     CONVEX_AGENT_MODE: "anonymous",
-    ...(fs.existsSync(localBrowsersDir) && !process.env.PLAYWRIGHT_BROWSERS_PATH
-      ? { PLAYWRIGHT_BROWSERS_PATH: localBrowsersDir }
-      : {}),
+    NEXT_PUBLIC_CONVEX_URL: `http://127.0.0.1:${backendPort}`,
+    NEXT_PUBLIC_CONVEX_SITE_URL: `http://127.0.0.1:${backendPort + 1}`,
+    KSUX_SERVER_SECRET: configuredSecret || randomBytes(32).toString("hex"),
+    PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH ??
+      (fs.existsSync(browsersDir) ? browsersDir : undefined),
   };
 
-  let convexDaemon: ChildProcess | null = null;
-  const alreadyListening = await checkPortOpen(3210);
-
-  if (!alreadyListening) {
-    console.log("[e2e] Starting local Convex dev backend & pushing functions...");
-    convexDaemon = spawn("npx", ["convex", "dev", "--typecheck=disable"], {
-      env,
-      detached: true,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    const ready = await waitForConvexFunctionsReady(convexDaemon, 60_000);
-    if (!ready) {
-      if (convexDaemon.pid) {
-        try {
-          process.kill(-convexDaemon.pid, "SIGTERM");
-        } catch {
-          convexDaemon.kill("SIGTERM");
-        }
-      }
-      console.error("[e2e] Convex functions failed to push within timeout.");
-      process.exit(1);
+  let backend: ChildProcess | undefined;
+  try {
+    if (!(await checkPortOpen(backendPort))) {
+      console.log("[e2e] Starting local Convex and pushing functions");
+      backend = spawn(process.execPath, [convexCli, "dev", "--typecheck=disable", "--codegen=disable"], {
+        env,
+        detached: process.platform !== "win32",
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      });
+      await waitForConvexFunctionsReady(backend);
+    } else if (!configuredSecret) {
+      throw new Error("Set KSUX_SERVER_SECRET for the running local backend, or stop that backend so the test runner can configure its own.");
     }
-  }
 
-  const cleanupDaemon = () => {
-    if (convexDaemon?.pid) {
-      try {
-        process.kill(-convexDaemon.pid, "SIGTERM");
-      } catch {
-        convexDaemon.kill("SIGTERM");
-      }
+    if (backend) {
+      const secretStatus = await runCli(convexCli, ["env", "set", "KSUX_SERVER_SECRET", env.KSUX_SERVER_SECRET!], env);
+      if (secretStatus !== 0) return secretStatus;
     }
-  };
+    console.log("[e2e] Seeding the local Judge Demo Mode fixtures");
+    const seedStatus = await runCli(convexCli, ["run", "seed:bootstrapKsu", '{"includeFixtures":true}'], env);
+    if (seedStatus !== 0) return seedStatus;
 
-  console.log("[e2e] Running idempotent seed:bootstrapKsu...");
-  const seedRes = spawnSync("npx", ["convex", "run", "seed:bootstrapKsu"], {
-    env,
-    stdio: "inherit",
-  });
-  if (seedRes.status !== 0) {
-    cleanupDaemon();
-    process.exit(seedRes.status ?? 1);
+    console.log("[e2e] Running the two-tab and offline Playwright suite");
+    return await runCli(playwrightCli, ["test", ...process.argv.slice(2)], env);
+  } finally {
+    stopBackend(backend);
   }
-
-  console.log(
-    "[e2e] Running Playwright 2-tab live WebSocket + offline suite..."
-  );
-  const pwArgs = ["playwright", "test", ...process.argv.slice(2)];
-  const pwRes = spawnSync("npx", pwArgs, {
-    env,
-    stdio: "inherit",
-  });
-
-  cleanupDaemon();
-  process.exit(pwRes.status ?? 1);
 }
 
-void main();
+void main()
+  .then((code) => { process.exitCode = code; })
+  .catch((error: Error) => {
+    console.error(`[e2e] ${error.message}`);
+    process.exitCode = 1;
+  });

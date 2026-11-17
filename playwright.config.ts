@@ -1,7 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
+import { createRequire } from "node:module";
 
 const PORT = Number(process.env.PLAYWRIGHT_PORT ?? 3100);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
+const nextCli = createRequire(import.meta.url).resolve("next/dist/bin/next");
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -22,7 +24,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `pnpm exec next dev --port ${PORT} --hostname 127.0.0.1`,
+    command: `"${process.execPath}" "${nextCli}" dev --port ${PORT} --hostname 127.0.0.1`,
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

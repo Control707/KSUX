@@ -72,6 +72,8 @@ test.describe("Seam 3 — KSUX 2-Tab Live WebSocket & Offline Commuter PWA Smoke
 
     // 5. Live Parking Report + Spot Opening sync across tabs
     await tab2.goto(`${baseURL}/parking?demo=${new URL(coTestUrl!).searchParams.get("demo")}&persona=alex_owl`);
+    await expect(tab2.getByTestId("permit-tier-select")).toHaveValue("East");
+    await tab2.getByTestId("permit-tier-select").selectOption("All");
     await expect(
       tab2.getByTestId("parking-lot-card-central-parking-deck")
     ).toBeVisible();
@@ -164,9 +166,11 @@ test.describe("Seam 3 — KSUX 2-Tab Live WebSocket & Offline Commuter PWA Smoke
     await tab1.goto(`${baseURL}/parking`);
     await expect(tab1.getByTestId("campus-geo-map")).toBeVisible();
 
-    const cacheBeforeOffline = await tab1.evaluate(() =>
-      window.localStorage.getItem("ksux_commuter_cache")
-    );
+    const cacheBeforeOffline = await tab1.evaluate(() => {
+      const shortCode = window.sessionStorage.getItem("ksux_demo_short_code");
+      const persona = window.sessionStorage.getItem("ksux_demo_persona");
+      return window.sessionStorage.getItem(`ksux_commuter_cache:demo:${shortCode}:${persona}`);
+    });
     expect(cacheBeforeOffline).toBeTruthy();
     expect(cacheBeforeOffline).not.toContain("chatMessages");
     expect(cacheBeforeOffline).not.toContain("Taking the KM Big Owl Bus");
@@ -175,17 +179,20 @@ test.describe("Seam 3 — KSUX 2-Tab Live WebSocket & Offline Commuter PWA Smoke
     await tab1.evaluate(() => window.dispatchEvent(new Event("offline")));
     await expect(tab1.getByTestId("offline-commuter-banner")).toBeVisible();
     await expect(tab1.getByTestId("map-offline-zero-tile-badge")).toBeVisible();
+    await tab1.reload({ waitUntil: "domcontentloaded" });
+    await expect(tab1.getByTestId("bento-schedule-tile")).toContainText("CS 3305");
+    await expect(tab1.getByTestId("campus-geo-map")).not.toHaveAttribute("data-loaded-buildings", "0");
 
     // Exit Judge Demo Mode wipes ksux_commuter_cache immediately
     await context.setOffline(false);
-    await tab1.evaluate(() => window.dispatchEvent(new Event("online")));
+    await expect(tab1.getByTestId("judge-demo-pill")).toContainText("Maya");
     await tab1.getByTestId("judge-demo-pill").click();
     await tab1.getByTestId("verify-edu-from-demo-btn").click();
 
-    const cacheAfterExit = await tab1.evaluate(() =>
-      window.localStorage.getItem("ksux_commuter_cache")
+    const hasCachedDemoAfterExit = await tab1.evaluate(() =>
+      Object.keys(window.sessionStorage).some((key) => key.startsWith("ksux_commuter_cache:demo:"))
     );
-    expect(cacheAfterExit).toBeNull();
+    expect(hasCachedDemoAfterExit).toBe(false);
 
     await context.close();
   });
