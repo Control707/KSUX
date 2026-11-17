@@ -427,74 +427,51 @@ mariettaCodes.forEach((code, idx) => {
 });
 
 // =========================================================================
-// 2. 301 Campus Buildings GeoJSON (190 Kennesaw + 111 Marietta)
+// 2. Real, named campus building footprints (OpenStreetMap snapshot)
+//    Refresh with `pnpm run seed:osm`. Data © OpenStreetMap contributors (ODbL).
 // =========================================================================
-const namedKennesawBuildings = [
-  { code: "LB", name: "Horace W. Sturgis Library", lat: 34.0384, lng: -84.5829 },
-  { code: "SC", name: "Carmichael Student Center", lat: 34.0391, lng: -84.5822 },
-  { code: "BB", name: "A.L. Burruss Building", lat: 34.038, lng: -84.5844 },
-  { code: "SO", name: "Social Sciences Building", lat: 34.0372, lng: -84.5838 },
-  { code: "CC", name: "Clendenin Computer Science Building", lat: 34.0398, lng: -84.5836 },
-  { code: "ALC", name: "Academic Learning Center", lat: 34.0376, lng: -84.5821 },
-  { code: "PH", name: "Prillaman Health Sciences Hall", lat: 34.0407, lng: -84.5848 },
-  { code: "CV", name: "KSU Convocation Center", lat: 34.0358, lng: -84.5796 },
-  { code: "CM", name: "The Commons Dining Hall", lat: 34.0389, lng: -84.5812 },
-  { code: "SRAC", name: "Student Recreation & Activities Center", lat: 34.0364, lng: -84.5828 },
-];
+const osmBuildings = (
+  JSON.parse(
+    fs.readFileSync(path.join(SEED_DIR, "osm-buildings.json"), "utf8")
+  ) as {
+    buildings: Array<{
+      id: number;
+      name: string;
+      code?: string;
+      campus: "Kennesaw" | "Marietta";
+      category: string;
+      aliases: string[];
+      ring: Array<[number, number]>;
+    }>;
+  }
+).buildings;
 
-const namedMariettaBuildings = [
-  { code: "C", name: "Lawrence V. Johnson Library", lat: 33.9401, lng: -84.5195 },
-  { code: "J", name: "Atrium Building (Computing & Software Eng)", lat: 33.9394, lng: -84.5204 },
-  { code: "A", name: "Joe Mack Wilson Student Center", lat: 33.9406, lng: -84.5189 },
-  { code: "Q", name: "Engineering Technology Center", lat: 33.9412, lng: -84.5209 },
-  { code: "R", name: "Norton Hall", lat: 33.9416, lng: -84.5197 },
-  { code: "N", name: "Architecture Building", lat: 33.9388, lng: -84.5192 },
-  { code: "I2", name: "Design II Building", lat: 33.9385, lng: -84.5201 },
-  { code: "ST", name: "Stingers Dining Hall", lat: 33.9409, lng: -84.5182 },
-];
+const buildingFeatureId = (id: number) => `bldg-osm-${id}`;
+const buildingByName = (name: string) => {
+  const b = osmBuildings.find((x) => x.name === name);
+  if (!b) throw new Error(`Building "${name}" missing from OSM snapshot`);
+  return b;
+};
+const centroid = (ring: Array<[number, number]>) => {
+  const pts = ring.slice(0, -1);
+  return {
+    latitude: Number((pts.reduce((s, p) => s + p[1], 0) / pts.length).toFixed(5)),
+    longitude: Number((pts.reduce((s, p) => s + p[0], 0) / pts.length).toFixed(5)),
+  };
+};
 
-const buildingFeatures: any[] = [];
-for (let i = 0; i < 190; i++) {
-  const named = namedKennesawBuildings[i];
-  const lat = named ? named.lat : Number((34.032 + (i % 15) * 0.00075).toFixed(6));
-  const lng = named ? named.lng : Number((-84.589 + Math.floor(i / 15) * 0.0011).toFixed(6));
-  const code = named ? named.code : `KB${String(i + 1).padStart(3, "0")}`;
-  const name = named ? named.name : `Kennesaw Academic Hall ${code}`;
-  buildingFeatures.push({
-    type: "Feature",
-    properties: {
-      geoFeatureId: `bldg-k-${i + 1}`,
-      code,
-      name,
-      campus: "Kennesaw",
-    },
-    geometry: {
-      type: "Polygon",
-      coordinates: makeBoxPolygon(lat, lng, 0.00028, 0.00036),
-    },
-  });
-}
-
-for (let i = 0; i < 111; i++) {
-  const named = namedMariettaBuildings[i];
-  const lat = named ? named.lat : Number((33.9365 + (i % 12) * 0.00068).toFixed(6));
-  const lng = named ? named.lng : Number((-84.524 + Math.floor(i / 12) * 0.00095).toFixed(6));
-  const code = named ? named.code : `MB${String(i + 1).padStart(3, "0")}`;
-  const name = named ? named.name : `Marietta Engineering Hall ${code}`;
-  buildingFeatures.push({
-    type: "Feature",
-    properties: {
-      geoFeatureId: `bldg-m-${i + 1}`,
-      code,
-      name,
-      campus: "Marietta",
-    },
-    geometry: {
-      type: "Polygon",
-      coordinates: makeBoxPolygon(lat, lng, 0.00026, 0.00034),
-    },
-  });
-}
+const buildingFeatures: any[] = osmBuildings.map((b) => ({
+  type: "Feature",
+  properties: {
+    geoFeatureId: buildingFeatureId(b.id),
+    name: b.name,
+    ...(b.code ? { code: b.code } : {}),
+    campus: b.campus,
+    category: b.category,
+    ...(b.aliases.length ? { aliases: b.aliases } : {}),
+  },
+  geometry: { type: "Polygon", coordinates: [b.ring] },
+}));
 
 // =========================================================================
 // 3. 57 Study Rooms (47 LibCal + 10 Walk-In)
@@ -534,7 +511,7 @@ for (let i = 0; i < 15; i++) {
     amenities: ["Whiteboard", "HDMI Display", "Power Outlets"],
     bookingUrl: `https://kennesaw.libcal.com/space/${eid}`,
     todayHoursLabel: "7:30 AM – 11:00 PM",
-    geoFeatureId: "bldg-k-1",
+    geoFeatureId: buildingFeatureId(buildingByName("Horace W. Sturgis Library").id),
   });
 }
 // 30 Johnson Library (Marietta, lid=10526, gid=19510)
@@ -556,7 +533,7 @@ for (let i = 0; i < 30; i++) {
     amenities: ["Whiteboard", "Collaborative Monitor", "USB-C Power"],
     bookingUrl: `https://kennesaw.libcal.com/space/${eid}`,
     todayHoursLabel: "8:00 AM – 10:00 PM",
-    geoFeatureId: "bldg-m-1",
+    geoFeatureId: buildingFeatureId(buildingByName("Lawrence V. Johnson Library").id),
   });
 }
 // 2 Marietta KSU AI Lab (lid=24727) -> 15 + 30 + 2 = 47 LibCal rooms!
@@ -575,7 +552,7 @@ for (let i = 0; i < 2; i++) {
     amenities: ["GPU Workstation Display", "Glass Whiteboard", "Power"],
     bookingUrl: `https://kennesaw.libcal.com/space/${eid}`,
     todayHoursLabel: "9:00 AM – 8:00 PM",
-    geoFeatureId: "bldg-m-2",
+    geoFeatureId: buildingFeatureId(buildingByName("Atrium Building").id),
   });
 }
 // 10 Curated Walk-In Spaces (6 Kennesaw + 4 Marietta) -> 47 + 10 = 57 Study Rooms!
@@ -1721,6 +1698,21 @@ for (let i = 0; i < 30; i++) {
 // =========================================================================
 // 8. 14 Curated Public Meetup Spots (7 Kennesaw + 7 Marietta) + GeoJSON
 // =========================================================================
+const MEETUP_BUILDING_ANCHORS: Record<string, string> = {
+  "carmichael-student-center-atrium": "Carmichael Student Center",
+  "sturgis-library-entrance": "Horace W. Sturgis Library",
+  "talon-one-public-safety": "Public Safety Building",
+  "social-sciences-lobby": "Social Sciences Building",
+  "burruss-building-atrium": "Burruss Building",
+  "arc-recreation-lobby": "Siegel Student Recreation & Activities Center",
+  "wilson-student-center": "Joe Mack Wilson Student Center",
+  "johnson-library-plaza": "Lawrence V. Johnson Library",
+  "atrium-building-lobby": "Atrium Building",
+  "engineering-lab-plaza": "Engineering Technology Center",
+  "norton-hall-courtyard": "Norton Residence Hall",
+  "design-ii-lobby": "Design 2 Building",
+};
+
 const meetupSpots = [
   {
     slug: "carmichael-student-center-atrium",
@@ -1862,10 +1854,17 @@ const meetupSpots = [
     longitude: -84.5201,
     sortOrder: 7,
   },
-].map((m) => ({
-  ...m,
-  geoFeatureId: `meetup-${m.slug}`,
-}));
+].map((m) => {
+  // Snap each spot to the real building it is named after, so the pin sits on
+  // the footprint instead of floating in the quad. Outdoor spots with no
+  // matching building (Campus Green plaza, Marietta precinct) keep their point.
+  const anchor = MEETUP_BUILDING_ANCHORS[m.slug];
+  return {
+    ...m,
+    ...(anchor ? centroid(buildingByName(anchor).ring) : {}),
+    geoFeatureId: `meetup-${m.slug}`,
+  };
+});
 
 // =========================================================================
 // 9. Dual-Term Fall 2026 (202608) & Spring 2027 (202701) Courses & Syllabi
@@ -2275,6 +2274,7 @@ const parkingGeoJson = {
 
 const campusBuildingsGeoJson = {
   type: "FeatureCollection",
+  license: "© OpenStreetMap contributors, ODbL 1.0 — https://www.openstreetmap.org/copyright",
   features: buildingFeatures,
 };
 

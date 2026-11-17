@@ -75,6 +75,11 @@ export const bootstrapKsu = internalMutation({
         ? existing._id
         : await ctx.db.insert("studyRooms", rm);
       if (!existing) studyRoomsInserted++;
+      else if (existing.geoFeatureId !== rm.geoFeatureId) {
+        // Building footprints were replaced with real OSM ids; repoint rooms
+        // seeded earlier at the old synthetic ids.
+        await ctx.db.patch(existing._id, { geoFeatureId: rm.geoFeatureId });
+      }
 
       if (rm.roomKind === "libcal") {
         for (const [dIdx, dateET] of daysET.entries()) {
@@ -255,6 +260,15 @@ export const bootstrapKsu = internalMutation({
       if (!existing) {
         await ctx.db.insert("meetupSpots", spot);
         meetupInserted++;
+      } else if (
+        existing.latitude !== spot.latitude ||
+        existing.longitude !== spot.longitude
+      ) {
+        // Spots now sit on their real building footprints.
+        await ctx.db.patch(existing._id, {
+          latitude: spot.latitude,
+          longitude: spot.longitude,
+        });
       }
     }
 

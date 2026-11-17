@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Award,
   CheckCircle2,
@@ -11,6 +11,11 @@ import {
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
 import { useViewerMutation, useViewerQuery } from "@/lib/viewerClient";
+import {
+  CampusPlace,
+  filterMeetupSpots,
+  loadCampusPlaces,
+} from "@/lib/campusPlaces";
 
 export function DealHandoffPanel({ thread }: { thread: any }) {
   const { chat, listing, myMembership } = thread;
@@ -31,6 +36,26 @@ export function DealHandoffPanel({ thread }: { thread: any }) {
   const spots = useViewerQuery(api.marketplace.listMeetupSpots, {
     campus: spotCampus,
   });
+
+  const [spotQuery, setSpotQuery] = useState("");
+  const [places, setPlaces] = useState<CampusPlace[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    loadCampusPlaces()
+      .then((loaded) => {
+        if (!cancelled) setPlaces(loaded);
+      })
+      .catch(() => {
+        // Offline before the GeoJSON cache is warm: name search still works.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const visibleSpots = useMemo(
+    () => filterMeetupSpots(spots ?? [], spotQuery, places),
+    [spots, spotQuery, places]
+  );
 
   const proposeCard = useViewerMutation(
     api.marketplace.proposeOrUpdateHandoffCard
@@ -228,7 +253,11 @@ export function DealHandoffPanel({ thread }: { thread: any }) {
         <form
           onSubmit={async (e) => {
             e.preventDefault();
-            const spotId = (selectedSpotId || spots?.[0]?._id) as
+            const spotId = (visibleSpots.some(
+              (sp) => String(sp._id) === selectedSpotId
+            )
+              ? selectedSpotId
+              : visibleSpots[0]?._id) as
               | Id<"meetupSpots">
               | undefined;
             if (!spotId) return;
@@ -260,12 +289,28 @@ export function DealHandoffPanel({ thread }: { thread: any }) {
             </button>
           </div>
 
+          <input
+            type="search"
+            data-testid="meetup-spot-search"
+            aria-label="Search meetup spots or buildings"
+            value={spotQuery}
+            onChange={(e) => setSpotQuery(e.target.value)}
+            placeholder="Search a building, e.g. Student Center, SRAC, Library…"
+            className="w-full rounded-xl border border-[#E4E7EE] px-3 py-1.5 font-semibold"
+          />
           <select
-            value={selectedSpotId}
+            value={
+              visibleSpots.some((sp) => String(sp._id) === selectedSpotId)
+                ? selectedSpotId
+                : String(visibleSpots[0]?._id ?? "")
+            }
             onChange={(e) => setSelectedSpotId(e.target.value)}
             className="w-full rounded-xl border border-[#E4E7EE] px-3 py-2 font-semibold"
           >
-            {(spots ?? []).map((sp) => (
+            {visibleSpots.length === 0 && (
+              <option value="">No spots match — try another building</option>
+            )}
+            {visibleSpots.map((sp) => (
               <option key={String(sp._id)} value={String(sp._id)}>
                 [{sp.campus}] {sp.name} — {sp.safetyNotes}
               </option>

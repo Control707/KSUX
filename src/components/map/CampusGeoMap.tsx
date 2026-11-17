@@ -1,7 +1,12 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
+import {
+  CampusPlace,
+  placesFromGeoJson,
+  searchPlaces,
+} from "@/lib/campusPlaces";
 
 export interface CampusMapLotMarker {
   slug: string;
@@ -27,6 +32,8 @@ export interface CampusGeoMapProps {
   showParkingLots?: boolean;
   showShuttleRoutes?: boolean;
   showMeetupSpots?: boolean;
+  /** Building search box (default on). */
+  showPlaceSearch?: boolean;
   lotStatuses?: CampusMapLotMarker[];
   liveVehicles?: CampusMapVehicleMarker[];
   onSelectLotSlug?: (slug: string) => void;
@@ -61,6 +68,7 @@ export function CampusGeoMap({
   showParkingLots = true,
   showShuttleRoutes = false,
   showMeetupSpots = false,
+  showPlaceSearch = true,
   lotStatuses = [],
   liveVehicles = [],
   onSelectLotSlug,
@@ -81,6 +89,8 @@ export function CampusGeoMap({
     meetups: number;
   }>({ buildings: 0, lots: 0, routes: 0, meetups: 0 });
   const [webglFallback, setWebglFallback] = useState(false);
+  const [placeQuery, setPlaceQuery] = useState("");
+  const [selectedPlace, setSelectedPlace] = useState<CampusPlace | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -158,6 +168,35 @@ export function CampusGeoMap({
       cancelled = true;
     };
   }, [showParkingLots, showShuttleRoutes, showMeetupSpots]);
+
+  const places = useMemo(
+    () => placesFromGeoJson(geoCollections.buildings),
+    [geoCollections.buildings]
+  );
+  const placeResults = useMemo(
+    () =>
+      searchPlaces(places, placeQuery, {
+        preferredCampus: campusFilter === "All KSU" ? undefined : campusFilter,
+        limit: 6,
+      }),
+    [places, placeQuery, campusFilter]
+  );
+
+  const selectPlace = (place: CampusPlace) => {
+    setSelectedPlace(place);
+    setPlaceQuery(place.name);
+    try {
+      mapRef.current?.fitBounds(
+        [
+          [place.bbox[0], place.bbox[1]],
+          [place.bbox[2], place.bbox[3]],
+        ],
+        { padding: 80, maxZoom: 18, duration: 600 }
+      );
+    } catch {
+      // map not ready; selection still shows in the result card
+    }
+  };
 
   useEffect(() => {
     if (!containerRef.current || typeof window === "undefined") return;
@@ -259,6 +298,35 @@ export function CampusGeoMap({
             "fill-opacity": 0.65,
           },
         });
+        map.addLayer({
+          id: "ksu-buildings-selected",
+          type: "line",
+          source: "ksu-buildings",
+          filter: ["==", ["get", "geoFeatureId"], ""],
+          paint: { "line-color": "#B45309", "line-width": 3 },
+        });
+        // Labels need glyphs from the online style; the offline zero-tile
+        // style has none, so skip them there (search still works).
+        if (!usingOfflineStyle) {
+          map.addLayer({
+            id: "ksu-buildings-labels",
+            type: "symbol",
+            source: "ksu-buildings",
+            minzoom: 15.5,
+            layout: {
+              "text-field": ["get", "name"],
+              "text-font": ["Noto Sans Regular"],
+              "text-size": 11,
+              "text-max-width": 8,
+              "text-optional": true,
+            },
+            paint: {
+              "text-color": "#111317",
+              "text-halo-color": "#FFFFFF",
+              "text-halo-width": 1.5,
+            },
+          });
+        }
       }
 
       if (geoCollections.lots) {
@@ -369,7 +437,25 @@ export function CampusGeoMap({
     geoCollections,
     lotStatuses,
     styleRevision,
+    usingOfflineStyle,
   ]);
+
+  // Highlight the searched building's outline.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || styleRevision === 0) return;
+    try {
+      if (map.getLayer("ksu-buildings-selected")) {
+        map.setFilter("ksu-buildings-selected", [
+          "==",
+          ["get", "geoFeatureId"],
+          selectedPlace?.id ?? "",
+        ]);
+      }
+    } catch {
+      // ignore transient style reload races
+    }
+  }, [selectedPlace, styleRevision, geoCollections]);
 
   return (
     <div
@@ -397,6 +483,57 @@ export function CampusGeoMap({
           </span>
         )}
       </div>
+
+      {showPlaceSearch && places.length > 0 && (
+        <div className="absolute right-3 top-3 z-10 w-44 sm:w-56">
+          <input
+            type="search"
+            role="combobox"
+            aria-expanded={placeResults.length > 0}
+            aria-controls="campus-place-results"
+            aria-label="Search campus buildings"
+            data-testid="campus-place-search"
+            value={placeQuery}
+            onChange={(e) => {
+              setPlaceQuery(e.target.value);
+              if (selectedPlace) setSelectedPlace(null);
+            }}
+            placeholder="Find a building…"
+            className="w-full rounded-xl border border-[#E4E7EE] bg-white/95 px-3 py-1.5 text-xs font-semibold text-[#111317] shadow outline-none focus:border-[#FDBB30]"
+          />
+          {placeQuery.trim() !== "" && !selectedPlace && (
+            <ul
+              id="campus-place-results"
+              role="listbox"
+              data-testid="campus-place-results"
+              className="mt-1 max-h-52 overflow-y-auto rounded-xl border border-[#E4E7EE] bg-white shadow-lg"
+            >
+              {placeResults.length === 0 ? (
+                <li className="px-3 py-2 text-[11px] font-semibold text-[#5E6675]">
+                  No matching building
+                </li>
+              ) : (
+                placeResults.map((place) => (
+                  <li key={place.id} role="option" aria-selected="false">
+                    <button
+                      type="button"
+                      onClick={() => selectPlace(place)}
+                      className="block w-full px-3 py-1.5 text-left text-[11.5px] hover:bg-[#FFF6DC]"
+                    >
+                      <span className="font-bold text-[#111317]">
+                        {place.name}
+                      </span>
+                      <span className="ml-1.5 text-[10.5px] text-[#5E6675]">
+                        {place.campus}
+                      </span>
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          )}
+        </div>
+      )}
 
       {!webglFallback ? (
         <div ref={containerRef} className="h-64 w-full sm:h-76" />

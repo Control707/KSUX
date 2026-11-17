@@ -147,3 +147,25 @@ describe("Shuttle catalog refresh on re-seed (#31)", () => {
     expect(rows[0]!.stops.some((s) => s.name === "Old Fake Stop")).toBe(false);
   });
 });
+
+describe("Geo catalog refresh on re-seed (#32)", () => {
+  it("repoints already-seeded study rooms and meetup spots at the real building data", async () => {
+    const t = createTestConvex();
+    await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: false });
+    await t.run(async (ctx) => {
+      const room = (await ctx.db.query("studyRooms").collect()).find((r) => r.slug.startsWith("sturgis"))!;
+      await ctx.db.patch(room._id, { geoFeatureId: "bldg-k-1" });
+      const spot = (await ctx.db.query("meetupSpots").collect())[0]!;
+      await ctx.db.patch(spot._id, { latitude: 1, longitude: 1 });
+    });
+    await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: false });
+    const { rooms, spots } = await t.run(async (ctx) => ({
+      rooms: await ctx.db.query("studyRooms").collect(),
+      spots: await ctx.db.query("meetupSpots").collect(),
+    }));
+    expect(rooms.every((r) => !r.geoFeatureId || r.geoFeatureId.startsWith("bldg-osm-"))).toBe(true);
+    expect(spots.every((s) => s.latitude > 33 && s.longitude < -84)).toBe(true);
+    expect(rooms).toHaveLength(57);
+    expect(spots).toHaveLength(14);
+  });
+});
