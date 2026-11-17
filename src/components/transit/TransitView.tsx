@@ -116,6 +116,17 @@ export function TransitView() {
               <Radio className="h-3 w-3" />
               <span>{browserVehicles ? "Direct Passio GPS" : "Synced GPS"}</span>
             </span>
+            {(!browserVehicles || overview?.staleness.isStale) && (
+              <a
+                href="https://kennesawstate.passiogo.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="passio-live-tracker-link"
+                className="rounded-full bg-[#111317] px-2.5 py-1 text-[11px] font-extrabold text-[#FDBB30]"
+              >
+                Open official live tracker ↗
+              </a>
+            )}
           </div>
         </div>
 

@@ -668,74 +668,36 @@ for (const w of walkInSeeds) {
 // =========================================================================
 // 4. 11 Big Owl Bus Shuttle Routes + 35 Canonical Stops + GeoJSON
 // =========================================================================
+// Real network snapshot from Passio GO (run `pnpm run seed:passio` to refresh).
+// Stop IDs are Passio's own, so GTFS-RT arrival predictions match our stops.
+const passioNetwork = JSON.parse(
+  fs.readFileSync(path.join(SEED_DIR, "passio-network.json"), "utf8")
+) as {
+  stops: Record<string, { name: string; latitude: number; longitude: number }>;
+  routes: Array<{
+    passioRouteId: string;
+    stopIds: string[];
+    shape: Array<[number, number]>;
+  }>;
+};
+
+// Marietta is ~12 km south of Kennesaw; latitude cleanly separates them.
+const MARIETTA_MAX_LAT = 33.98;
 const canonicalStops: Array<{
   stopId: string;
   name: string;
   campus: "Kennesaw" | "Marietta";
   latitude: number;
   longitude: number;
-}> = [];
-
-const kStopNames = [
-  "Carmichael Student Center Hub",
-  "Sturgis Library North",
-  "Central Parking Deck Stop",
-  "Academic Learning Center",
-  "The Commons Transit Shelter",
-  "Convocation Center Stop",
-  "East Parking Deck Shelter",
-  "North Parking Deck Stop",
-  "West Parking Deck Stop",
-  "Austin Residence Complex",
-  "University Village Suites",
-  "ARC Recreation Stop",
-  "Town Point Economy Shelter",
-  "East Economy Shelter",
-  "Gutenberg Economy Stop",
-  "3305 Busbee Park & Ride",
-  "KSU Center Transfer",
-  "Chastain Pointe Arts",
-  "Big Shanty / Frey Rd",
-  "Skip Spann Connector",
-  "Barrett Pkwy Shopping",
-  "Town Center Commons",
-]; // 22 Kennesaw stops
-
-const mStopNames = [
-  "Joe Mack Wilson Student Center",
-  "Johnson Library Stop",
-  "Atrium (J) Computing Stop",
-  "Marietta West Deck Shelter",
-  "Engineering Lab (Q) Stop",
-  "Architecture & Design Stop",
-  "Stingers Dining Shelter",
-  "Hornet Village Housing",
-  "Howell Hall Residence",
-  "Marietta Shuttle Lot Stop",
-  "South Marietta Pkwy Stop",
-  "Cobb Pkwy Shopping",
-  "Marietta Square Transfer",
-]; // 13 Marietta stops -> 22 + 13 = 35 unique stops!
-
-kStopNames.forEach((name, idx) => {
-  canonicalStops.push({
-    stopId: `stop-${String(idx + 1).padStart(2, "0")}`,
-    name,
-    campus: "Kennesaw",
-    latitude: Number((34.031 + (idx % 7) * 0.0015).toFixed(6)),
-    longitude: Number((-84.587 + Math.floor(idx / 7) * 0.0038).toFixed(6)),
-  });
-});
-
-mStopNames.forEach((name, idx) => {
-  canonicalStops.push({
-    stopId: `stop-${String(23 + idx).padStart(2, "0")}`,
-    name,
-    campus: "Marietta",
-    latitude: Number((33.937 + (idx % 5) * 0.0012).toFixed(6)),
-    longitude: Number((-84.523 + Math.floor(idx / 5) * 0.0022).toFixed(6)),
-  });
-});
+}> = Object.entries(passioNetwork.stops).map(([stopId, st]) => ({
+  stopId,
+  name: st.name,
+  // Off-campus stops (shopping, apartments) belong to the campus they serve.
+  campus: st.latitude < MARIETTA_MAX_LAT ? "Marietta" : "Kennesaw",
+  latitude: st.latitude,
+  longitude: st.longitude,
+}));
+const stopById = new Map(canonicalStops.map((st) => [st.stopId, st]));
 
 const routeDefs = [
   {
@@ -744,8 +706,8 @@ const routeDefs = [
     name: "KM Kennesaw / Marietta",
     campusScope: "Both" as const,
     colorHex: "#FDBB30",
-    stopIndices: [0, 4, 15, 22, 24, 25],
-    hours: "Mon–Fri 7:00 AM – 10:30 PM",
+    // From the published Passio GTFS timetable (calendar: Mon–Sat; 06:37–23:10).
+    hours: "Mon–Sat 6:37 AM – 11:10 PM",
   },
   {
     passioRouteId: "74761",
@@ -753,7 +715,6 @@ const routeDefs = [
     name: "Kennesaw Loop",
     campusScope: "Kennesaw" as const,
     colorHex: "#6BAED6",
-    stopIndices: [0, 1, 2, 3, 6, 7, 11],
     hours: "Mon–Fri 7:00 AM – 10:00 PM",
   },
   {
@@ -762,7 +723,6 @@ const routeDefs = [
     name: "Marietta Loop",
     campusScope: "Marietta" as const,
     colorHex: "#17BECF",
-    stopIndices: [22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
     hours: "Mon–Fri 7:00 AM – 10:00 PM",
   },
   {
@@ -771,7 +731,6 @@ const routeDefs = [
     name: "Big Shanty Loop",
     campusScope: "Kennesaw" as const,
     colorHex: "#393B79",
-    stopIndices: [0, 7, 12, 18],
     hours: "Mon–Fri 7:00 AM – 8:00 PM",
   },
   {
@@ -780,7 +739,6 @@ const routeDefs = [
     name: "West Campus",
     campusScope: "Kennesaw" as const,
     colorHex: "#8C564B",
-    stopIndices: [0, 8, 9, 10],
     hours: "Mon–Fri 7:00 AM – 9:00 PM",
   },
   {
@@ -789,7 +747,6 @@ const routeDefs = [
     name: "Chastain Pointe / Arts",
     campusScope: "Kennesaw" as const,
     colorHex: "#BCBD22",
-    stopIndices: [0, 3, 17],
     hours: "Mon–Fri 7:30 AM – 7:00 PM",
   },
   {
@@ -798,7 +755,6 @@ const routeDefs = [
     name: "Skip Spann / Frey Road",
     campusScope: "Kennesaw" as const,
     colorHex: "#374151",
-    stopIndices: [0, 5, 18, 19],
     hours: "Mon–Fri 7:30 AM – 6:30 PM",
   },
   {
@@ -807,7 +763,6 @@ const routeDefs = [
     name: "Economy Route",
     campusScope: "Kennesaw" as const,
     colorHex: "#D97706",
-    stopIndices: [0, 12, 13, 14],
     hours: "Mon–Fri 7:00 AM – 9:30 PM",
   },
   {
@@ -816,7 +771,6 @@ const routeDefs = [
     name: "Shuttle Parking Route",
     campusScope: "Both" as const,
     colorHex: "#843C39",
-    stopIndices: [0, 15, 16, 31],
     hours: "Mon–Fri 7:00 AM – 9:30 PM",
   },
   {
@@ -825,7 +779,6 @@ const routeDefs = [
     name: "Kennesaw Shopping",
     campusScope: "Kennesaw" as const,
     colorHex: "#2CA02C",
-    stopIndices: [0, 9, 20, 21],
     hours: "Fri–Sun 11:00 AM – 7:00 PM",
   },
   {
@@ -834,20 +787,36 @@ const routeDefs = [
     name: "Marietta Shopping",
     campusScope: "Marietta" as const,
     colorHex: "#CE6DBD",
-    stopIndices: [22, 29, 32, 33, 34],
     hours: "Fri–Sun 11:00 AM – 7:00 PM",
   },
 ];
+
+function passioRouteStops(passioRouteId: string) {
+  const route = passioNetwork.routes.find(
+    (r) => r.passioRouteId === passioRouteId
+  );
+  if (!route) throw new Error(`Route ${passioRouteId} missing from Passio snapshot`);
+  return route.stopIds.map((id) => {
+    const st = stopById.get(id);
+    if (!st) throw new Error(`Stop ${id} missing from Passio snapshot`);
+    return st;
+  });
+}
 
 const shuttleRoutes = routeDefs.map((r) => ({
   passioRouteId: r.passioRouteId,
   shortName: r.shortName,
   name: r.name,
-  campusScope: r.campusScope,
+  // Derived from the real stops so scope can never drift from the network.
+  campusScope: ((campuses) =>
+    campuses.size > 1
+      ? ("Both" as const)
+      : ([...campuses][0] ?? r.campusScope))(
+    new Set(passioRouteStops(r.passioRouteId).map((st) => st.campus))
+  ),
   colorHex: r.colorHex,
   geoFeatureId: `route-${r.passioRouteId}`,
-  stops: r.stopIndices.map((sIdx, seq) => {
-    const st = canonicalStops[sIdx]!;
+  stops: passioRouteStops(r.passioRouteId).map((st, seq) => {
     return {
       stopId: st.stopId,
       name: st.name,
@@ -2325,10 +2294,10 @@ const shuttleGeoJson = {
       },
       geometry: {
         type: "LineString",
-        coordinates: [
-          ...r.stops.map((s) => [s.longitude, s.latitude]),
-          [r.stops[0]!.longitude, r.stops[0]!.latitude],
-        ],
+        // Road-following polyline from Passio, not a straight stop-to-stop line.
+        coordinates: passioNetwork.routes.find(
+          (n) => n.passioRouteId === r.passioRouteId
+        )!.shape,
       },
     })),
     ...canonicalStops.map((s) => ({
