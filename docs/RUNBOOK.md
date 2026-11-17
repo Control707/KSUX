@@ -4,6 +4,21 @@
 
 ---
 
+## Repeatable team setup wizard
+
+Run `./scripts/setup-env.sh` from your own interactive terminal. See the
+[setup guide](../scripts/setup-production.md) for prerequisites, credential
+destinations, confirmations, and offline validation commands. One production
+owner should configure shared services; teammates should use separate development
+settings. Never paste secrets into chat or issues. No live deployment is implied
+by completing the isolated wizard tests.
+
+The wizard reflects the current implementation: Web Push also needs
+`NEXT_PUBLIC_VAPID_PUBLIC_KEY` in **Convex** as well as Vercel, and
+`seed:backfillEmbeddings` currently returns zero embeddings. Provider plan limits
+and model availability must be verified at provisioning time, not assumed from
+this planning document. The remaining sections describe the planned bootstrap.
+
 ## 1. Prerequisites & `$0` Service Provisioning
 
 All accounts below require **zero credit cards** and **zero custom domains**:

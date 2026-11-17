@@ -10,6 +10,24 @@ Unified Kennesaw State University campus social network and daily-life companion
 - **Chat-Isolated Scrappy the Owl AI**: 3-tier OpenAI-compatible router (Groq `openai/gpt-oss-120b` / `openai/gpt-oss-20b` → PII-stripped Gemini → Cloudflare Workers AI) with clickable Citation Pills and client-confirmed Pre-Filled Draft Cards, architecturally excluded from all `Chats` and database mutations.
 - **Installable Offline Commuter PWA**: Versioned Service Worker (`public/sw.js`), zero-external-tile offline `MapLibre GL JS` campus GeoJSON map, and privacy-safe read-only `ksux_commuter_cache`.
 
+## Provisioning & production deployment
+
+One designated teammate should provision the shared production services. In your
+own interactive terminal, after installing dependencies and linking the intended
+Vercel project:
+
+```bash
+./scripts/setup-env.sh
+```
+
+See the [setup guide](./scripts/setup-production.md) for prerequisites and all
+12 stages. Credentials use hidden input and are retained in a Git-ignored,
+mode-0600 `.env.production-setup` file (plaintext, not an encrypted vault).
+Never paste credentials into chat or GitHub issues. The wizard leaves development
+`.env.local` unchanged, confirms production writes and seeding separately, and
+requires manual deployment/live checks. Do not copy production credentials into
+Preview builds or teammates' development deployments.
+
 ## Quickstart & Verification
 
 See [`docs/RUNBOOK.md`](./docs/RUNBOOK.md), [`docs/SPEC.md`](./docs/SPEC.md), [`GLOSSARY.md`](./GLOSSARY.md), and [`docs/adr/`](./docs/adr/).
