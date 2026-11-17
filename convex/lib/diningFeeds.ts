@@ -151,6 +151,67 @@ export async function fetchNutrisliceDirectory(fetchImpl?: UpstreamFetchFn): Pro
   });
 }
 
+const DIETARY_ICONS = new Map([
+  ["vegan", "vegan"],
+  ["vegetarian", "vegetarian"],
+  ["gluten-free", "gluten_free"],
+  ["halal", "halal_friendly"],
+]);
+const ALLERGEN_ICONS = new Map([
+  ["dairy", ["milk"]],
+  ["wheat", ["wheat"]],
+  ["egg", ["egg"]],
+  ["soy", ["soy"]],
+  ["fish", ["fish"]],
+  ["sesame", ["sesame"]],
+  ["crustaceans", ["shellfish"]],
+  ["peanuts", ["peanuts"]],
+  ["tree-nuts", ["tree_nuts"]],
+  ["coconut", ["coconut"]],
+  ["may-contain-nuts", ["peanuts", "tree_nuts"]],
+]);
+
+function parseFoodLabels(food: {
+  dietary_tags?: unknown;
+  allergens?: unknown;
+  icons_approved?: unknown;
+  icons?: { food_icons?: unknown } | null;
+}) {
+  const dietary = Array.isArray(food.dietary_tags)
+    ? food.dietary_tags.filter((tag): tag is string => typeof tag === "string") : undefined;
+  const reportedAllergens = Array.isArray(food.allergens)
+    && food.allergens.every((item): item is string => typeof item === "string" && item.trim().length > 0)
+    ? food.allergens : undefined;
+  const dietaryTags = new Set(dietary);
+  const allergens = new Set(reportedAllergens);
+  let hasRecognizedIcon = false;
+  let hasUnknownIcon = false;
+
+  if (food.icons_approved === true && Array.isArray(food.icons?.food_icons)) {
+    for (const icon of food.icons.food_icons) {
+      if (icon?.enabled === false) continue;
+      if (icon?.enabled !== true || typeof icon.slug !== "string") {
+        hasUnknownIcon = true;
+        continue;
+      }
+      const dietaryTag = DIETARY_ICONS.get(icon.slug);
+      const allergenTags = ALLERGEN_ICONS.get(icon.slug);
+      if (dietaryTag) dietaryTags.add(dietaryTag);
+      for (const allergen of allergenTags ?? []) allergens.add(allergen);
+      if (dietaryTag || allergenTags) hasRecognizedIcon = true;
+      else if (icon.slug !== "pork" && icon.slug !== "honey") hasUnknownIcon = true;
+    }
+  }
+
+  return {
+    dietaryTags: dietaryTags.size > 0 || dietary !== undefined ? [...dietaryTags] : undefined,
+    // Empty/unapproved live icon lists are not evidence of an allergen review. Only
+    // explicit normalized data or a usable approved icon report can pass the exclusion filter.
+    allergens: reportedAllergens !== undefined || (hasRecognizedIcon && !hasUnknownIcon)
+      ? [...allergens] : undefined,
+  };
+}
+
 function parseMenuDay(week: any, date: string): MenuItem[] | undefined {
   const day = Array.isArray(week?.days) ? week.days.find((row: any) => row?.date === date) : undefined;
   if (!day || day.has_unpublished_menus || !Array.isArray(day.menu_items)) return undefined;
@@ -158,11 +219,8 @@ function parseMenuDay(week: any, date: string): MenuItem[] | undefined {
     const food = entry?.food;
     if (entry?.is_section_title || typeof food?.name !== "string" || !food.name.trim()) return [];
     const calories = food.rounded_nutrition_info?.calories;
-    const dietaryTags = Array.isArray(food.dietary_tags) ? food.dietary_tags.filter((tag: any) => typeof tag === "string") : undefined;
-    const allergens = Array.isArray(food.allergens) && food.allergens.every((item: any) => typeof item === "string")
-      ? food.allergens : undefined;
     return [{ name: food.name.trim().slice(0, 120),
-      calories: Number.isFinite(calories) ? calories : undefined, dietaryTags, allergens }];
+      calories: Number.isFinite(calories) ? calories : undefined, ...parseFoodLabels(food) }];
   });
 }
 

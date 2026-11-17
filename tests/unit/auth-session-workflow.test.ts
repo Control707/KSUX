@@ -65,9 +65,9 @@ describe("Student session route", () => {
 
   it("revokes the Convex Student session when signing out of the web app", async () => {
     mocks.readCookie.mockReturnValue({ value: "a-test-session" });
-    mocks.mutation.mockResolvedValue({ ok: true });
+    mocks.mutation.mockResolvedValue({ ok: true, pushRemoved: false });
 
-    const response = await DELETE();
+    const response = await DELETE(new Request("http://localhost/api/auth/session", { method: "DELETE" }));
 
     expect(response.status).toBe(200);
     expect(mocks.deleteCookie).toHaveBeenCalledWith("ksux_session");
@@ -75,5 +75,33 @@ describe("Student session route", () => {
     const [signOut, args] = mocks.mutation.mock.calls[0]!;
     expect(getFunctionName(signOut)).toBe("auth:signOutSession");
     expect(args).toEqual({ sessionToken: "a-test-session" });
+  });
+
+  it("forwards the current browser's push endpoint with the cookie session", async () => {
+    const pushEndpoint = "https://push.example/current-browser";
+    mocks.readCookie.mockReturnValue({ value: "a-test-session" });
+    mocks.mutation.mockResolvedValue({ ok: true, pushRemoved: true });
+    const response = await DELETE(new Request("http://localhost/api/auth/session", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pushEndpoint }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, pushRemoved: true });
+    expect(mocks.mutation.mock.calls[0]?.[1]).toEqual({ sessionToken: "a-test-session", pushEndpoint });
+  });
+
+  it("does not clear the session cookie when revocation fails and can be retried", async () => {
+    mocks.readCookie.mockReturnValue({ value: "a-test-session" });
+    mocks.mutation.mockRejectedValue(new Error("Temporary Convex failure"));
+    const response = await DELETE(new Request("http://localhost/api/auth/session", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pushEndpoint: "https://push.example/current-browser" }),
+    }));
+
+    expect(response.status).toBe(503);
+    expect(mocks.deleteCookie).not.toHaveBeenCalled();
   });
 });
