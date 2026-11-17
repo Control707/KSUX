@@ -329,11 +329,22 @@ export const getBrowserSession = viewerMutation({
 });
 
 export const signOutSession = viewerMutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { pushEndpoint: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    let pushRemoved = false;
     if (ctx.viewer.studentSessionId) {
+      const endpoint = args.pushEndpoint?.trim();
+      if (endpoint) {
+        const subscription = await ctx.db.query("pushSubscriptions")
+          .withIndex("by_endpoint", (q) => q.eq("endpoint", endpoint))
+          .unique();
+        if (subscription?.studentId === ctx.viewer.actorStudent._id) {
+          await ctx.db.delete(subscription._id);
+          pushRemoved = true;
+        }
+      }
       await ctx.db.delete(ctx.viewer.studentSessionId);
     }
-    return { ok: true };
+    return { ok: true, pushRemoved };
   },
 });

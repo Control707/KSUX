@@ -79,8 +79,19 @@ export async function runPassioShuttleIngestCycle(params: {
     const response = await fetchUpstreamWithRetry(`${PASSIO_URL}/${endpoint}.json`,
       { headers: { Accept: "application/json" } }, fetchImpl);
     const payload = await response.json();
-    if (!Array.isArray(payload?.entity)) throw new Error(`Invalid Passio ${endpoint} response`);
-    return payload.entity as any[];
+    if (Array.isArray(payload?.entity)) return payload.entity as any[];
+
+    // GTFS-RT JSON may omit the repeated entity field when the full snapshot is empty.
+    const header = payload?.header;
+    if (payload?.entity === undefined &&
+        (header?.gtfs_realtime_version === "1.0" || header?.gtfs_realtime_version === "2.0") &&
+        (header.incrementality === undefined || header.incrementality === 0 || header.incrementality === "FULL_DATASET") &&
+        (header.timestamp === undefined ||
+          (Number.isInteger(header.timestamp) && header.timestamp >= 0) ||
+          (typeof header.timestamp === "string" && /^\d+$/.test(header.timestamp)))) {
+      return [];
+    }
+    throw new Error(`Invalid Passio ${endpoint} response`);
   };
   const [positionResult, etaResult, alertResult] = await Promise.allSettled([
     fetchEntities("vehiclePositions").then((entities) => {
@@ -97,8 +108,8 @@ export async function runPassioShuttleIngestCycle(params: {
   const vehicles = positionResult.status === "fulfilled" ? positionResult.value : undefined;
   const stopEtas = etaResult.status === "fulfilled" ? etaResult.value : undefined;
   const serviceAlerts = alertResult.status === "fulfilled" ? alertResult.value : undefined;
-  if ((!vehicles || !vehicles.length) && (!stopEtas || !stopEtas.length) && (!serviceAlerts || !serviceAlerts.length)
-      && (vehicles === undefined || stopEtas === undefined || serviceAlerts === undefined || !vehicles.length)) {
+  // A successful empty stream replaces its cached rows; only unavailable streams retain them.
+  if (vehicles === undefined && stopEtas === undefined && serviceAlerts === undefined) {
     const reason = "Passio provided no usable shuttle data";
     return { status: "failed" as const, reason, failurePatch: evaluateFailureStatePatch(syncState, nowMs, reason) };
   }

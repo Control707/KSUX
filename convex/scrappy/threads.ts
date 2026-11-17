@@ -33,6 +33,20 @@ function plainCampusText(value: string) {
   return value.replace(/^<untrusted_campus_content>|<\/untrusted_campus_content>$/g, "");
 }
 
+function toSearchText(prompt: string) {
+  return prompt.replace(/[^a-z0-9]+/gi, " ").replace(
+    /\b(?:a|an|and|about|are|at|can|campus|clubs?|current|events?|feed|find|for|i|in|is|kennesaw|list|listings?|marietta|marketplace|me|of|on|posts?|recent|show|the|today|upcoming|what|where|which|with|you)\b/gi,
+    " "
+  ).replace(/\s+/g, " ").trim().slice(0, 120);
+}
+
+function communitySearchText(prompt: string) {
+  // Strip conversational frames, not their individual words (e.g. "Join" in a name).
+  return toSearchText(prompt
+    .replace(/\b(?:(?:can|could|should|do)\s+i\s+(?:join|attend|rsvp(?:\s+to)?)|to\s+join|(?:are|is)\s+(?:happening|going\s+on)|meetups?|rsvps?)\b/gi, " ")
+    .replace(/\b(?:please|recommend|tell me|suggest|there|any|some|other|available|happening|going|on|to|do|does|have|has|how|many|who|that|this|these|those|week|tonight|tomorrow|now|right|today)\b/gi, " "));
+}
+
 export const listMyThreads = viewerQuery({
   args: {},
   handler: async (ctx) => {
@@ -319,14 +333,16 @@ export async function runAskScrappyTurn(ctx: ActionCtx, args: AskScrappyInput, o
   const requestedCourse = /\b([A-Z]{2,4})[-\s]*(\d{4}[A-Z]?)\b/i.exec(prompt);
   const subjectCourse = requestedCourse ? `${requestedCourse[1]} ${requestedCourse[2]}` : null;
   const overview = !(parking || transit || study || dining || feed || marketplace || community || personal || subjectCourse || entityType || draftCard);
-  const queryText = prompt.replace(/[^a-z0-9]+/gi, " ").replace(
-    /\b(?:a|an|and|about|are|at|can|campus|clubs?|current|events?|feed|find|for|i|in|is|kennesaw|list|listings?|marietta|marketplace|me|of|on|posts?|recent|show|the|today|upcoming|what|where|which|with|you)\b/gi,
-    " "
-  ).replace(/\s+/g, " ").trim().slice(0, 120);
+  const queryText = toSearchText(prompt);
+  const communityQueryText = communitySearchText(prompt);
   const searchArgs = {
     ...authEnvelope,
     campus: campuses.length === 1 ? campuses[0] : undefined,
     queryText: !draftCard && queryText ? queryText : undefined,
+  };
+  const communityArgs = {
+    ...searchArgs,
+    queryText: !draftCard && communityQueryText ? communityQueryText : undefined,
   };
   const tools = internal.scrappy.tools;
   const [pulse, posts, listings, eventsClubs, course, entity, personalCtx] = await Promise.all([
@@ -335,7 +351,7 @@ export async function runAskScrappyTurn(ctx: ActionCtx, args: AskScrappyInput, o
       : [],
     feed ? ctx.runQuery(tools.searchFeedPosts, searchArgs) : null,
     marketplace ? ctx.runQuery(tools.searchMarketplaceListings, searchArgs) : null,
-    community ? ctx.runQuery(tools.searchEventsAndClubs, searchArgs) : null,
+    community ? ctx.runQuery(tools.searchEventsAndClubs, communityArgs) : null,
     subjectCourse ? ctx.runQuery(tools.lookupCourseHubAndSyllabus, { ...authEnvelope, subjectCourse }) : null,
     entityType && context ? ctx.runQuery(tools.getEntityDetail, { ...authEnvelope, entityType, slugOrCode: context.entityId }) : null,
     personal ? ctx.runQuery(tools.getMyPersonalContext, authEnvelope) : null,

@@ -105,18 +105,32 @@ export async function POST(request: Request) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value?.trim();
   if (token) {
+    let pushEndpoint: string | undefined;
+    if (request.body) {
+      const body: unknown = await request.json().catch(() => null);
+      if (!body || typeof body !== "object" || !("pushEndpoint" in body) ||
+          typeof body.pushEndpoint !== "string" || !body.pushEndpoint.trim() || body.pushEndpoint.length > 4096) {
+        return json({ error: "Invalid push subscription endpoint." }, 400);
+      }
+      pushEndpoint = body.pushEndpoint;
+    }
     try {
       const client = createServerConvexClient();
-      await client.mutation(api.auth.signOutSession, { sessionToken: token });
+      const result = await client.mutation(api.auth.signOutSession, {
+        sessionToken: token,
+        ...(pushEndpoint ? { pushEndpoint } : {}),
+      });
+      cookieStore.delete(SESSION_COOKIE_NAME);
+      return json(result);
     } catch (error) {
       const response = authError(error);
       if (response.status !== 401) return response;
     }
   }
   cookieStore.delete(SESSION_COOKIE_NAME);
-  return json({ ok: true });
+  return json({ ok: true, pushRemoved: false });
 }

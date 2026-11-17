@@ -396,8 +396,30 @@ function ViewerClientInner({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    const response = await fetch("/api/auth/session", { method: "DELETE", credentials: "same-origin" });
+    let subscription: PushSubscription | null = null;
+    if ("serviceWorker" in navigator && "PushManager" in window) {
+      try {
+        // Do not wait on serviceWorker.ready: there may be no active worker.
+        const registration = await navigator.serviceWorker.getRegistration("/");
+        subscription = await registration?.pushManager.getSubscription() ?? null;
+      } catch {
+        // Browsers with unavailable push storage can still revoke the session.
+      }
+    }
+    const response = await fetch("/api/auth/session", {
+      method: "DELETE",
+      credentials: "same-origin",
+      ...(subscription ? {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pushEndpoint: subscription.endpoint }),
+      } : {}),
+    });
     if (!response.ok) throw new Error("Could not revoke this session. Try signing out again.");
+    const result = await response.json().catch(() => null);
+    if (subscription && result?.pushRemoved) {
+      // Server-side delivery is already revoked even if browser cleanup fails.
+      void subscription.unsubscribe().catch(() => {});
+    }
     clearCommuterCache();
     if (typeof window !== "undefined") {
       window.sessionStorage.removeItem(DEMO_CODE_SESSION_KEY);
