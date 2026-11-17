@@ -30,10 +30,10 @@ describe("Seam 1 — Big Owl Bus Shuttle Routes, 15m Stop Pulses & 17 Dining Ven
       mariettaShuttles.routes.some((r) => r.passioRouteId === "74760")
     ).toBe(true);
 
-    // Submit 15m rider stop pulse on stop-23
+    // Submit 15m rider stop pulse on Shore Center (Passio stop 223238, first Marietta Loop stop)
     await t.mutation(api.transitDining.submitShuttleStopPulse, {
       sessionToken: student.sessionToken,
-      stopId: "stop-23",
+      stopId: "223238",
       pulseKind: "long_line",
       nowOverride: baseNow,
     });
@@ -120,5 +120,30 @@ describe("Seam 1 — Big Owl Bus Shuttle Routes, 15m Stop Pulses & 17 Dining Ven
       stingersAfter31m.venues.find((v) => v.slug === "stingers")?.lineStatus
         .label
     ).toBe("Estimated · Typical meal-hour rush");
+  });
+});
+
+describe("Shuttle catalog refresh on re-seed (#31)", () => {
+  it("replaces stale stops on an already-seeded route without duplicating it", async () => {
+    const t = createTestConvex();
+    await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: false });
+    await t.run(async (ctx) => {
+      const km = await ctx.db
+        .query("shuttleRoutes")
+        .withIndex("by_passio_id", (q) => q.eq("passioRouteId", "74760"))
+        .unique();
+      await ctx.db.patch(km!._id, {
+        stops: [
+          { stopId: "stop-01", name: "Old Fake Stop", campus: "Kennesaw", latitude: 34.031, longitude: -84.587, sequence: 1 },
+        ],
+      });
+    });
+    await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: false });
+    const rows = await t.run((ctx) =>
+      ctx.db.query("shuttleRoutes").withIndex("by_passio_id", (q) => q.eq("passioRouteId", "74760")).collect()
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.stops.map((s) => s.stopId)).toEqual(["361", "362", "3884"]);
+    expect(rows[0]!.stops.some((s) => s.name === "Old Fake Stop")).toBe(false);
   });
 });

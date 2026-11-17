@@ -9,55 +9,31 @@
       "geoFeatureId": "route-74760",
       "stops": [
         {
-          "stopId": "stop-01",
-          "name": "Carmichael Student Center Hub",
+          "stopId": "361",
+          "name": "Rec Center",
           "campus": "Kennesaw",
-          "latitude": 34.031,
-          "longitude": -84.587,
+          "latitude": 34.03726,
+          "longitude": -84.58254,
           "sequence": 1
         },
         {
-          "stopId": "stop-05",
-          "name": "The Commons Transit Shelter",
+          "stopId": "362",
+          "name": "The Commons",
           "campus": "Kennesaw",
-          "latitude": 34.037,
-          "longitude": -84.587,
+          "latitude": 34.03941,
+          "longitude": -84.58248,
           "sequence": 2
         },
         {
-          "stopId": "stop-16",
-          "name": "3305 Busbee Park & Ride",
-          "campus": "Kennesaw",
-          "latitude": 34.0325,
-          "longitude": -84.5794,
-          "sequence": 3
-        },
-        {
-          "stopId": "stop-23",
+          "stopId": "3884",
           "name": "Joe Mack Wilson Student Center",
           "campus": "Marietta",
-          "latitude": 33.937,
-          "longitude": -84.523,
-          "sequence": 4
-        },
-        {
-          "stopId": "stop-25",
-          "name": "Atrium (J) Computing Stop",
-          "campus": "Marietta",
-          "latitude": 33.9394,
-          "longitude": -84.523,
-          "sequence": 5
-        },
-        {
-          "stopId": "stop-26",
-          "name": "Marietta West Deck Shelter",
-          "campus": "Marietta",
-          "latitude": 33.9406,
-          "longitude": -84.523,
-          "sequence": 6
+          "latitude": 33.94105,
+          "longitude": -84.52073,
+          "sequence": 3
         }
       ],
-      "operatingHoursSummary": "Mon–Fri 7:00 AM – 10:30 PM"
+      "operatingHoursSummary": "Mon–Sat 6:37 AM – 11:10 PM"
     },
     {
       "passioRouteId": "74761",
@@ -68,60 +44,36 @@
       "geoFeatureId": "route-74761",
       "stops": [
         {
-          "stopId": "stop-01",
-          "name": "Carmichael Student Center Hub",
+          "stopId": "361",
+          "name": "Rec Center",
           "campus": "Kennesaw",
-          "latitude": 34.031,
-          "longitude": -84.587,
+          "latitude": 34.03726,
+          "longitude": -84.58254,
           "sequence": 1
         },
         {
-          "stopId": "stop-02",
-          "name": "Sturgis Library North",
+          "stopId": "362",
+          "name": "The Commons",
           "campus": "Kennesaw",
-          "latitude": 34.0325,
-          "longitude": -84.587,
+          "latitude": 34.03941,
+          "longitude": -84.58248,
           "sequence": 2
         },
         {
-          "stopId": "stop-03",
-          "name": "Central Parking Deck Stop",
+          "stopId": "159737",
+          "name": "North Residential",
           "campus": "Kennesaw",
-          "latitude": 34.034,
-          "longitude": -84.587,
+          "latitude": 34.0415,
+          "longitude": -84.58422,
           "sequence": 3
         },
         {
-          "stopId": "stop-04",
-          "name": "Academic Learning Center",
+          "stopId": "223235",
+          "name": "Summit Complex",
           "campus": "Kennesaw",
-          "latitude": 34.0355,
-          "longitude": -84.587,
+          "latitude": 34.03432,
+          "longitude": -84.58467,
           "sequence": 4
-        },
-        {
-          "stopId": "stop-07",
-          "name": "East Parking Deck Shelter",
-          "campus": "Kennesaw",
-          "latitude": 34.04,
-          "longitude": -84.587,
-          "sequence": 5
-        },
-        {
-          "stopId": "stop-08",
-          "name": "North Parking Deck Stop",
-          "campus": "Kennesaw",
-          "latitude": 34.031,
-          "longitude": -84.5832,
-          "sequence": 6
-        },
-        {
-          "stopId": "stop-12",
-          "name": "ARC Recreation Stop",
-          "campus": "Kennesaw",
-          "latitude": 34.037,
-          "longitude": -84.5832,
-          "sequence": 7
         }
       ],
       "operatingHoursSummary": "Mon–Fri 7:00 AM – 10:00 PM"
@@ -135,84 +87,36 @@
       "geoFeatureId": "route-74764",
       "stops": [
         {
-          "stopId": "stop-23",
-          "name": "Joe Mack Wilson Student Center",
+          "stopId": "223238",
+          "name": "Shore Center",
           "campus": "Marietta",
-          "latitude": 33.937,
-          "longitude": -84.523,
+          "latitude": 33.93992,
+          "longitude": -84.51849,
           "sequence": 1
         },
         {
-          "stopId": "stop-24",
-          "name": "Johnson Library Stop",
+          "stopId": "4301",
+          "name": "Hornet Village",
           "campus": "Marietta",
-          "latitude": 33.9382,
-          "longitude": -84.523,
+          "latitude": 33.93615,
+          "longitude": -84.52143,
           "sequence": 2
         },
         {
-          "stopId": "stop-25",
-          "name": "Atrium (J) Computing Stop",
+          "stopId": "6170",
+          "name": "University Columns",
           "campus": "Marietta",
-          "latitude": 33.9394,
-          "longitude": -84.523,
+          "latitude": 33.93579,
+          "longitude": -84.525,
           "sequence": 3
         },
         {
-          "stopId": "stop-26",
-          "name": "Marietta West Deck Shelter",
-          "campus": "Marietta",
-          "latitude": 33.9406,
-          "longitude": -84.523,
-          "sequence": 4
-        },
-        {
-          "stopId": "stop-27",
-          "name": "Engineering Lab (Q) Stop",
-          "campus": "Marietta",
-          "latitude": 33.9418,
-          "longitude": -84.523,
-          "sequence": 5
-        },
-        {
-          "stopId": "stop-28",
-          "name": "Architecture & Design Stop",
-          "campus": "Marietta",
-          "latitude": 33.937,
-          "longitude": -84.5208,
-          "sequence": 6
-        },
-        {
-          "stopId": "stop-29",
-          "name": "Stingers Dining Shelter",
-          "campus": "Marietta",
-          "latitude": 33.9382,
-          "longitude": -84.5208,
-          "sequence": 7
-        },
-        {
-          "stopId": "stop-30",
-          "name": "Hornet Village Housing",
+          "stopId": "223239",
+          "name": "Hornet Hub",
           "campus": "Marietta",
           "latitude": 33.9394,
-          "longitude": -84.5208,
-          "sequence": 8
-        },
-        {
-          "stopId": "stop-31",
-          "name": "Howell Hall Residence",
-          "campus": "Marietta",
-          "latitude": 33.9406,
-          "longitude": -84.5208,
-          "sequence": 9
-        },
-        {
-          "stopId": "stop-32",
-          "name": "Marietta Shuttle Lot Stop",
-          "campus": "Marietta",
-          "latitude": 33.9418,
-          "longitude": -84.5208,
-          "sequence": 10
+          "longitude": -84.52207,
+          "sequence": 4
         }
       ],
       "operatingHoursSummary": "Mon–Fri 7:00 AM – 10:00 PM"
@@ -226,36 +130,52 @@
       "geoFeatureId": "route-74763",
       "stops": [
         {
-          "stopId": "stop-01",
-          "name": "Carmichael Student Center Hub",
+          "stopId": "361",
+          "name": "Rec Center",
           "campus": "Kennesaw",
-          "latitude": 34.031,
-          "longitude": -84.587,
+          "latitude": 34.03726,
+          "longitude": -84.58254,
           "sequence": 1
         },
         {
-          "stopId": "stop-08",
-          "name": "North Parking Deck Stop",
+          "stopId": "362",
+          "name": "The Commons",
           "campus": "Kennesaw",
-          "latitude": 34.031,
-          "longitude": -84.5832,
+          "latitude": 34.03941,
+          "longitude": -84.58248,
           "sequence": 2
         },
         {
-          "stopId": "stop-13",
-          "name": "Town Point Economy Shelter",
+          "stopId": "2788",
+          "name": "Busbee Park-N-Ride",
           "campus": "Kennesaw",
-          "latitude": 34.0385,
-          "longitude": -84.5832,
+          "latitude": 34.0292,
+          "longitude": -84.57006,
           "sequence": 3
         },
         {
-          "stopId": "stop-19",
-          "name": "Big Shanty / Frey Rd",
+          "stopId": "2790",
+          "name": "Copper Social",
           "campus": "Kennesaw",
-          "latitude": 34.037,
-          "longitude": -84.5794,
+          "latitude": 34.0266,
+          "longitude": -84.56434,
           "sequence": 4
+        },
+        {
+          "stopId": "223237",
+          "name": "Parliament- Copper Social",
+          "campus": "Kennesaw",
+          "latitude": 34.02569,
+          "longitude": -84.5644,
+          "sequence": 5
+        },
+        {
+          "stopId": "159452",
+          "name": "SOVA",
+          "campus": "Kennesaw",
+          "latitude": 34.02511,
+          "longitude": -84.56448,
+          "sequence": 6
         }
       ],
       "operatingHoursSummary": "Mon–Fri 7:00 AM – 8:00 PM"
@@ -269,35 +189,35 @@
       "geoFeatureId": "route-2995",
       "stops": [
         {
-          "stopId": "stop-01",
-          "name": "Carmichael Student Center Hub",
+          "stopId": "361",
+          "name": "Rec Center",
           "campus": "Kennesaw",
-          "latitude": 34.031,
-          "longitude": -84.587,
+          "latitude": 34.03726,
+          "longitude": -84.58254,
           "sequence": 1
         },
         {
-          "stopId": "stop-09",
-          "name": "West Parking Deck Stop",
+          "stopId": "362",
+          "name": "The Commons",
           "campus": "Kennesaw",
-          "latitude": 34.0325,
-          "longitude": -84.5832,
+          "latitude": 34.03941,
+          "longitude": -84.58248,
           "sequence": 2
         },
         {
-          "stopId": "stop-10",
-          "name": "Austin Residence Complex",
+          "stopId": "2100",
+          "name": "West 22",
           "campus": "Kennesaw",
-          "latitude": 34.034,
-          "longitude": -84.5832,
+          "latitude": 34.04172,
+          "longitude": -84.60543,
           "sequence": 3
         },
         {
-          "stopId": "stop-11",
-          "name": "University Village Suites",
+          "stopId": "2239",
+          "name": "South Residential",
           "campus": "Kennesaw",
-          "latitude": 34.0355,
-          "longitude": -84.5832,
+          "latitude": 34.03268,
+          "longitude": -84.58501,
           "sequence": 4
         }
       ],
@@ -312,28 +232,44 @@
       "geoFeatureId": "route-2998",
       "stops": [
         {
-          "stopId": "stop-01",
-          "name": "Carmichael Student Center Hub",
+          "stopId": "361",
+          "name": "Rec Center",
           "campus": "Kennesaw",
-          "latitude": 34.031,
-          "longitude": -84.587,
+          "latitude": 34.03726,
+          "longitude": -84.58254,
           "sequence": 1
         },
         {
-          "stopId": "stop-04",
-          "name": "Academic Learning Center",
+          "stopId": "362",
+          "name": "The Commons",
           "campus": "Kennesaw",
-          "latitude": 34.0355,
-          "longitude": -84.587,
+          "latitude": 34.03941,
+          "longitude": -84.58248,
           "sequence": 2
         },
         {
-          "stopId": "stop-18",
-          "name": "Chastain Pointe Arts",
+          "stopId": "159736",
+          "name": "Art School",
           "campus": "Kennesaw",
-          "latitude": 34.0355,
-          "longitude": -84.5794,
+          "latitude": 34.02787,
+          "longitude": -84.58588,
           "sequence": 3
+        },
+        {
+          "stopId": "363",
+          "name": "Dance School",
+          "campus": "Kennesaw",
+          "latitude": 34.02949,
+          "longitude": -84.58601,
+          "sequence": 4
+        },
+        {
+          "stopId": "2239",
+          "name": "South Residential",
+          "campus": "Kennesaw",
+          "latitude": 34.03268,
+          "longitude": -84.58501,
+          "sequence": 5
         }
       ],
       "operatingHoursSummary": "Mon–Fri 7:30 AM – 7:00 PM"
@@ -347,35 +283,35 @@
       "geoFeatureId": "route-50227",
       "stops": [
         {
-          "stopId": "stop-01",
-          "name": "Carmichael Student Center Hub",
+          "stopId": "5804",
+          "name": "Education Bldg",
           "campus": "Kennesaw",
-          "latitude": 34.031,
-          "longitude": -84.587,
+          "latitude": 34.03982,
+          "longitude": -84.58077,
           "sequence": 1
         },
         {
-          "stopId": "stop-06",
-          "name": "Convocation Center Stop",
+          "stopId": "159734",
+          "name": "The Retreat",
           "campus": "Kennesaw",
-          "latitude": 34.0385,
-          "longitude": -84.587,
+          "latitude": 34.04031,
+          "longitude": -84.57391,
           "sequence": 2
         },
         {
-          "stopId": "stop-19",
-          "name": "Big Shanty / Frey Rd",
+          "stopId": "910",
+          "name": "The Nest",
           "campus": "Kennesaw",
-          "latitude": 34.037,
-          "longitude": -84.5794,
+          "latitude": 34.04803,
+          "longitude": -84.58101,
           "sequence": 3
         },
         {
-          "stopId": "stop-20",
-          "name": "Skip Spann Connector",
+          "stopId": "2101",
+          "name": "The Blake",
           "campus": "Kennesaw",
-          "latitude": 34.0385,
-          "longitude": -84.5794,
+          "latitude": 34.03687,
+          "longitude": -84.57585,
           "sequence": 4
         }
       ],
@@ -390,36 +326,44 @@
       "geoFeatureId": "route-74762",
       "stops": [
         {
-          "stopId": "stop-01",
-          "name": "Carmichael Student Center Hub",
+          "stopId": "5806",
+          "name": "Math and Sciences",
           "campus": "Kennesaw",
-          "latitude": 34.031,
-          "longitude": -84.587,
+          "latitude": 34.03668,
+          "longitude": -84.58441,
           "sequence": 1
         },
         {
-          "stopId": "stop-13",
-          "name": "Town Point Economy Shelter",
+          "stopId": "159736",
+          "name": "Art School",
           "campus": "Kennesaw",
-          "latitude": 34.0385,
-          "longitude": -84.5832,
+          "latitude": 34.02787,
+          "longitude": -84.58588,
           "sequence": 2
         },
         {
-          "stopId": "stop-14",
-          "name": "East Economy Shelter",
+          "stopId": "363",
+          "name": "Dance School",
           "campus": "Kennesaw",
-          "latitude": 34.04,
-          "longitude": -84.5832,
+          "latitude": 34.02949,
+          "longitude": -84.58601,
           "sequence": 3
         },
         {
-          "stopId": "stop-15",
-          "name": "Gutenberg Economy Stop",
+          "stopId": "223236",
+          "name": "Gutenberg",
           "campus": "Kennesaw",
-          "latitude": 34.031,
-          "longitude": -84.5794,
+          "latitude": 34.02607,
+          "longitude": -84.58081,
           "sequence": 4
+        },
+        {
+          "stopId": "366",
+          "name": "Town Point",
+          "campus": "Kennesaw",
+          "latitude": 34.03012,
+          "longitude": -84.58212,
+          "sequence": 5
         }
       ],
       "operatingHoursSummary": "Mon–Fri 7:00 AM – 9:30 PM"
@@ -428,41 +372,49 @@
       "passioRouteId": "71987",
       "shortName": "SH",
       "name": "Shuttle Parking Route",
-      "campusScope": "Both",
+      "campusScope": "Kennesaw",
       "colorHex": "#843C39",
       "geoFeatureId": "route-71987",
       "stops": [
         {
-          "stopId": "stop-01",
-          "name": "Carmichael Student Center Hub",
+          "stopId": "916",
+          "name": "KSU Center",
           "campus": "Kennesaw",
-          "latitude": 34.031,
-          "longitude": -84.587,
+          "latitude": 34.0316,
+          "longitude": -84.5735,
           "sequence": 1
         },
         {
-          "stopId": "stop-16",
-          "name": "3305 Busbee Park & Ride",
+          "stopId": "3881",
+          "name": "3305 Busbee",
           "campus": "Kennesaw",
-          "latitude": 34.0325,
-          "longitude": -84.5794,
+          "latitude": 34.02968,
+          "longitude": -84.57293,
           "sequence": 2
         },
         {
-          "stopId": "stop-17",
-          "name": "KSU Center Transfer",
+          "stopId": "2788",
+          "name": "Busbee Park-N-Ride",
           "campus": "Kennesaw",
-          "latitude": 34.034,
-          "longitude": -84.5794,
+          "latitude": 34.0292,
+          "longitude": -84.57006,
           "sequence": 3
         },
         {
-          "stopId": "stop-32",
-          "name": "Marietta Shuttle Lot Stop",
-          "campus": "Marietta",
-          "latitude": 33.9418,
-          "longitude": -84.5208,
+          "stopId": "361",
+          "name": "Rec Center",
+          "campus": "Kennesaw",
+          "latitude": 34.03726,
+          "longitude": -84.58254,
           "sequence": 4
+        },
+        {
+          "stopId": "362",
+          "name": "The Commons",
+          "campus": "Kennesaw",
+          "latitude": 34.03941,
+          "longitude": -84.58248,
+          "sequence": 5
         }
       ],
       "operatingHoursSummary": "Mon–Fri 7:00 AM – 9:30 PM"
@@ -476,36 +428,44 @@
       "geoFeatureId": "route-75303",
       "stops": [
         {
-          "stopId": "stop-01",
-          "name": "Carmichael Student Center Hub",
+          "stopId": "159737",
+          "name": "North Residential",
           "campus": "Kennesaw",
-          "latitude": 34.031,
-          "longitude": -84.587,
+          "latitude": 34.0415,
+          "longitude": -84.58422,
           "sequence": 1
         },
         {
-          "stopId": "stop-10",
+          "stopId": "6516",
           "name": "Austin Residence Complex",
           "campus": "Kennesaw",
-          "latitude": 34.034,
-          "longitude": -84.5832,
+          "latitude": 34.0332,
+          "longitude": -84.58429,
           "sequence": 2
         },
         {
-          "stopId": "stop-21",
-          "name": "Barrett Pkwy Shopping",
+          "stopId": "195839",
+          "name": "Barrett Pavilion",
           "campus": "Kennesaw",
-          "latitude": 34.04,
-          "longitude": -84.5794,
+          "latitude": 34.01087,
+          "longitude": -84.57323,
           "sequence": 3
         },
         {
-          "stopId": "stop-22",
-          "name": "Town Center Commons",
+          "stopId": "915",
+          "name": "Town Center Mall",
           "campus": "Kennesaw",
-          "latitude": 34.031,
-          "longitude": -84.5756,
+          "latitude": 34.01838,
+          "longitude": -84.56468,
           "sequence": 4
+        },
+        {
+          "stopId": "6225",
+          "name": "Wal-mart Kennesaw",
+          "campus": "Kennesaw",
+          "latitude": 34.02031,
+          "longitude": -84.5564,
+          "sequence": 5
         }
       ],
       "operatingHoursSummary": "Fri–Sun 11:00 AM – 7:00 PM"
@@ -519,44 +479,52 @@
       "geoFeatureId": "route-64025",
       "stops": [
         {
-          "stopId": "stop-23",
-          "name": "Joe Mack Wilson Student Center",
+          "stopId": "159739",
+          "name": "Administration Building",
           "campus": "Marietta",
-          "latitude": 33.937,
-          "longitude": -84.523,
+          "latitude": 33.94085,
+          "longitude": -84.51883,
           "sequence": 1
         },
         {
-          "stopId": "stop-30",
-          "name": "Hornet Village Housing",
+          "stopId": "4300",
+          "name": "Courtyard Apartments",
           "campus": "Marietta",
-          "latitude": 33.9394,
-          "longitude": -84.5208,
+          "latitude": 33.93958,
+          "longitude": -84.5177,
           "sequence": 2
         },
         {
-          "stopId": "stop-33",
-          "name": "South Marietta Pkwy Stop",
+          "stopId": "4301",
+          "name": "Hornet Village",
           "campus": "Marietta",
-          "latitude": 33.937,
-          "longitude": -84.5186,
+          "latitude": 33.93615,
+          "longitude": -84.52143,
           "sequence": 3
         },
         {
-          "stopId": "stop-34",
-          "name": "Cobb Pkwy Shopping",
+          "stopId": "6224",
+          "name": "Commons Apartments",
           "campus": "Marietta",
-          "latitude": 33.9382,
-          "longitude": -84.5186,
+          "latitude": 33.93673,
+          "longitude": -84.51718,
           "sequence": 4
         },
         {
-          "stopId": "stop-35",
-          "name": "Marietta Square Transfer",
+          "stopId": "198812",
+          "name": "PROVIDENCE SQUARE SHOPPING CENTER",
           "campus": "Marietta",
-          "latitude": 33.9394,
-          "longitude": -84.5186,
+          "latitude": 33.89039,
+          "longitude": -84.47718,
           "sequence": 5
+        },
+        {
+          "stopId": "198813",
+          "name": "WALMART",
+          "campus": "Marietta",
+          "latitude": 33.90975,
+          "longitude": -84.48933,
+          "sequence": 6
         }
       ],
       "operatingHoursSummary": "Fri–Sun 11:00 AM – 7:00 PM"
@@ -568,8 +536,8 @@
         "busId": "bob-401",
         "busName": "Big Owl #401",
         "passioRouteId": "74760",
-        "latitude": 34.031,
-        "longitude": -84.587,
+        "latitude": 34.03726,
+        "longitude": -84.58254,
         "heading": 0,
         "paxLoad": 12,
         "totalCap": 42
@@ -578,8 +546,8 @@
         "busId": "bob-402",
         "busName": "Big Owl #402",
         "passioRouteId": "74761",
-        "latitude": 34.031,
-        "longitude": -84.587,
+        "latitude": 34.03726,
+        "longitude": -84.58254,
         "heading": 45,
         "paxLoad": 15,
         "totalCap": 42
@@ -588,8 +556,8 @@
         "busId": "bob-403",
         "busName": "Big Owl #403",
         "passioRouteId": "74764",
-        "latitude": 33.937,
-        "longitude": -84.523,
+        "latitude": 33.93992,
+        "longitude": -84.51849,
         "heading": 90,
         "paxLoad": 18,
         "totalCap": 42
@@ -598,8 +566,8 @@
         "busId": "bob-404",
         "busName": "Big Owl #404",
         "passioRouteId": "74763",
-        "latitude": 34.031,
-        "longitude": -84.587,
+        "latitude": 34.03726,
+        "longitude": -84.58254,
         "heading": 135,
         "paxLoad": 21,
         "totalCap": 42
@@ -608,8 +576,8 @@
         "busId": "bob-405",
         "busName": "Big Owl #405",
         "passioRouteId": "2995",
-        "latitude": 34.031,
-        "longitude": -84.587,
+        "latitude": 34.03726,
+        "longitude": -84.58254,
         "heading": 180,
         "paxLoad": 24,
         "totalCap": 42
@@ -618,8 +586,8 @@
         "busId": "bob-406",
         "busName": "Big Owl #406",
         "passioRouteId": "2998",
-        "latitude": 34.031,
-        "longitude": -84.587,
+        "latitude": 34.03726,
+        "longitude": -84.58254,
         "heading": 225,
         "paxLoad": 27,
         "totalCap": 42
@@ -628,8 +596,8 @@
         "busId": "bob-407",
         "busName": "Big Owl #407",
         "passioRouteId": "50227",
-        "latitude": 34.031,
-        "longitude": -84.587,
+        "latitude": 34.03982,
+        "longitude": -84.58077,
         "heading": 270,
         "paxLoad": 30,
         "totalCap": 42
@@ -638,8 +606,8 @@
         "busId": "bob-408",
         "busName": "Big Owl #408",
         "passioRouteId": "74762",
-        "latitude": 34.031,
-        "longitude": -84.587,
+        "latitude": 34.03668,
+        "longitude": -84.58441,
         "heading": 315,
         "paxLoad": 33,
         "totalCap": 42
@@ -647,67 +615,67 @@
     ],
     "stopEtas": [
       {
-        "stopId": "stop-01",
+        "stopId": "361",
         "passioRouteId": "74760",
         "etaMinutes": 3,
         "loadLabel": "Seats Open"
       },
       {
-        "stopId": "stop-01",
+        "stopId": "361",
         "passioRouteId": "74761",
         "etaMinutes": 4,
         "loadLabel": "Moderate Load"
       },
       {
-        "stopId": "stop-23",
+        "stopId": "223238",
         "passioRouteId": "74764",
         "etaMinutes": 5,
         "loadLabel": "Standing Room"
       },
       {
-        "stopId": "stop-01",
+        "stopId": "361",
         "passioRouteId": "74763",
         "etaMinutes": 6,
         "loadLabel": "Seats Open"
       },
       {
-        "stopId": "stop-01",
+        "stopId": "361",
         "passioRouteId": "2995",
         "etaMinutes": 7,
         "loadLabel": "Moderate Load"
       },
       {
-        "stopId": "stop-01",
+        "stopId": "361",
         "passioRouteId": "2998",
         "etaMinutes": 8,
         "loadLabel": "Standing Room"
       },
       {
-        "stopId": "stop-01",
+        "stopId": "5804",
         "passioRouteId": "50227",
         "etaMinutes": 9,
         "loadLabel": "Seats Open"
       },
       {
-        "stopId": "stop-01",
+        "stopId": "5806",
         "passioRouteId": "74762",
         "etaMinutes": 3,
         "loadLabel": "Moderate Load"
       },
       {
-        "stopId": "stop-01",
+        "stopId": "916",
         "passioRouteId": "71987",
         "etaMinutes": 4,
         "loadLabel": "Standing Room"
       },
       {
-        "stopId": "stop-01",
+        "stopId": "159737",
         "passioRouteId": "75303",
         "etaMinutes": 5,
         "loadLabel": "Seats Open"
       },
       {
-        "stopId": "stop-23",
+        "stopId": "159739",
         "passioRouteId": "64025",
         "etaMinutes": 6,
         "loadLabel": "Moderate Load"

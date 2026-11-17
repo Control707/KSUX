@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "test:e2e": "tsx scripts/run-e2e.ts",
     "seed:fixtures": "tsx scripts/harvest-ksu-seed.ts",
-    "seed:harvest": "tsx scripts/harvest-ksu-seed.ts"
+    "seed:harvest": "tsx scripts/harvest-ksu-seed.ts",
+    "seed:passio": "tsx scripts/fetch-passio-network.ts"
   },
   "dependencies": {
     "@uploadthing/react": "^7.3.0",

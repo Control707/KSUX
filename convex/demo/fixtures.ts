@@ -1224,7 +1224,7 @@ export async function cloneDemoWorkspaceFixtures(
   await ctx.db.insert("campusPulses", {
     workspaceKey,
     targetType: "shuttle_stop",
-    targetKey: "stop-01",
+    targetKey: "361", // Passio stop: Rec Center
     authorId: alexId,
     tierValue: "stop_clear",
     publishedAt: now - 4 * MIN,

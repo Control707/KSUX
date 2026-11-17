@@ -114,6 +114,10 @@ export const bootstrapKsu = internalMutation({
       if (!existing) {
         await ctx.db.insert("shuttleRoutes", route);
         shuttleInserted++;
+      } else {
+        // The network is a read-only institutional catalog: refresh stops,
+        // hours and scope so databases seeded earlier pick up corrections.
+        await ctx.db.replace(existing._id, route);
       }
     }
     const existingShuttleSnap = await ctx.db
