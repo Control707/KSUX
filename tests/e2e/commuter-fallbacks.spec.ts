@@ -40,13 +40,13 @@ test("reloads a saved schedule and static campus map offline", async ({ page, co
   await page.goto("/?demo=1");
   await page.waitForURL(/[?&]persona=maya_cs/);
   await expect(page.getByTestId("bento-schedule-tile")).toContainText("CS 3305");
-  await expect.poll(() => page.evaluate(() => {
+  await page.waitForFunction(() => {
     const shortCode = sessionStorage.getItem("ksux_demo_short_code");
     const persona = sessionStorage.getItem("ksux_demo_persona");
-    return Boolean(sessionStorage.getItem(`ksux_commuter_cache:demo:${shortCode}:${persona}`));
-  })).toBe(true);
-  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
-  await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+    const key = "ksux_commuter_cache:demo:" + shortCode + ":" + persona;
+    return navigator.serviceWorker.controller && sessionStorage.getItem(key);
+  });
+  await expect(page.getByTestId("bento-schedule-tile")).toContainText("CS 3305");
 
   await context.setOffline(true);
   await page.reload({ waitUntil: "domcontentloaded" });
