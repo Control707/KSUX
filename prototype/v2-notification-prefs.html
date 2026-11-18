@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PROTOTYPE · KSUX v2 · Notification settings</title>
+<!--
+  THROWAWAY PROTOTYPE. Branch prototype/v2-notification-prefs, never merged.
+  Ticket: "Prototype notification preferences screen" (#65, Map: KSUX v2, #35).
+  Plan: three structurally different notification-settings surfaces, switchable via ?variant=A|B|C and the floating bar
+  (← / → keys also cycle when focus is not in a field):
+    A  One page in Profile  - a full route /profile/notifications with sections (This phone, Messages, Official Alerts,
+                              Devices). /safety and the Chats bell deep-link into the right section.
+    B  One sheet, anywhere  - no route. The same Notifications sheet opens from Profile, the Chats bell or /safety, with
+                              the opener's section expanded and focused (accordion).
+    C  Phone-first checklist - a route /profile/notifications laid out as 1 Get this phone ready / 2 Choose what pushes
+                              (one row per kind, "In app: always" vs "Push" switch) / 3 Know the limits, plus a test push.
+  Shared and NOT varied (already decided): ADR-0005 message push (DMs, Message Requests, Deal Chats, @scrappy replies;
+  handle-only, 60 s throttle, max 3 devices, no Demo push); ADR-0007 Official Alert push (own toggle, off by default,
+  source-named payload, 2-fetch confirmation, 3/day cap, P1 only, no Demo push); "supplementary, never an emergency
+  channel"; #54 a11y rules (44 px targets, rem text >= 13 px, switches with names + state words, live regions).
+  Use the bar's "Device" control to try: ready / not asked yet / blocked / unsupported browser / iPhone in Safari
+  (not on Home Screen) / iPhone on iOS < 16.4. "Phase" P0 hides Alert push (links-only source).
+  Run: open this file in a browser. Everything is in memory; reload resets. Nothing is registered or sent.
+-->
+<style>
+/* ================= TOKENS (Direction C) ================= */
+.app{
+  --fs-xs:.8125rem; --fs-sm:.875rem; --fs-body:1.0625rem; --fs-lg:1.125rem; --fs-xl:1.375rem; --fs-2xl:1.75rem; --fs-3xl:2.25rem;
+  --sp-1:.25rem; --sp-2:.5rem; --sp-3:.75rem; --sp-4:1rem; --sp-5:1.5rem; --sp-6:2rem;
+  --target:2.75rem; --r-sm:12px; --r-md:18px; --r-lg:24px; --r-card:28px; --r-pill:999px;
+  --font-body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --font-display:ui-serif,"Iowan Old Style","Charter",Georgia,serif;
+  --dur-1:120ms; --dur-2:320ms; --dur-fade:150ms; --ease:cubic-bezier(.2,.8,.2,1); --sheet-move:100%; --focus-w:3px;
+  --bg:#FBF7EF; --surface:#FFFFFF; --surface-2:#F3ECDD; --ink:#1F1A14; --muted:#5C5245; --line:#E2D8C6; --line-strong:#8A7E6B;
+  --accent:#FDBB30; --on-accent:#1F1A14; --accent-ink:#7A4E00; --accent-soft:#FBEBC4;
+  --header:#FBF7EF; --demo:#FFB020; --focus:#0B57D0;
+  --ok-fg:#14592F; --ok-bg:#DCF2E3; --warn-fg:#6B4700; --warn-bg:#FCEFD2; --bad-fg:#8F1D1D; --bad-bg:#FBE2E2;
+  --ken-fg:#7A4E00; --ken-bg:#FBEBC4; --mar-fg:#1E3A8A; --mar-bg:#DBEAFE;
+  --open-fg:#00517F; --open-bg:#E2F0F9; --filling-fg:#6B4700; --filling-bg:#FCEFD2; --nearly-fg:#8A2E00; --nearly-bg:#FBE1D3; --full-fg:#6E1F5C; --full-bg:#F6E1EE;
+  --open-mark:#0072B2; --filling-mark:#B07A00; --nearly-mark:#D55E00; --full-mark:#A23B84;
+  --shadow:0 2px 6px rgba(60,40,10,.06),0 12px 32px rgba(60,40,10,.08);
+  --map-land:#EFE8D8; --map-road:#FFFFFF; --map-bldg:#D9CDB6;
+}
+.app[data-theme="dark"]{
+  --bg:#17140F; --surface:#211D17; --surface-2:#2C271F; --ink:#F6EFE3; --muted:#BFB3A0; --line:#3A342A; --line-strong:#8C806C;
+  --accent:#FDBB30; --on-accent:#1F1A14; --accent-ink:#FDCB5C; --accent-soft:#3A2F14;
+  --header:#17140F; --focus:#8AB4F8;
+  --ok-fg:#8FE0A9; --ok-bg:#12301C; --warn-fg:#F6C667; --warn-bg:#34270C; --bad-fg:#FFA8A8; --bad-bg:#3D1515;
+  --ken-fg:#FDCB5C; --ken-bg:#3A2F14; --mar-fg:#A9C4FF; --mar-bg:#16234A;
+  --open-fg:#8CCBF2; --open-bg:#0F2A3D; --filling-fg:#F6C667; --filling-bg:#34270C; --nearly-fg:#FFA27A; --nearly-bg:#3D1D0F; --full-fg:#F2A6D9; --full-bg:#3A1530;
+  --open-mark:#56B4E9; --filling-mark:#E69F00; --nearly-mark:#FF7A33; --full-mark:#E07FC0;
+  --shadow:0 1px 2px rgba(0,0,0,.4); --map-land:#252019; --map-road:#3A342A; --map-bldg:#3F372B;
+}
+.app[data-motion="reduce"]{--dur-1:0ms;--dur-2:0ms;--sheet-move:0%}
+@media (prefers-reduced-motion:reduce){.app[data-motion="system"]{--dur-1:0ms;--dur-2:0ms;--sheet-move:0%}}
+
+/* ================= BASE ================= */
+.app{position:relative;overflow:hidden;container:app/inline-size;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:var(--fs-body);line-height:1.5;color-scheme:light}
+.app[data-theme="dark"]{color-scheme:dark}
+#shellRoot{height:100%}
+.sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.app :focus-visible{outline:var(--focus-w) solid var(--focus);outline-offset:2px}
+.app [tabindex="-1"]:focus{outline:none}
+h1,h2,h3,h4,p,figure{margin:0}
+a{color:inherit}
+button,input,select,textarea{font:inherit;color:inherit}
+.skip{position:absolute;left:var(--sp-2);top:-5rem;z-index:80;background:var(--ink);color:var(--bg);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-sm);font-weight:700}
+.skip:focus{top:var(--sp-2)}
+.muted{color:var(--muted)} .meta{font-size:var(--fs-xs);color:var(--muted)} .num{font-variant-numeric:tabular-nums}
+.disp{font-family:var(--font-display)}
+svg.i{flex:none;display:block}
+.stack{display:grid;gap:var(--sp-3);grid-template-columns:minmax(0,1fr)} .stack-lg{display:grid;gap:var(--sp-5);grid-template-columns:minmax(0,1fr)}
+.app h1,.app h2,.app h3,.app p,.app b,.app a,.app span{overflow-wrap:anywhere;word-break:normal}
+.row{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
+.spread{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);flex-wrap:wrap}
+
+/* buttons */
+.btn{min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-pill);border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:var(--sp-2);text-decoration:none;font-size:var(--fs-sm);line-height:1.2;text-align:center}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:transparent}
+.btn.dark{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--bad-fg);border-color:currentColor;background:transparent}
+.btn.block{width:100%}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.link{min-height:var(--target);display:inline-flex;align-items:center;gap:var(--sp-1);color:var(--accent-ink);font-weight:750;text-decoration:underline;text-underline-offset:3px;background:none;border:0;padding:0;cursor:pointer;font-size:var(--fs-sm)}
+.icon-btn{min-width:var(--target);min-height:var(--target);display:inline-grid;place-items:center;border:0;background:transparent;border-radius:var(--r-pill);cursor:pointer;color:var(--muted);padding:0}
+.icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+.icon-btn.solid{background:var(--surface-2);color:var(--ink)}
+.icon-btn[aria-pressed="true"]{color:var(--ink)}
+.seg{display:flex;gap:var(--sp-1);flex-wrap:wrap}
+.seg button,.pill{min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-pill);border:1.5px solid var(--line);background:var(--surface);font-weight:700;font-size:var(--fs-sm);cursor:pointer;display:inline-flex;align-items:center;gap:var(--sp-1);white-space:nowrap}
+.seg button[aria-pressed="true"],.pill[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.hscroll{display:flex;gap:var(--sp-2);overflow-x:auto;scrollbar-width:none;padding-bottom:var(--sp-1)}
+.hscroll>*{flex:none}
+
+/* chips & badges */
+.chip{max-width:100%;display:inline-flex;align-items:center;gap:.3em;font-size:var(--fs-xs);font-weight:750;padding:.15rem .6rem .15rem .45rem;border-radius:var(--r-pill);white-space:nowrap;line-height:1.5;background:var(--surface-2);color:var(--ink)}
+.chip.k{background:var(--ken-bg);color:var(--ken-fg)} .chip.m{background:var(--mar-bg);color:var(--mar-fg)}
+.chip.ok{background:var(--ok-bg);color:var(--ok-fg)} .chip.warn{background:var(--warn-bg);color:var(--warn-fg)} .chip.bad{background:var(--bad-bg);color:var(--bad-fg)}
+.chip.open{color:var(--open-fg);background:var(--open-bg)} .chip.filling{color:var(--filling-fg);background:var(--filling-bg)} .chip.nearly{color:var(--nearly-fg);background:var(--nearly-bg)} .chip.full{color:var(--full-fg);background:var(--full-bg)}
+.chip.outline{background:transparent;border:1.5px solid var(--line)}
+a.chip{text-decoration:none;min-height:1.75rem}
+.bar{height:.5rem;border-radius:var(--r-pill);background:var(--surface-2);overflow:hidden}
+.fill{display:block;height:100%;border-radius:inherit}
+.fill.open{background:var(--open-mark)}
+.fill.filling{background:repeating-linear-gradient(90deg,var(--filling-mark) 0 7px,transparent 7px 9px)}
+.fill.nearly{background:repeating-linear-gradient(45deg,var(--nearly-mark) 0 5px,color-mix(in srgb,var(--nearly-mark) 45%,transparent) 5px 8px)}
+.fill.full{background:repeating-linear-gradient(135deg,var(--full-mark) 0 3px,color-mix(in srgb,var(--full-mark) 60%,transparent) 3px 5px)}
+.mark-open{color:var(--open-mark)} .mark-filling{color:var(--filling-mark)} .mark-nearly{color:var(--nearly-mark)} .mark-full{color:var(--full-mark)}
+.count{min-width:1.35rem;height:1.35rem;padding:0 .35rem;border-radius:var(--r-pill);background:var(--ink);color:var(--bg);font-size:.75rem;font-weight:800;display:inline-grid;place-items:center;line-height:1}
+.avatar{flex:none;width:2.5rem;height:2.5rem;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:var(--fs-sm);background:var(--surface-2);color:var(--ink);border:2px solid var(--line)}
+.avatar.lg{width:5rem;height:5rem;font-size:var(--fs-xl)}
+.avatar.owl{background:var(--accent);color:var(--on-accent);border-color:transparent}
+
+/* cards */
+.card{background:var(--surface);border-radius:var(--r-card);padding:var(--sp-4);box-shadow:var(--shadow);display:grid;gap:var(--sp-2);min-width:0;grid-template-columns:minmax(0,1fr)}
+.card.pad{padding:var(--sp-5)}
+.card.flat{box-shadow:none;border:1.5px solid var(--line)}
+.kicker{display:flex;align-items:center;gap:var(--sp-2);font-size:var(--fs-xs);font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--accent-ink)}
+.card h3,.story-h{font-family:var(--font-display);font-size:var(--fs-xl);line-height:1.2;font-weight:700}
+.note{padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--surface-2);font-size:var(--fs-sm)}
+.note.ok{background:var(--ok-bg);color:var(--ok-fg)} .note.warn{background:var(--warn-bg);color:var(--warn-fg)} .note.bad{background:var(--bad-bg);color:var(--bad-fg)}
+.callout{border:2px solid var(--bad-fg);border-radius:var(--r-md);padding:var(--sp-3) var(--sp-4);font-size:var(--fs-sm);display:grid;gap:var(--sp-1)}
+.callout b{color:var(--bad-fg)}
+.list{list-style:none;margin:0;padding:0;display:grid}
+.list>li{padding:var(--sp-3) 0;border-top:1px solid var(--line)}
+.list>li:first-child{border-top:0}
+.empty{text-align:center;padding:var(--sp-5);color:var(--muted);font-size:var(--fs-sm)}
+
+/* forms */
+.field{display:grid;gap:var(--sp-1)}
+.field>label,.lbl{font-size:var(--fs-sm);font-weight:700}
+.input,.select,.textarea{width:100%;min-height:var(--target);padding:var(--sp-2) var(--sp-3);border:1.5px solid var(--line-strong);border-radius:var(--r-sm);background:var(--surface);font-size:var(--fs-body)}
+.textarea{min-height:6rem;resize:vertical;line-height:1.45}
+.select{appearance:none;padding-right:2.25rem;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 1.1rem) 50%,calc(100% - .75rem) 50%;background-size:.35rem .35rem;background-repeat:no-repeat}
+.input:focus-visible,.select:focus-visible,.textarea:focus-visible{outline:var(--focus-w) solid var(--focus);outline-offset:1px}
+.hint{font-size:var(--fs-xs);color:var(--muted)}
+.err{font-size:var(--fs-sm);color:var(--bad-fg);font-weight:700}
+.check{display:flex;gap:var(--sp-2);align-items:flex-start;min-height:var(--target);padding-top:var(--sp-2);font-size:var(--fs-sm);cursor:pointer}
+.check input{width:1.4rem;height:1.4rem;margin:0;flex:none;accent-color:var(--ink)}
+fieldset{border:0;margin:0;padding:0;min-width:0}
+legend{font-size:var(--fs-sm);font-weight:700;padding:0;margin-bottom:var(--sp-1)}
+.radio-list{display:grid;gap:var(--sp-2)}
+.radio{display:flex;gap:var(--sp-3);align-items:flex-start;padding:var(--sp-3);border:1.5px solid var(--line);border-radius:var(--r-sm);cursor:pointer}
+.radio:has(input:checked){border-color:var(--ink);background:var(--surface-2)}
+.radio input{width:1.3rem;height:1.3rem;margin:.15rem 0 0;flex:none;accent-color:var(--ink)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3)}
+@container app (max-width:22em){.grid2{grid-template-columns:1fr}}
+
+/* photo picker + gallery */
+.thumbs{display:flex;gap:var(--sp-2);flex-wrap:wrap}
+.thumb{position:relative;width:5rem;height:5rem;border-radius:var(--r-sm);overflow:hidden;background:var(--surface-2)}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb .icon-btn{position:absolute;top:2px;right:2px;min-width:2.25rem;min-height:2.25rem;background:rgba(0,0,0,.65);color:#fff}
+.add-photo{width:5rem;height:5rem;border:2px dashed var(--line-strong);border-radius:var(--r-sm);display:grid;place-items:center;align-content:center;gap:2px;font-size:var(--fs-xs);font-weight:750;cursor:pointer;color:var(--muted);text-align:center}
+.add-photo:focus-within{outline:var(--focus-w) solid var(--focus);outline-offset:2px}
+.add-photo input{position:absolute;opacity:0;width:1px;height:1px}
+.media{display:grid;gap:var(--sp-2);grid-template-columns:repeat(2,minmax(0,1fr));border-radius:var(--r-md);overflow:hidden}
+.media.one{grid-template-columns:1fr}
+.media img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;border-radius:var(--r-sm)}
+.gallery{position:relative;border-radius:var(--r-md);overflow:hidden;background:var(--surface-2)}
+.gallery img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+.gallery .nav-g{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.6);color:#fff}
+.gallery .prev{left:var(--sp-2)} .gallery .next{right:var(--sp-2)}
+.gallery .pos{position:absolute;bottom:var(--sp-2);right:var(--sp-2);background:rgba(0,0,0,.7);color:#fff;font-size:var(--fs-xs);font-weight:800;padding:.1rem .6rem;border-radius:var(--r-pill)}
+.gthumbs{display:flex;gap:var(--sp-2);margin-top:var(--sp-2)}
+.gthumbs button{padding:0;border:3px solid transparent;border-radius:var(--r-sm);overflow:hidden;width:3.5rem;height:3.5rem;cursor:pointer;background:none}
+.gthumbs button[aria-current="true"]{border-color:var(--ink)}
+.gthumbs img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* ================= SHELL ================= */
+.shell{display:grid;height:100%;min-height:0;grid-template-rows:auto 1fr;grid-template-columns:100%;grid-template-areas:"header" "main"}
+.hdr{grid-area:header;position:relative;z-index:6;background:color-mix(in srgb,var(--header) 94%,transparent);backdrop-filter:blur(10px);padding:var(--sp-2) var(--sp-4);border-bottom:1px solid transparent}
+.hdr.scrolled{border-bottom-color:var(--line)}
+.hdr-row{display:flex;align-items:center;gap:var(--sp-2);min-height:var(--target)}
+.brand{font-family:var(--font-display);font-weight:800;font-size:var(--fs-xl);font-style:italic;display:inline-flex;align-items:center;gap:var(--sp-2);text-decoration:none;color:var(--ink);min-height:var(--target)}
+.brand .dot{width:.6rem;height:.6rem;border-radius:50%;background:var(--accent)}
+.hdr-title{font-weight:800;font-size:var(--fs-lg);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hdr .grow{flex:1}
+.campus-chips{display:flex;gap:var(--sp-2);overflow-x:auto;scrollbar-width:none;padding:var(--sp-2) 0 var(--sp-1)}
+.campus-chips button{flex:none;min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-pill);border:1.5px solid var(--line);background:var(--surface);font-weight:700;font-size:var(--fs-sm);cursor:pointer;display:inline-flex;align-items:center;gap:var(--sp-1)}
+.campus-chips button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.campus-chips .lbl{align-self:center;flex:none;padding-right:var(--sp-1)}
+.demo{position:relative}
+.demo-pill{min-height:var(--target);display:inline-flex;align-items:center;gap:.3rem;padding:0 var(--sp-3);border-radius:var(--r-pill);background:transparent;color:var(--ink);border:2px solid var(--demo);font-weight:800;font-size:var(--fs-xs);cursor:pointer;white-space:nowrap}
+.demo-pill .zap{color:var(--accent-ink)}
+.menu{position:absolute;right:0;top:calc(100% + 6px);z-index:30;width:min(19rem,86vw);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-md);padding:var(--sp-2);box-shadow:0 12px 32px rgba(0,0,0,.25);max-height:70vh;overflow:auto}
+.menu hr{border:0;border-top:1px solid var(--line);margin:var(--sp-2) 0}
+.menu-h{font-size:var(--fs-xs);font-weight:800;color:var(--muted);padding:var(--sp-1) var(--sp-2);text-transform:uppercase;letter-spacing:.06em}
+.mi{display:flex;flex-direction:column;align-items:flex-start;width:100%;min-height:var(--target);padding:var(--sp-2);border:0;background:none;border-radius:var(--r-sm);cursor:pointer;text-align:left;font-size:var(--fs-sm);font-weight:700;color:var(--ink);text-decoration:none}
+.mi:hover{background:var(--surface-2)}
+.mi .muted{font-weight:500;font-size:var(--fs-xs)}
+.mi[aria-checked="true"]::after{content:"✓ Active";font-size:var(--fs-xs);color:var(--accent-ink);font-weight:800}
+.mi.danger{color:var(--bad-fg)}
+.main{grid-area:main;overflow:auto;min-height:0;overscroll-behavior:contain;padding-bottom:7rem;scroll-padding-block:6rem 8rem}
+.main.no-dock{padding-bottom:0}
+.page{padding:var(--sp-3) var(--sp-4) var(--sp-5);display:grid;gap:var(--sp-5);max-width:46rem;margin:0 auto;grid-template-columns:minmax(0,1fr)}
+.page-h h1{font-family:var(--font-display);font-size:var(--fs-2xl);line-height:1.15;font-weight:700}
+.page-h p{color:var(--muted);font-size:var(--fs-sm);margin-top:var(--sp-1)}
+.page-h .scope{display:inline-flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-xs);font-weight:700;color:var(--muted);margin-top:var(--sp-1)}
+.sec-row{display:flex;align-items:baseline;justify-content:space-between;gap:var(--sp-2);margin-bottom:var(--sp-2);flex-wrap:wrap}
+.sec-row h2{font-family:var(--font-display);font-size:var(--fs-xl)}
+
+/* dock (mobile bottom nav) */
+.dock{position:absolute;left:var(--sp-3);right:var(--sp-3);bottom:max(var(--sp-3),env(safe-area-inset-bottom));z-index:7;display:grid;grid-template-columns:1fr 1fr 1.7fr 1fr 1fr;align-items:center;gap:var(--sp-1);padding:var(--sp-1);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-pill);box-shadow:0 10px 30px rgba(40,25,5,.18)}
+.dock-i{position:relative;min-height:3.25rem;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);text-decoration:none;font-size:.75rem;font-weight:700;border-radius:var(--r-pill);line-height:1.1}
+.dock-i[aria-current="page"]{background:var(--surface-2);color:var(--ink);font-weight:850}
+.dock-i .count{position:absolute;top:.1rem;left:calc(50% + .3rem)}
+.dock-q{min-height:3.25rem;display:flex;align-items:center;justify-content:center;gap:var(--sp-1);border-radius:var(--r-pill);border:0;background:var(--accent);color:var(--on-accent);font-weight:850;font-size:var(--fs-sm);cursor:pointer;padding:0 var(--sp-2);line-height:1.1}
+.rail,.pulse{display:none}
+@container app (min-width:1024px){
+  .shell{grid-template-columns:16rem minmax(0,1fr) 21rem;grid-template-areas:"rail header pulse" "rail main pulse"}
+  .dock{display:none!important}
+  .main{padding-bottom:var(--sp-6)}
+  .rail{display:flex;flex-direction:column;grid-area:rail;min-height:0;overflow:auto;background:var(--bg);padding:var(--sp-4) var(--sp-3);gap:2px;border-right:1px solid var(--line)}
+  .rail .brand{padding:0 var(--sp-3) var(--sp-3);font-size:var(--fs-2xl)}
+  .rail a{display:flex;align-items:center;gap:var(--sp-3);min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-pill);color:var(--muted);text-decoration:none;font-weight:700}
+  .rail a[aria-current="page"]{background:var(--ink);color:var(--bg)}
+  .rail a .count{margin-left:auto}
+  .rail .rail-h{font-size:var(--fs-xs);font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:var(--sp-4) var(--sp-4) var(--sp-1)}
+  .rail .btn{margin-top:var(--sp-4);min-height:3.25rem}
+  .pulse{display:block;grid-area:pulse;overflow:auto;min-height:0;padding:var(--sp-4);border-left:1px solid var(--line);background:var(--surface)}
+  .hdr .brand-m{display:none}
+}
+.pulse h2{font-family:var(--font-display);font-size:var(--fs-xl)}
+.pulse h3{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:var(--sp-4) 0 var(--sp-1)}
+.plist{list-style:none;margin:0;padding:0}
+.plist li{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--sp-2);font-size:var(--fs-sm);padding:var(--sp-2) 0;border-bottom:1px solid var(--line)}
+
+/* dialog / sheet primitive */
+.backdrop{position:absolute;inset:0;z-index:40;background:rgba(0,0,0,.45);animation:fade var(--dur-fade) ease-out}
+.dialog{grid-template-columns:minmax(0,1fr);position:absolute;z-index:41;left:0;right:0;bottom:0;max-height:92%;overflow:auto;background:var(--surface);color:var(--ink);border-radius:var(--r-card) var(--r-card) 0 0;padding:var(--sp-3) var(--sp-5) var(--sp-6);animation:sheetIn var(--dur-2) var(--ease),fade var(--dur-fade) ease-out;display:grid;gap:var(--sp-4);align-content:start}
+.dialog.full{top:0;max-height:none;border-radius:0}
+@keyframes sheetIn{from{transform:translateY(var(--sheet-move))}to{transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@container app (min-width:1024px){.dialog,.dialog.full{left:50%;right:auto;bottom:auto;top:8%;width:38rem;max-height:84%;transform:translateX(-50%);border-radius:var(--r-card);animation:fade var(--dur-fade) ease-out}}
+.handle{width:2.5rem;height:.3rem;border-radius:var(--r-pill);background:var(--line);margin:0 auto}
+.dlg-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3)}
+.dlg-head h2{font-family:var(--font-display);font-size:var(--fs-xl);line-height:1.2}
+.dlg-actions{display:flex;gap:var(--sp-2);justify-content:flex-end;flex-wrap:wrap}
+.ask-field{display:flex;align-items:center;gap:var(--sp-2);min-height:3.5rem;padding:0 var(--sp-2) 0 var(--sp-4);border:2px solid var(--line-strong);border-radius:var(--r-pill);background:var(--bg)}
+.ask-field input{flex:1;border:0;background:none;min-height:var(--target);font-size:var(--fs-body);min-width:0}
+.ask-field input:focus{outline:none}
+.ask-field:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.sec-h{font-size:var(--fs-xs);font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3)}
+.tiles button{display:grid;gap:var(--sp-1);text-align:left;min-height:5.5rem;padding:var(--sp-4);border-radius:var(--r-md);border:0;background:var(--surface-2);cursor:pointer;align-content:start;color:var(--ink)}
+.tiles b{font-family:var(--font-display);font-size:var(--fs-lg)}
+.tiles span{font-size:var(--fs-xs);color:var(--muted)}
+.capchips{display:flex;flex-wrap:wrap;gap:var(--sp-2);list-style:none;margin:0;padding:0}
+.capchips a{min-height:var(--target);display:inline-flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-4);border-radius:var(--r-pill);border:1.5px solid var(--line);text-decoration:none;color:var(--ink);font-weight:700;font-size:var(--fs-sm)}
+
+/* toasts */
+.toasts{position:absolute;left:50%;transform:translateX(-50%);bottom:6.5rem;z-index:60;width:max-content;max-width:92%;display:grid;gap:var(--sp-2);pointer-events:none}
+.toast{background:var(--ink);color:var(--bg);font-weight:700;font-size:var(--fs-sm);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);box-shadow:0 8px 24px rgba(0,0,0,.3);animation:fade var(--dur-fade)}
+.msg-toast{position:absolute;left:var(--sp-3);right:var(--sp-3);top:var(--sp-3);z-index:61;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow);padding:var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4);display:flex;align-items:center;gap:var(--sp-2);animation:fade var(--dur-fade)}
+.msg-toast a{flex:1;text-decoration:none;font-size:var(--fs-sm);min-height:var(--target);display:grid;align-content:center}
+@container app (min-width:1024px){.toasts{bottom:var(--sp-5)}.msg-toast{left:auto;width:24rem}}
+.offline-bar{background:var(--warn-bg);color:var(--warn-fg);font-weight:750;font-size:var(--fs-sm);padding:var(--sp-2) var(--sp-4);display:flex;gap:var(--sp-2);align-items:center}
+
+/* ================= PROTOTYPE CHROME (not under evaluation; px on purpose) ================= */
+.proto-bar{position:fixed;left:50%;bottom:8px;transform:translateX(-50%);z-index:1000;display:flex;align-items:center;gap:6px;padding:6px 8px;background:#fff;color:#111;border-radius:999px;box-shadow:0 0 0 2px #ff2d92,0 10px 30px rgba(0,0,0,.45);font:600 12px/1 system-ui,sans-serif;white-space:nowrap;max-width:calc(100vw - 16px);overflow-x:auto}
+.proto-bar button,.proto-bar select,.proto-bar a{font:inherit;height:32px;border:1px solid #ccc;border-radius:999px;background:#f4f4f4;padding:0 10px;cursor:pointer;color:#111;display:inline-flex;align-items:center;text-decoration:none}
+.proto-bar .tag{background:#ff2d92;color:#fff;border-radius:999px;padding:4px 8px;font-weight:900;letter-spacing:.05em}
+.proto-bar input[type=range]{width:80px}
+.proto-bar label{display:flex;align-items:center;gap:4px}
+.tokens{position:fixed;top:0;right:0;bottom:64px;width:min(440px,100vw);z-index:999;background:#fff;color:#111;overflow:auto;box-shadow:-10px 0 30px rgba(0,0,0,.4);font:13px/1.45 system-ui,sans-serif;padding:14px 16px 24px}
+.tokens h2{font-size:15px;margin:16px 0 6px} .tokens table{width:100%;border-collapse:collapse;font-size:12px}
+.tokens td{padding:4px;border-bottom:1px solid #eee;vertical-align:middle}
+.tokens .sw{display:inline-block;width:16px;height:16px;border-radius:4px;border:1px solid rgba(0,0,0,.2);vertical-align:-3px;margin-right:4px}
+.tokens .pass{color:#0a6b2d;font-weight:800}.tokens .fail{color:#b00020;font-weight:800}.tokens .info{color:#555}
+.tokens .x{float:right;height:32px;padding:0 12px;border-radius:999px;border:1px solid #ccc;background:#f4f4f4;cursor:pointer}
+.tokens ul{padding-left:18px;margin:4px 0} .tokens code{background:#f1f1f1;padding:0 3px;border-radius:3px}
+
+
+/* ================= NOTIFICATION PROTOTYPE ADDITIONS ================= */
+.statepanel{position:fixed;top:0;right:0;bottom:64px;width:min(360px,100vw);z-index:999;background:#fff;color:#111;overflow:auto;box-shadow:-10px 0 30px rgba(0,0,0,.4);font:12px/1.45 ui-monospace,Menlo,monospace;padding:12px 14px}
+.statepanel h2{font:800 13px system-ui;margin:12px 0 4px} .statepanel pre{white-space:pre-wrap;margin:0}
+.back{display:inline-flex;align-items:center;gap:var(--sp-1);min-height:var(--target);min-width:var(--target);border:0;background:none;cursor:pointer;font-weight:750;color:var(--ink);padding:0 var(--sp-2) 0 0;font-size:var(--fs-sm)}
+.sw-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--sp-3);align-items:start;padding:var(--sp-3) 0}
+.sw-row+.sw-row{border-top:1px solid var(--line)}
+.sw-row .lbl-t{font-weight:800}
+.sw-row .lbl-d{font-size:var(--fs-sm);color:var(--muted)}
+.switch{min-height:var(--target);min-width:5.5rem;display:inline-flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-3) 0 var(--sp-1);border-radius:var(--r-pill);border:1.5px solid var(--line-strong);background:var(--surface);cursor:pointer;font-weight:800;font-size:var(--fs-sm);color:var(--ink)}
+.switch .knob{width:1.9rem;height:1.9rem;border-radius:50%;background:var(--surface-2);border:2px solid var(--line-strong);display:grid;place-items:center;transition:transform var(--dur-1) var(--ease)}
+.switch[aria-checked="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.switch[aria-checked="true"] .knob{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.switch[aria-disabled="true"]{opacity:.6;cursor:not-allowed;border-style:dashed}
+.status{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--sp-3);align-items:start;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);font-size:var(--fs-sm)}
+.status b{display:block;font-size:var(--fs-body)}
+.status.ok{background:var(--ok-bg);color:var(--ok-fg)} .status.warn{background:var(--warn-bg);color:var(--warn-fg)} .status.bad{background:var(--bad-bg);color:var(--bad-fg)} .status.neutral{background:var(--surface-2);color:var(--ink)}
+.status .glyph{font-size:1.25rem;line-height:1.2;font-weight:900}
+ol.steps{margin:0;padding-left:1.4rem;display:grid;gap:var(--sp-2);font-size:var(--fs-sm)}
+.limits{font-size:var(--fs-sm);display:grid;gap:var(--sp-2);margin:0;padding-left:1.2rem}
+.dev{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--sp-2);align-items:center;padding:var(--sp-2) 0;border-top:1px solid var(--line)}
+.dev:first-child{border-top:0}
+.acc{border:1.5px solid var(--line);border-radius:var(--r-md);overflow:hidden}
+.acc+.acc{margin-top:var(--sp-2)}
+.acc>h3{margin:0}
+.acc-b{width:100%;min-height:3.5rem;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:var(--sp-2);align-items:center;padding:var(--sp-2) var(--sp-4);border:0;background:var(--surface);cursor:pointer;text-align:left;color:var(--ink);font-weight:800;font-size:var(--fs-body)}
+.acc-b .sum{font-size:var(--fs-sm);font-weight:700;color:var(--muted)}
+.acc-b .chev{transition:transform var(--dur-1)}
+.acc-b[aria-expanded="true"] .chev{transform:rotate(90deg)}
+.acc-p{padding:0 var(--sp-4) var(--sp-4);display:grid;gap:var(--sp-3);grid-template-columns:minmax(0,1fr)}
+.kinds{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+.kinds th,.kinds td{text-align:left;padding:var(--sp-2) var(--sp-1);border-top:1px solid var(--line);vertical-align:middle}
+.kinds thead th{border-top:0;font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.kinds td.k b{display:block} .kinds td.k span{color:var(--muted)}
+@container app (max-width:24em){.kinds thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.kinds tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 var(--sp-2);border-top:1px solid var(--line);padding:var(--sp-2) 0}.kinds td{border:0;padding:0}.kinds td.inapp{grid-column:1;font-size:var(--fs-xs);color:var(--muted)}.kinds td.push{grid-row:1/3;grid-column:2;align-self:center}}
+.numh{display:flex;align-items:center;gap:var(--sp-3)}
+.numh .n{flex:none;width:2.25rem;height:2.25rem;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:var(--bg);font-weight:900}
+.numh .n.done{background:var(--ok-fg);color:var(--ok-bg)}
+.lock{border-radius:var(--r-lg);background:linear-gradient(160deg,#2b2f3a,#151821);color:#fff;padding:var(--sp-4);display:grid;gap:var(--sp-2)}
+.lock .ntf{background:rgba(255,255,255,.14);border-radius:var(--r-md);padding:var(--sp-3);display:grid;gap:2px;font-size:var(--fs-sm)}
+.lock .ntf b{font-size:var(--fs-sm)} .lock .meta{color:#d7dbe6}
+.browser-prompt{position:absolute;left:var(--sp-3);right:var(--sp-3);top:var(--sp-3);z-index:70;background:#fff;color:#111;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.45);padding:var(--sp-4);display:grid;gap:var(--sp-3);font-family:system-ui;border:2px dashed #ff2d92}
+.browser-prompt .row{justify-content:flex-end}
+.browser-prompt .btn{color:#111;background:#f2f2f2;border-color:#ccc}
+.host-row{display:flex;align-items:center;gap:var(--sp-3);width:100%;min-height:3.5rem;padding:var(--sp-2) var(--sp-4);border:0;background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);cursor:pointer;text-align:left;font-weight:800;color:var(--ink);text-decoration:none}
+.host-row .grow{flex:1;min-width:0;display:grid}
+.callout .link,.note .link,.limits .link,.status .link{display:inline;min-height:0;line-height:inherit;padding-block:.6rem}
+.host-row .grow span{font-weight:600;font-size:var(--fs-sm);color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="app" id="app" data-theme="light" data-motion="system">
+    <div id="shellRoot"></div>
+    <div id="dialogRoot"></div>
+    <div id="promptRoot"></div>
+    <div class="toasts" id="toasts" aria-hidden="true"></div>
+    <div class="sr" id="live" role="status" aria-live="polite"></div>
+  </div>
+</div>
+<div class="proto-bar" role="toolbar" aria-label="Prototype controls (not part of the design)">
+  <span class="tag">PROTOTYPE</span>
+  <button id="vPrev" aria-label="Previous variant">←</button>
+  <span class="vlabel" id="vLabel"></span>
+  <button id="vNext" aria-label="Next variant">→</button>
+  <label>Open from <select id="ctlHost"><option value="profile">Profile</option><option value="safety">/safety</option><option value="chats">Chats bell</option></select></label>
+  <label>Device <select id="ctlDevice">
+    <option value="default">browser: not asked yet</option>
+    <option value="granted">browser: allowed</option>
+    <option value="denied">browser: blocked</option>
+    <option value="unsupported">browser: no push</option>
+    <option value="ios-safari">iPhone, Safari tab</option>
+    <option value="ios-old">iPhone, iOS 16.3</option>
+  </select></label>
+  <label>Phase <select id="ctlPhase"><option value="P1">P1</option><option value="P0">P0 (links only)</option></select></label>
+  <label>Alert source <select id="ctlSource"><option value="ok">ok</option><option value="stale">stale</option><option value="off">kill switch</option></select></label>
+  <label><input type="checkbox" id="ctlDemo"> Demo Mode</label>
+  <label>Theme <select id="ctlTheme"><option value="light">light</option><option value="dark">dark</option></select></label>
+  <label>Motion <select id="ctlMotion"><option value="system">OS</option><option value="reduce">reduce</option></select></label>
+  <label>Text <input type="range" id="ctlText" min="100" max="200" step="25" value="100"><output id="textOut">100%</output></label>
+  <label>Frame <select id="ctlFrame"><option value="phone">phone 390</option><option value="fluid">fluid</option></select></label>
+  <button id="ctlState" aria-expanded="false">State</button>
+  <button id="ctlReset">Reset</button>
+</div>
+<aside class="statepanel" id="statePanel" hidden aria-label="Prototype state"></aside>
+<script>
+/* ================= ICONS ================= */
+const P={
+ x:'<path d="M18 6 6 18M6 6l12 12"/>', left:'<path d="m15 18-6-6 6-6"/>', right:'<path d="m9 18 6-6-6-6"/>',
+ bell:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>',
+ shield:'<path d="M20 13c0 5-3.5 7.5-7.7 9a1 1 0 0 1-.7 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1.2 1.2 0 0 1 1.6 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/>',
+ check:'<path d="M20 6 9 17l-5-5"/>', ext:'<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+ phone:'<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/>',
+ home:'<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', rss:'<path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>',
+ chat:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>', user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+ owl:'<path d="M5 9c0-3.5 3-6 7-6s7 2.5 7 6v6a7 7 0 0 1-14 0Z"/><circle cx="9" cy="10.5" r="2"/><circle cx="15" cy="10.5" r="2"/>',
+ star:'<path d="m12 2 3 6.5 7 .9-5.2 4.8 1.4 7L12 17.8 5.8 21.2l1.4-7L2 9.4l7-.9z"/>', info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+ share:'<path d="M12 3v13M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
+};
+const ic=(n,s=20)=>`<svg class="i" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]}</svg>`;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=s=>document.querySelector(s);
+
+/* ================= DATA (ADR-0005 + ADR-0007, not varied) ================= */
+const MSG_KINDS=[
+ {id:'dm',t:'Direct Messages',d:'“@jordan_me sent you a message”. Handle only, never the text.'},
+ {id:'req',t:'Message Requests',d:'Someone new wants to message you.'},
+ {id:'deal',t:'Deal Chats',d:'A buyer or seller in Marketplace replied.'},
+ {id:'scrappy',t:'@scrappy replies',d:'Scrappy answered you in a chat.'},
+];
+const NEVER=[
+ {t:'Group Chats',d:'Too many people. You see them inside KSUX.'},
+ {t:'Spot Openings',d:'Parking moves too fast for push.'},
+ {t:'Incidents (community reports)',d:'Not verified, so KSUX never pushes them.'},
+ {t:'Clout',d:'Shown as a toast inside KSUX only.'},
+];
+const ALERT_SRC='KSU Police Timely Warnings and Emergency Advisories';
+const DEVICES_SEED=[{id:'d1',name:'Chrome on Windows',last:'Last used 2 days ago'},{id:'d2',name:'Safari on iPad',last:'Last used 3 weeks ago'}];
+
+/* ================= STATE ================= */
+const qs=new URLSearchParams(location.search);
+const VARIANTS=[{k:'A',name:'One page in Profile'},{k:'B',name:'One sheet, anywhere'},{k:'C',name:'Phone-first checklist'}];
+function fresh(){return {
+ view:'host', section:null, sub:false, kinds:{dm:true,req:true,deal:true,scrappy:true}, alerts:false,
+ devices:DEVICES_SEED.map(d=>({...d})), dialog:null, prompt:null, pendingKind:null, testSent:null, acc:null,
+};}
+const S={
+ variant:(VARIANTS.find(v=>v.k===qs.get('variant'))||VARIANTS[0]).k,
+ host:'profile', device:'default', phase:'P1', source:'ok', demo:false,
+ theme:'light',motion:'system',text:100,frame:'phone',state:false,lastAnnounce:'', ...fresh(),
+};
+
+/* ================= HELPERS ================= */
+function announce(msg){S.lastAnnounce=msg;const l=$('#live');l.textContent='';setTimeout(()=>{l.textContent=msg;},30);}
+function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;$('#toasts').append(t);announce(msg);setTimeout(()=>t.remove(),4200);}
+let focusSel=null; const focusAfter=s=>{focusSel=s;};
+const isIOS=()=>S.device.startsWith('ios');
+const canPushHere=()=>!S.demo&&(S.device==='default'||S.device==='granted');
+const pushOn=()=>canPushHere()&&S.device==='granted'&&S.sub;
+const alertsAvailable=()=>S.phase==='P1';
+const alertsPaused=()=>S.source!=='ok';
+
+/* One status, used by every variant: what this phone can do right now. */
+function phoneStatus(){
+ if(S.demo) return {k:'neutral',g:'◇',t:'Demo Mode: no push',b:'Demo Mode never asks for permission or sends push. Messages still show as toasts inside KSUX while it\u2019s open.',act:null};
+ if(S.device==='unsupported') return {k:'bad',g:'✕',t:'This browser can\u2019t get push',b:'You\u2019ll still see toasts inside KSUX while it\u2019s open. For push, use Chrome, Edge, Firefox or Safari 16+ on a computer, or add KSUX to your Home Screen on iPhone.',act:null};
+ if(S.device==='ios-old') return {k:'bad',g:'✕',t:'Push needs iOS 16.4 or later',b:'This iPhone is on iOS 16.3. Update in Settings › General › Software Update, then open KSUX from your Home Screen.',act:null};
+ if(S.device==='ios-safari') return {k:'warn',g:'!',t:'On iPhone, push only works from the Home Screen',b:'You\u2019re in a Safari tab. Add KSUX to your Home Screen, open it from there, then come back here.',act:'ios',steps:[`Tap ${ic('share',16)} Share in Safari\u2019s toolbar.`,'Choose “Add to Home Screen”, then Add.','Open KSUX from the new Home Screen icon.','Come back to Notifications and turn push on.']};
+ if(S.device==='denied') return {k:'bad',g:'✕',t:'Notifications are blocked for KSUX',b:'You blocked them in this browser, so KSUX can\u2019t ask again. Turn them back on in your browser or phone settings:',act:'denied',steps:['Chrome or Edge: tap the icon left of the address, then Notifications › Allow.','iPhone Home Screen app: Settings › Notifications › KSUX › Allow Notifications.','Android app: long-press the KSUX icon › App info › Notifications.']};
+ if(pushOn()) return {k:'ok',g:'✓',t:'Push is on for this phone',b:'Only what you switch on below is pushed. Everything else stays inside KSUX.',act:'off'};
+ return {k:'neutral',g:'○',t:'Push is off on this phone',b:'Turn it on and your browser asks once. You can turn it off any time.',act:'on'};
+}
+function statusBlock(id='st'){
+ const s=phoneStatus();
+ return `<div class="status ${s.k}" id="${id}"><span class="glyph" aria-hidden="true">${s.g}</span><div class="stack"><div><b>${s.t}</b>${s.b}</div>
+  ${s.steps?`<ol class="steps">${s.steps.map(x=>`<li>${x}</li>`).join('')}</ol>`:''}
+  ${s.act==='on'?`<div><button class="btn dark" data-k="phoneOn">${ic('bell',18)}Turn on push for this phone</button></div>`:''}
+  ${s.act==='off'?`<div><button class="btn ghost" data-k="phoneOff">Turn off push on this phone</button></div>`:''}
+  ${s.act==='denied'?`<div><button class="btn ghost" data-k="recheck">I changed it · check again</button></div>`:''}
+  ${s.act==='ios'?`<div><button class="btn ghost" data-k="recheck">I opened it from the Home Screen</button></div>`:''}
+ </div></div>`;
+}
+function why(kind){
+ if(S.demo) return 'Demo Mode never sends push.';
+ if(!canPushHere()&&S.device!=='default') return 'Push can\u2019t work on this device yet. See “This phone” above.';
+ if(kind==='alert'&&!alertsAvailable()) return 'Not available yet.';
+ return '';
+}
+function sw(key,label,on,{disabled=false,desc=''}={}){
+ return `<button class="switch" role="switch" aria-checked="${on}" ${disabled?'aria-disabled="true"':''} data-k="${key}" aria-labelledby="${key}-t" ${desc?`aria-describedby="${desc}"`:''}><span class="knob" aria-hidden="true">${on?ic('check',14):''}</span><span>${on?'On':'Off'}</span></button>`;
+}
+const swRow=(key,t,d,on,opt={})=>`<div class="sw-row"><div><div class="lbl-t" id="${key}-t">${t}</div><div class="lbl-d" id="${key}-d">${d}${opt.reason?` <b>${opt.reason}</b>`:''}</div></div>${sw(key,t,on,{...opt,desc:key+'-d'})}</div>`;
+const kindsDisabled=()=>S.demo||!(canPushHere());
+
+function msgRows(){
+ return MSG_KINDS.map(k=>swRow('k-'+k.id,k.t,k.d,pushOn()&&S.kinds[k.id],{disabled:kindsDisabled(),reason:why('msg')})).join('')
+  +`<p class="hint">At most one push per chat per minute. Muted and blocked people never push. Nothing pushes while you\u2019re already looking at that chat.</p>`;
+}
+function alertBlock(){
+ if(!alertsAvailable()) return `<div class="note"><b>Not available yet.</b> KSUX doesn\u2019t read official Alerts yet, so it can\u2019t push them. For official emergency messages, sign up for <a class="link" href="#" data-k="rave">KSU Alert (Rave) ${ic('ext',14)}</a>. That is KSU\u2019s system and can text you.</div>`;
+ const on=pushOn()&&S.alerts;
+ return swRow('k-alert','Official Alerts',`Pushes when KSUX sees a new post on the ${ALERT_SRC} pages. The push only names the source, like “KSU Police posted a new Timely Warning”. At most 3 a day. Off unless you turn it on.`,on,{disabled:kindsDisabled(),reason:why('alert')})
+ +(alertsPaused()&&!S.demo?`<div class="status warn"><span class="glyph" aria-hidden="true">!</span><div><b>${S.source==='off'?'Alert push is switched off by KSUX right now':'Alert push is paused'}</b>${S.source==='off'?'KSUX can\u2019t read the KSU pages correctly, so it stopped Alert push to avoid a false one.':'KSUX last read the KSU pages at 10:22, over 20 minutes ago.'} No Alert push until it\u2019s back. Your setting is kept. <a class="link" href="#" data-k="goSafety">Check Official Alerts</a></div></div>`:'')
+ +`<div class="callout"><b>KSUX push is not an emergency channel.</b><span>A push can arrive late or not at all, and it is silenced by Focus and Do Not Disturb. For emergencies KSU uses <a class="link" href="#" data-k="rave">KSU Alert (Rave) ${ic('ext',14)}</a>, which can text and call you. In danger, call 911.</span></div>`;
+}
+function neverBlock(){return `<ul class="list">${NEVER.map(n=>`<li><b>${n.t}</b> · <span class="muted">never pushed.</span> <span class="meta">${n.d}</span></li>`).join('')}</ul>`;}
+function devicesBlock(){
+ const here=pushOn()?[{id:'here',name:isIOS()?'This iPhone':'This phone',last:'You\u2019re using it now'}]:[];
+ const all=[...here,...S.devices];
+ return `<p class="hint">Up to 3 devices can get push. ${all.length} of 3 used.</p><div>${all.map(d=>`<div class="dev"><div><b>${d.name}</b><div class="meta">${d.last}</div></div>${d.id==='here'?'<span class="chip ok">✓ This one</span>':`<button class="btn ghost" data-k="rm-${d.id}" aria-label="Remove ${esc(d.name)}">Remove</button>`}</div>`).join('')||'<p class="empty">No devices get push.</p>'}</div>`;
+}
+function previewBlock(){
+ return `<div class="lock" role="img" aria-label="Example lock screen: KSUX, at sign jordan_me sent you a message. KSUX, KSU Police posted a new Timely Warning."><div class="meta">Example of what your lock screen shows</div><div class="ntf"><b>KSUX</b><span>@jordan_me sent you a message</span></div>${alertsAvailable()?'<div class="ntf"><b>KSUX · Official Alert</b><span>KSU Police posted a new Timely Warning</span></div>':''}</div>`;
+}
+function testBlock(){
+ if(!pushOn()) return '';
+ return `<div class="stack"><button class="btn ghost" data-k="test">${ic('bell',18)}Send me a test push</button>${S.testSent?`<p class="hint" id="testNote">Sent at ${S.testSent}. KSUX can only tell you it was sent, not that it arrived. Nothing after a minute? Check Focus or Do Not Disturb.</p>`:''}</div>`;
+}
+
+/* ================= HOST SCREENS ================= */
+function dock(cur){
+ const it=(k,l,i)=>`<a class="dock-i" href="#" data-k="nav-${k}" ${cur===k?'aria-current="page"':''}>${ic(i,20)}<span class="lbl">${l}</span></a>`;
+ return `<nav class="dock" aria-label="Main">${it('now','Now','home')}${it('feed','Feed','rss')}<button class="dock-q" data-k="nav-q">${ic('owl',20)}<span class="lbl">Ask Scrappy</span></button>${it('chats','Chats','chat')}${it('profile','Me','user')}</nav>`;
+}
+const hdr=(title,back=false)=>`<header class="hdr"><div class="hdr-row">${back?`<button class="back" data-k="back">${ic('left',20)}<span>Back</span></button>`:'<span class="brand">KSUX<span class="dot"></span></span>'}<span class="hdr-title">${back?title:''}</span><span class="grow"></span>${S.demo?'<span class="demo-pill">Demo</span>':''}</div></header>`;
+function summaryPush(){
+ if(S.demo) return 'Demo: no push';
+ if(!canPushHere()) return 'Not available here';
+ if(!pushOn()) return 'Off on this phone';
+ const n=MSG_KINDS.filter(k=>S.kinds[k.id]).length; return `On · ${n} message type${n===1?'':'s'}${alertsAvailable()&&S.alerts?' + Official Alerts':''}`;
+}
+function hostProfile(){
+ return `<div class="shell">${hdr('')}<main class="main" id="main" tabindex="-1"><div class="page">
+  <div class="profile-top"><span class="avatar lg">MK</span><div><h1 id="pageH" tabindex="-1" class="story-h">@mkwame</h1><p class="meta">Kennesaw · Student</p></div></div>
+  <div class="stack">
+   <a class="host-row" href="#" data-k="open-profile">${ic('bell',22)}<span class="grow">Notifications<span>${summaryPush()}</span></span>${ic('right',20)}</a>
+   <a class="host-row" href="#" data-k="noop">${ic('star',22)}<span class="grow">Your Clout<span>Kennesaw · 35 this week</span></span>${ic('right',20)}</a>
+   <a class="host-row" href="#" data-k="goSafety">${ic('shield',22)}<span class="grow">About KSUX Safety<span>Official Alerts and community reports</span></span>${ic('right',20)}</a>
+  </div></div></main>${dock('profile')}</div>`;
+}
+function hostSafety(){
+ const alertLine=!alertsAvailable()?'Not available yet':S.demo?'Demo: no push':pushOn()&&S.alerts?(alertsPaused()?'On · paused right now':'On for this phone'):'Off';
+ return `<div class="shell">${hdr('')}<main class="main" id="main" tabindex="-1"><div class="page">
+  <div class="page-h"><h1 id="pageH" tabindex="-1">Safety</h1><p>Official Alerts from KSU, and community reports from Students.</p></div>
+  <section class="card pad" aria-labelledby="oaH"><div class="kicker">${ic('shield',16)}Official Alerts</div><h2 id="oaH" class="story-h">${alertsAvailable()?'No new posts on the KSU pages':'Official sources'}</h2>
+   <p class="meta">${alertsAvailable()?(S.source==='ok'?'Checked 10:41. That only means nothing new was posted, not that campus is safe.':'Can\u2019t confirm right now. Last checked 10:22.'):'KSUX links to KSU Police and KSU Alert (Rave).'}</p>
+   <a class="host-row" href="#" data-k="open-safety">${ic('bell',22)}<span class="grow">Alert push<span>${alertLine}</span></span>${ic('right',20)}</a></section>
+  <section class="card flat pad"><h2 class="story-h">Community reports</h2><p class="meta">Incidents list lives here (see the incident-flow prototype).</p></section>
+ </div></main>${dock('')}</div>`;
+}
+function hostChats(){
+ return `<div class="shell">${hdr('')}<main class="main" id="main" tabindex="-1"><div class="page">
+  <div class="spread"><h1 id="pageH" tabindex="-1" class="story-h">Chats</h1><button class="icon-btn solid" data-k="open-chats" aria-label="Notification settings, ${esc(summaryPush())}">${ic('bell')}</button></div>
+  <ul class="list">${['@jordan_me · “still selling the desk?”','Deal Chat · TI-84 calculator','CS 1301 study group'].map(c=>`<li class="chat-row"><span class="avatar">${c[1].toUpperCase()}</span><a href="#" data-k="noop"><span class="t">${esc(c.split(' · ')[0])}</span><span class="p">${esc(c.split(' · ')[1]||'')}</span></a></li>`).join('')}</ul>
+ </div></main>${dock('chats')}</div>`;
+}
+const hostView=()=>S.host==='safety'?hostSafety():S.host==='chats'?hostChats():hostProfile();
+const entrySection=()=>S.host==='safety'?'alerts':S.host==='chats'?'messages':null;
+
+/* ================= VARIANT A: one page in Profile ================= */
+function renderA(){
+ return `<div class="shell">${hdr('Notifications',true)}<main class="main no-dock" id="main" tabindex="-1"><div class="page">
+  <div class="page-h"><h1 id="pageH" tabindex="-1">Notifications</h1><p>Push is extra. KSUX always shows new things inside the app; push only reaches you when KSUX is closed.</p></div>
+  <section aria-labelledby="sec-phone" class="stack"><h2 class="sec-h" id="sec-phone" tabindex="-1">This phone</h2>${statusBlock()}</section>
+  <section aria-labelledby="sec-messages" class="card pad"><h2 class="story-h" id="sec-messages" tabindex="-1">Messages</h2>${msgRows()}</section>
+  <section aria-labelledby="sec-alerts" class="card pad"><h2 class="story-h" id="sec-alerts" tabindex="-1">Official Alerts</h2>${alertBlock()}</section>
+  <section aria-labelledby="sec-never" class="card flat pad"><h2 class="story-h" id="sec-never">Never pushed</h2>${neverBlock()}</section>
+  <section aria-labelledby="sec-dev" class="card flat pad"><h2 class="story-h" id="sec-dev">Your devices</h2>${devicesBlock()}</section>
+ </div></main></div>`;
+}
+
+/* ================= VARIANT B: one sheet, anywhere ================= */
+function renderBSheet(){
+ const secs=[
+  {id:'phone',t:'This phone',sum:phoneStatus().t,body:statusBlock()},
+  {id:'messages',t:'Messages',sum:!pushOn()?'Push off':MSG_KINDS.filter(k=>S.kinds[k.id]).length+' of 4 on',body:msgRows()},
+  {id:'alerts',t:'Official Alerts',sum:!alertsAvailable()?'Not available yet':pushOn()&&S.alerts?(alertsPaused()?'On · paused':'On'):'Off',body:alertBlock()},
+  {id:'never',t:'Never pushed',sum:'4 types',body:neverBlock()},
+  {id:'dev',t:'Your devices',sum:(S.devices.length+(pushOn()?1:0))+' of 3',body:devicesBlock()},
+ ];
+ return `<div class="backdrop settled" data-k="closeSheet"></div><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgH" id="sheet">
+  <div class="handle" aria-hidden="true"></div>
+  <div class="dlg-head"><h2 id="dlgH" tabindex="-1">Notifications</h2><button class="icon-btn" data-k="closeSheet" aria-label="Close">${ic('x')}</button></div>
+  <p class="meta">Push is extra and never an emergency channel. Everything also shows inside KSUX.</p>
+  <div>${secs.map(s=>{const open=S.acc===s.id;return `<div class="acc"><h3><button class="acc-b" id="acc-${s.id}" data-k="acc-${s.id}" aria-expanded="${open}" aria-controls="accp-${s.id}"><span>${s.t}</span><span class="sum">${esc(s.sum)}</span><span class="chev">${ic('right',18)}</span></button></h3>${open?`<div class="acc-p" id="accp-${s.id}" role="region" aria-labelledby="acc-${s.id}">${s.body}</div>`:''}</div>`;}).join('')}</div>
+ </div>`;
+}
+
+/* ================= VARIANT C: phone-first checklist ================= */
+function renderC(){
+ const ready=pushOn();
+ const kindRows=[...MSG_KINDS.map(k=>({...k,key:'k-'+k.id,on:ready&&S.kinds[k.id],kind:'msg'}))];
+ if(alertsAvailable()) kindRows.push({id:'alert',key:'k-alert',t:'Official Alerts',d:'New post on the KSU Police pages. Source name only. Max 3/day.',on:ready&&S.alerts,kind:'alert'});
+ return `<div class="shell">${hdr('Notifications',true)}<main class="main no-dock" id="main" tabindex="-1"><div class="page">
+  <div class="page-h"><h1 id="pageH" tabindex="-1">Notifications</h1><p>Three steps. Push is extra: you\u2019ll always see new things inside KSUX.</p></div>
+  <section class="stack" aria-labelledby="sec-phone"><h2 class="numh" id="sec-phone" tabindex="-1"><span class="n ${ready?'done':''}" aria-hidden="true">${ready?ic('check',18):'1'}</span><span class="story-h">Get this phone ready</span><span class="sr">${ready?', done':''}</span></h2>${statusBlock()}${testBlock()}</section>
+  <section class="stack" aria-labelledby="sec-messages"><h2 class="numh" id="sec-messages" tabindex="-1"><span class="n" aria-hidden="true">2</span><span class="story-h">Choose what pushes</span></h2>
+   ${!ready&&!S.demo?'<p class="hint">Finish step 1 first. Switching one on here starts step 1.</p>':''}
+   <table class="kinds"><caption class="sr">What can push to this phone</caption><thead><tr><th scope="col">Type</th><th scope="col">Inside KSUX</th><th scope="col">Push</th></tr></thead><tbody>
+    ${kindRows.map(r=>`<tr${r.kind==='alert'?' id="sec-alerts" tabindex="-1"':''}><td class="k"><b id="${r.key}-t">${r.t}</b><span id="${r.key}-d">${r.d}</span></td><td class="inapp">Always</td><td class="push">${sw(r.key,r.t,r.on,{disabled:kindsDisabled(),desc:r.key+'-d'})}</td></tr>`).join('')}
+    ${NEVER.map(n=>`<tr><td class="k"><b>${n.t}</b><span>${n.d}</span></td><td class="inapp">Always</td><td class="push"><span class="chip outline">Never</span></td></tr>`).join('')}
+   </tbody></table>
+   ${alertsAvailable()?'':alertBlock()}
+   ${alertsAvailable()&&alertsPaused()&&!S.demo?`<div class="status warn"><span class="glyph" aria-hidden="true">!</span><div><b>Official Alert push is ${S.source==='off'?'switched off by KSUX':'paused'}</b>KSUX can\u2019t read the KSU pages right now. Your setting is kept.</div></div>`:''}
+  </section>
+  <section class="stack" aria-labelledby="sec-lim"><h2 class="numh" id="sec-lim"><span class="n" aria-hidden="true">3</span><span class="story-h">Know the limits</span></h2>
+   ${previewBlock()}
+   <ul class="limits"><li><b>Not an emergency channel.</b> A push can arrive late or never, and Focus or Do Not Disturb hides it. In danger, call 911.</li><li>KSU\u2019s own emergency texts and calls come from <a class="link" href="#" data-k="rave">KSU Alert (Rave) ${ic('ext',14)}</a>. Sign up there too.</li><li>Pushes show a handle or a source name, never what was said.</li><li>Up to 3 devices. <button class="link" data-k="devs">${S.sub2?'Hide':'Manage'} devices</button></li></ul>
+   ${S.sub2?devicesBlock():''}
+  </section>
+ </div></main></div>`;
+}
+
+/* ================= DIALOGS ================= */
+function renderAlertConfirm(){
+ return `<div class="backdrop settled"></div><div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="cH" aria-describedby="cD" id="confirm" style="z-index:45">
+  <h2 id="cH" class="story-h" tabindex="-1">Turn on Official Alert push?</h2>
+  <div id="cD" class="stack"><p>KSUX will push when the ${ALERT_SRC} pages show a new post. It only says who posted, like “KSU Police posted a new Timely Warning”. Open KSUX to read it.</p>
+  <ul class="limits"><li>KSUX checks the pages every 5 minutes and waits to see a post twice, so a push can be 5 to 10 minutes behind.</li><li>A push can arrive late or not at all. It is <b>not</b> an emergency channel.</li><li>At most 3 a day.</li><li>For KSU\u2019s own texts and calls, sign up for KSU Alert (Rave).</li></ul></div>
+  <div class="dlg-actions"><button class="btn" data-k="cNo">Not now</button><button class="btn dark" data-k="cYes">Turn on</button></div></div>`;
+}
+function renderPrompt(){
+ if(!S.prompt) return '';
+ if(S.prompt==='pre') return `<div class="backdrop settled"></div><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="pH" id="pre" style="z-index:45"><h2 id="pH" class="story-h" tabindex="-1">Your browser will ask next</h2><p>Choose <b>Allow</b> so KSUX can push the things you switch on. If you choose Block, KSUX can\u2019t ask again and you\u2019d have to change it in settings.</p><div class="dlg-actions"><button class="btn" data-k="preNo">Not now</button><button class="btn dark" data-k="preYes">Continue</button></div></div>`;
+ return `<div class="browser-prompt" role="dialog" aria-modal="true" aria-labelledby="bpH" id="bp"><div class="meta" style="color:#555">Simulated browser prompt (not KSUX UI)</div><b id="bpH" tabindex="-1">ksux.app wants to show notifications</b><div class="row"><button class="btn" data-k="bpBlock">Block</button><button class="btn" data-k="bpAllow">Allow</button></div></div>`;
+}
+
+/* ================= RENDER ================= */
+let lastFocusKey=null;
+function render(){
+ const app=$('#app'); app.dataset.theme=S.theme; app.dataset.motion=S.motion; $('#stage').dataset.frame=S.frame; document.documentElement.style.fontSize=S.text+'%';
+ const a=document.activeElement, key=a?.dataset?.k, mscroll=$('#main')?.scrollTop, sscroll=$('#sheet')?.scrollTop;
+ let shell, dlg='';
+ if(S.view==='settings'&&S.variant!=='B') shell=S.variant==='A'?renderA():renderC();
+ else shell=hostView();
+ if(S.view==='settings'&&S.variant==='B') dlg=renderBSheet();
+ if(S.dialog==='alertConfirm') dlg+=renderAlertConfirm();
+ $('#shellRoot').innerHTML=shell; $('#dialogRoot').innerHTML=dlg; $('#promptRoot').innerHTML=renderPrompt();
+ $('#shellRoot').inert=!!dlg||!!S.prompt; const sh=$('#sheet'); if(sh) sh.inert=!!S.dialog||!!S.prompt; const cf=$('#confirm'); if(cf) cf.inert=!!S.prompt;
+ if($('#main')&&mscroll!=null&&!focusSel) $('#main').scrollTop=mscroll;
+ if($('#sheet')&&sscroll!=null&&!focusSel) $('#sheet').scrollTop=sscroll;
+ if(focusSel){const el=$(focusSel);if(el){el.focus({preventScroll:true});el.scrollIntoView?.({block:'start'});}focusSel=null;}
+ else if(key){const el=document.querySelector(`[data-k="${key}"]`);if(el)el.focus({preventScroll:true});}
+ app.scrollTop=0;
+ $('#vLabel').textContent=`${S.variant} · ${VARIANTS.find(v=>v.k===S.variant).name}`;
+ if(S.state) renderState();
+}
+function renderState(){
+ $('#statePanel').innerHTML=`<h2>Variant</h2><pre>${S.variant} · ${VARIANTS.find(v=>v.k===S.variant).name}</pre><h2>Where</h2><pre>${S.view==='settings'?(S.variant==='B'?`sheet over ${S.host}, open: ${S.acc}`:`/profile/notifications${S.section?'#'+S.section:''}`):'host: '+S.host}</pre>
+ <h2>Device</h2><pre>${esc(JSON.stringify({device:S.device,demo:S.demo,phase:S.phase,alertSource:S.source,thisPhoneSubscribed:S.sub,pushOn:pushOn()},null,1))}</pre>
+ <h2>Saved preferences (kept even while push is off)</h2><pre>${esc(JSON.stringify({messages:S.kinds,officialAlertOptIn:S.alerts},null,1))}</pre>
+ <h2>What would push now</h2><pre>${esc(pushOn()?[...MSG_KINDS.filter(k=>S.kinds[k.id]).map(k=>k.t),...(alertsAvailable()&&S.alerts?[alertsPaused()?'Official Alerts (PAUSED: source '+S.source+')':'Official Alerts']:[])].join('\n')||'nothing':'nothing (push off for this phone)')}</pre>
+ <h2>Devices (${S.devices.length+(pushOn()?1:0)}/3)</h2><pre>${esc([...(pushOn()?['this phone']:[]),...S.devices.map(d=>d.name)].join('\n'))}</pre>
+ <h2>Last announcement</h2><pre>${esc(S.lastAnnounce||'-')}</pre>`;
+}
+
+/* ================= ACTIONS ================= */
+function openSettings(from){
+ S.view='settings'; const sec=from==='safety'?'alerts':from==='chats'?'messages':null; S.section=sec;
+ if(S.variant==='B'){S.acc=sec||(pushOn()?'messages':'phone');focusAfter(`#acc-${S.acc}`);announce(`Notifications. ${S.acc==='alerts'?'Official Alerts':S.acc==='messages'?'Messages':'This phone'} section open.`);}
+ else {focusAfter(sec?`#sec-${sec}`:'#pageH');announce(sec==='alerts'?'Notifications, Official Alerts section.':sec==='messages'?'Notifications, Messages section.':'Notifications');}
+ render();
+}
+function closeSettings(){const h=S.host;S.view='host';S.acc=null;focusAfter(`[data-k="open-${h}"]`);render();}
+function beginEnable(kind){ // kind: null | msg id | 'alert'
+ S.pendingKind=kind;
+ if(S.device==='granted'){S.sub=true;afterEnable();return;}
+ S.prompt='pre';focusAfter('#pH');render();
+}
+function afterEnable(){
+ if(S.devices.length>=3){toast('3 devices already get push. Remove one first.');S.sub=false;render();return;}
+ const k=S.pendingKind; S.pendingKind=null;
+ if(k==='alert'){S.dialog='alertConfirm';focusAfter('#cH');render();announce('Push is on for this phone. Confirm Official Alert push.');return;}
+ if(k) S.kinds[k]=true;
+ render();toast('Push is on for this phone.');
+}
+function toggleKind(key){
+ const el=document.querySelector(`[data-k="${key}"]`);
+ if(el?.getAttribute('aria-disabled')==='true'){announce(S.demo?'Demo Mode never sends push.':'Push can\u2019t be turned on here. '+phoneStatus().t+'.');return;}
+ const id=key.slice(2);
+ if(!pushOn()){beginEnable(id);return;}
+ if(id==='alert'){ if(S.alerts){S.alerts=false;render();announce('Official Alerts push off.');} else {S.dialog='alertConfirm';focusAfter('#cH');render();} return;}
+ S.kinds[id]=!S.kinds[id];render();announce(`${MSG_KINDS.find(k=>k.id===id).t} push ${S.kinds[id]?'on':'off'}.`);
+}
+document.addEventListener('click',ev=>{
+ const el=ev.target.closest('[data-k]'); if(!el) return; const k=el.dataset.k;
+ if(el.tagName==='A') ev.preventDefault();
+ if(k.startsWith('open-')){openSettings(k.slice(5));return;}
+ if(k==='back'){closeSettings();return;}
+ if(k==='closeSheet'){closeSettings();return;}
+ if(k.startsWith('acc-')){const id=k.slice(4);S.acc=S.acc===id?null:id;render();return;}
+ if(k==='phoneOn'){beginEnable(null);return;}
+ if(k==='phoneOff'){S.sub=false;render();toast('Push is off for this phone. Your choices are kept for next time.');return;}
+ if(k==='recheck'){announce('Still the same. '+phoneStatus().t+'.');toast('Checked: '+phoneStatus().t);return;}
+ if(k==='preNo'){S.prompt=null;S.pendingKind=null;render();announce('Not now. Nothing changed.');return;}
+ if(k==='preYes'){S.prompt='browser';focusAfter('#bpH');render();return;}
+ if(k==='bpAllow'){S.prompt=null;S.device='granted';$('#ctlDevice').value='granted';S.sub=true;afterEnable();return;}
+ if(k==='bpBlock'){S.prompt=null;S.device='denied';$('#ctlDevice').value='denied';S.pendingKind=null;focusAfter('#st');render();announce('Blocked. Notifications are blocked for KSUX. Steps to change it are shown.');return;}
+ if(k==='cYes'){S.dialog=null;S.alerts=true;focusAfter('[data-k="k-alert"]');render();announce('Official Alerts push on.');return;}
+ if(k==='cNo'){S.dialog=null;focusAfter('[data-k="k-alert"]');render();announce('Official Alerts push stays off.');return;}
+ if(k.startsWith('k-')){toggleKind(k);return;}
+ if(k.startsWith('rm-')){const id=k.slice(3);const d=S.devices.find(x=>x.id===id);S.devices=S.devices.filter(x=>x.id!==id);render();toast(`${d.name} won\u2019t get push any more.`);return;}
+ if(k==='test'){S.testSent=new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});focusAfter('#testNote');render();announce('Test push sent. KSUX can\u2019t confirm it arrived.');return;}
+ if(k==='devs'){S.sub2=!S.sub2;render();return;}
+ if(k==='goSafety'){S.host='safety';$('#ctlHost').value='safety';S.view='host';S.acc=null;focusAfter('#pageH');render();return;}
+ if(k==='rave'){toast('Would open KSU Alert (Rave) sign-up in a new tab.');return;}
+ if(k.startsWith('nav-')){const t=k.slice(4);if(t==='profile'||t==='chats'){S.host=t;$('#ctlHost').value=t;S.view='host';focusAfter('#pageH');render();}else toast('Not part of this prototype.');return;}
+ if(k==='noop'){toast('Not part of this prototype.');}
+});
+document.addEventListener('keydown',ev=>{
+ if(ev.key==='Escape'){
+  if(S.prompt){S.prompt=null;S.pendingKind=null;render();return;}
+  if(S.dialog){S.dialog=null;focusAfter('[data-k="k-alert"]');render();return;}
+  if(S.view==='settings'&&S.variant==='B'){closeSettings();return;}
+ }
+ if(ev.key==='Tab'){ // focus trap for open dialogs
+  const box=S.prompt?($('#bp')||$('#pre')):S.dialog?$('#confirm'):(S.view==='settings'&&S.variant==='B')?$('#sheet'):null;
+  if(box){const f=[...box.querySelectorAll('button,a[href],input,select,textarea,[tabindex="0"]')].filter(x=>!x.closest('[inert]'));if(f.length){const first=f[0],last=f[f.length-1];if(ev.shiftKey&&document.activeElement===first){ev.preventDefault();last.focus();}else if(!ev.shiftKey&&document.activeElement===last){ev.preventDefault();first.focus();}}}
+ }
+ const t=ev.target; if(ev.key!=='ArrowLeft'&&ev.key!=='ArrowRight') return;
+ if(t.closest('input,textarea,select,[contenteditable]')) return;
+ cycle(ev.key==='ArrowRight'?1:-1);
+});
+
+/* ================= VARIANT SWITCHER ================= */
+function cycle(dir){
+ const i=VARIANTS.findIndex(v=>v.k===S.variant); S.variant=VARIANTS[(i+dir+VARIANTS.length)%VARIANTS.length].k;
+ const u=new URL(location.href); u.searchParams.set('variant',S.variant); history.replaceState(null,'',u);
+ if(S.view==='settings') openSettings(S.host); else render();
+}
+$('#vPrev').onclick=()=>cycle(-1); $('#vNext').onclick=()=>cycle(1);
+$('#ctlHost').onchange=e=>{S.host=e.target.value;S.view='host';S.acc=null;focusAfter('#pageH');render();};
+$('#ctlDevice').onchange=e=>{S.device=e.target.value;if(S.device!=='granted')S.sub=false;render();};
+$('#ctlPhase').onchange=e=>{S.phase=e.target.value;render();};
+$('#ctlSource').onchange=e=>{S.source=e.target.value;render();};
+$('#ctlDemo').onchange=e=>{S.demo=e.target.checked;render();};
+$('#ctlTheme').onchange=e=>{S.theme=e.target.value;render();};
+$('#ctlMotion').onchange=e=>{S.motion=e.target.value;render();};
+$('#ctlText').oninput=e=>{S.text=+e.target.value;$('#textOut').textContent=S.text+'%';render();};
+$('#ctlFrame').onchange=e=>{S.frame=e.target.value;render();};
+$('#ctlState').onclick=e=>{S.state=!S.state;$('#statePanel').hidden=!S.state;e.target.setAttribute('aria-expanded',S.state);render();};
+$('#ctlReset').onclick=()=>{Object.assign(S,fresh());S.sub=false;S.sub2=false;S.testSent=null;render();};
+S.sub=false;
+render();
+</script>
+</body>
+</html>
