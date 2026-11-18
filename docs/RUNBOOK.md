@@ -136,3 +136,26 @@ All accounts below require **zero credit cards** and **zero custom domains**:
    pnpm test:e2e
    ```
    Exercises `?demo=1` (`@maya_cs`) → `Copy Co-Test Link` (`?demo=<shortCode>&persona=alex_owl`) across two live tabs: `Campus` switcher, `Parking Report` + `Spot Opening` on `Now`, `@scrappy` `Feed` mention + `Ask Scrappy` SSE, 2-tab `Deal Chat` `Confirm Meetup` → `Pending` → `Sold` → `Confirm Pickup`, `Moderation Queue (Demo)` restore, and `Reset Demo State`.
+
+### Pull request checks
+
+GitHub Actions runs the static checks, Vitest, Next.js build, and Chromium Playwright on pull requests. The build uses loopback Convex URLs. Playwright starts an anonymous local Convex backend and seeds Judge Demo fixtures. It uploads the HTML report and failure traces when the job fails.
+
+Run the browser suite from a local development checkout with ports 3210, 3211, and 3100 free:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm exec playwright install chromium
+pnpm test:e2e
+pnpm test:e2e commuter-fallbacks.spec.ts
+```
+
+Add the dedicated accessibility job alongside the v2 shell in [#72](https://github.com/Control707/KSUX/issues/72), using the route, theme, and viewport matrix agreed in [#54](https://github.com/Control707/KSUX/issues/54). Add an independent keyboard map case when the shared map controls land.
+
+### Hosted release smoke checks
+
+Record the date, deployment URL, verified commit SHA, tester, and outcome in the release issue.
+
+- [ ] Sign in with a real KSU inbox. Confirm OTP delivery, verification, reload, and sign-out.
+- [ ] Upload an image through the hosted media provider and confirm it renders. Verify cleanup for abandoned test media.
+- [ ] If Web Push is enabled, opt in on a supported device and confirm receipt and navigation for an eligible message. Record the tested browser and device, or mark push disabled.

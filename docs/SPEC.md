@@ -1,6 +1,8 @@
 # KSUX — Implementation Specification
 
 > Consolidated implementation specification resolved across Wayfinder [Map #1](https://github.com/Control707/KSUX/issues/1) (tickets `#2–#12`), [`GLOSSARY.md`](../GLOSSARY.md), and [`docs/adr/0001–0006`](./adr/).
+>
+> **v2:** [`SPEC-v2.md`](./SPEC-v2.md) amends §1, §3, §4.5, §5, §6.4, §7, §8 and §9 and wins wherever the two disagree. Its "Amendments to SPEC.md" table lists every change.
 
 ---
 
