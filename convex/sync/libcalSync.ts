@@ -224,6 +224,7 @@ export const applyLibCalSnapshotsInternal = internalMutation({
   args: {
     now: v.number(),
     ok: v.boolean(),
+    incomplete: v.optional(v.boolean()),
     leaseUntil: v.optional(v.number()),
     failureReason: v.optional(v.string()),
     snapshots: v.optional(
@@ -268,10 +269,11 @@ export const applyLibCalSnapshotsInternal = internalMutation({
 
     const patch = args.ok ? {
       lastSuccessAt: args.now, lastAttemptAt: args.now, consecutiveFailures: 0,
+      lastOutcome: "accepted" as const, lastAcceptedCount: args.snapshots?.length ?? 0,
       backoffUntil: undefined, refreshInFlightUntil: undefined, lastError: undefined,
     } : evaluateFailureStatePatch(
       state ?? { consecutiveFailures: 0, activeRecordCount: 0 },
-      args.now, args.failureReason ?? "LibCal refresh failed"
+      args.now, args.failureReason ?? "LibCal refresh failed", args.incomplete ? "partial" : "failed"
     );
     if (state) {
       await ctx.db.patch(state._id, patch);
@@ -324,7 +326,7 @@ export const runSequentialLibCalRefresh = internalAction({
       }
       const complete = expectedSnapshots > 0 && snapshots.length === expectedSnapshots;
       await ctx.runMutation(internal.sync.libcalSync.applyLibCalSnapshotsInternal, {
-        now: Date.now(), ok: complete, leaseUntil: lease.leaseUntil, snapshots,
+        now: Date.now(), ok: complete, incomplete: !complete, leaseUntil: lease.leaseUntil, snapshots,
         failureReason: complete ? undefined : "LibCal did not cover every seeded room and date",
       });
       return { status: complete ? "updated" : "incomplete_coverage" };

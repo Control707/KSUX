@@ -27,7 +27,15 @@ function workerHarness() {
       addAll: async (urls: string[]) => {
         for (const url of urls) entries.set(urlKey(url), new Response(`Precached ${url}`));
       },
-      match: async (key: WorkerRequest | string) => entries.get(urlKey(key))?.clone(),
+      match: async (key: WorkerRequest | string, options?: { ignoreSearch?: boolean }) => {
+        const wanted = urlKey(key);
+        if (!options?.ignoreSearch) return entries.get(wanted)?.clone();
+        const strip = (href: string) => href.split("?")[0];
+        for (const [stored, response] of entries) {
+          if (strip(stored) === strip(wanted)) return response.clone();
+        }
+        return undefined;
+      },
       put: async (key: WorkerRequest | string, response: Response) => {
         entries.set(urlKey(key), response);
       },
@@ -144,6 +152,17 @@ describe("Offline commuter service worker workflows", () => {
 
     expect(await (await load().response)?.text()).toBe("bundle");
     expect(await (await load().response)?.text()).toBe("bundle");
+    expect(worker.network).toHaveBeenCalledOnce();
+  });
+
+  it("serves a cached hashed bundle when only its query string differs", async () => {
+    const worker = workerHarness();
+    worker.network.mockResolvedValueOnce(new Response("bundle"));
+    await worker.dispatchFetch("/_next/static/chunks/main-app.js?v=1").response;
+    worker.network.mockRejectedValue(new Error("Offline"));
+
+    const offline = await worker.dispatchFetch("/_next/static/chunks/main-app.js?v=2").response;
+    expect(await offline?.text()).toBe("bundle");
     expect(worker.network).toHaveBeenCalledOnce();
   });
 

@@ -18,6 +18,27 @@ import {
 } from "@/lib/viewerClient";
 import { KsuPoliceEmergencyCallout } from "@/components/shared/ReportTrigger";
 
+const outcomeLabels = {
+  pending: "Awaiting first sync",
+  accepted: "Accepted",
+  empty: "Valid empty response",
+  partial: "Partial response",
+  failed: "Failed or invalid response",
+};
+
+const freshnessLabels = {
+  within_window: "Within freshness window",
+  stale: "Stale · last accepted data",
+  unavailable: "No accepted data",
+};
+
+function syncTime(timestamp: number | null) {
+  if (timestamp === null) return "—";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", dateStyle: "short", timeStyle: "short",
+  }).format(timestamp) + " ET";
+}
+
 export function ModerationQueueView() {
   const { auth } = useViewerClient();
   const summary = useViewerQuery(api.shell.shellSummary, {});
@@ -27,6 +48,8 @@ export function ModerationQueueView() {
     api.moderation.getModerationQueue,
     isModerator ? {} : "skip"
   );
+  const showFeedHealth = isModerator && auth.status !== "demo";
+  const feedHealth = useViewerQuery(api.moderation.getCampusFeedHealth, showFeedHealth ? {} : "skip");
   const blockedList = useViewerQuery(api.moderation.listBlockedStudents, {});
   const reviewTarget = useViewerMutation(api.moderation.reviewModerationTarget);
   const reviewOfficer = useViewerMutation(api.moderation.reviewOfficerClaim);
@@ -76,6 +99,28 @@ export function ModerationQueueView() {
           </div>
         </div>
       </div>
+
+      {showFeedHealth && (
+        <section aria-labelledby="campus-feed-health" className="rounded-2xl border border-[#E4E7EE] bg-white p-4">
+          <h2 id="campus-feed-health" className="text-sm font-black">Campus feed health</h2>
+          {feedHealth === undefined ? <p role="status">Loading campus feed health…</p> : (
+            <ul className="mt-2 grid gap-2 md:grid-cols-2">
+              {feedHealth.map((source) => (
+                <li key={source.key} className="rounded-lg border border-[#E4E7EE] p-3 text-xs">
+                  <h3 className="text-sm font-bold">{source.name}</h3>
+                  <p>{outcomeLabels[source.result]} · {freshnessLabels[source.freshness]}</p>
+                  <dl className="mt-2 grid grid-cols-2 gap-1">
+                    <dt>Last attempt</dt><dd>{syncTime(source.lastAttemptAt)}</dd>
+                    <dt>Last successful fetch</dt><dd>{syncTime(source.lastSuccessAt)}</dd>
+                    <dt>Accepted records</dt><dd>{source.acceptedCount ?? "—"}</dd>
+                    {source.retryAfter !== null && <><dt>Retry after</dt><dd>{syncTime(source.retryAfter)}</dd></>}
+                  </dl>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <KsuPoliceEmergencyCallout />
 

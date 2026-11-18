@@ -1,6 +1,8 @@
 import { sha256Hex } from "./crypto";
 
 export interface SyncStateSnapshot {
+  lastOutcome?: "accepted" | "partial" | "failed";
+  lastAcceptedCount?: number;
   lastSuccessAt?: number;
   lastAttemptAt?: number;
   consecutiveFailures: number;
@@ -21,12 +23,14 @@ export function computeCircuitBackoffMs(consecutiveFailures: number): number | u
 export function evaluateFailureStatePatch(
   prev: SyncStateSnapshot,
   nowMs: number,
-  errorMessage: string
+  errorMessage: string,
+  lastOutcome: "partial" | "failed" = "failed"
 ): Partial<SyncStateSnapshot> {
   const nextFailures = prev.consecutiveFailures + 1;
   const backoffDelta = computeCircuitBackoffMs(nextFailures);
   return {
     lastAttemptAt: nowMs,
+    lastOutcome,
     consecutiveFailures: nextFailures,
     backoffUntil: backoffDelta ? nowMs + backoffDelta : undefined,
     refreshInFlightUntil: undefined,
@@ -108,4 +112,26 @@ export async function fetchUpstreamWithRetry(
   throw lastError instanceof Error
     ? lastError
     : new Error(`Upstream fetch failed for ${url}`);
+}
+
+export function describeFeedHealth(
+  state: SyncStateSnapshot | null,
+  now: number,
+  maxAge: number,
+) {
+  const lastSuccessAt = state?.lastSuccessAt ?? null;
+  const lastAttemptAt = state?.lastAttemptAt ?? null;
+  const acceptedCount = lastSuccessAt === null ? null
+    : state?.lastAcceptedCount ?? (state?.lastPayloadHash ? state.activeRecordCount : null);
+  const freshness = lastSuccessAt === null ? "unavailable" as const
+    : now - lastSuccessAt > maxAge ? "stale" as const : "within_window" as const;
+  const outcome: NonNullable<SyncStateSnapshot["lastOutcome"]> | "pending" = state?.lastOutcome ?? (state?.lastError
+    ? state.consecutiveFailures ? "failed" : "partial"
+    : lastSuccessAt === null ? "pending" : "accepted");
+
+  return {
+    lastAttemptAt, lastSuccessAt, acceptedCount, freshness,
+    result: outcome === "accepted" && acceptedCount === 0 ? "empty" as const : outcome,
+    retryAfter: state?.backoffUntil && state.backoffUntil > now ? state.backoffUntil : null,
+  };
 }

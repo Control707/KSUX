@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { WifiOff } from "lucide-react";
+import { formatPrivateClassMeeting } from "@/lib/privateSchedule";
 import { CampusGeoMap } from "@/components/map/CampusGeoMap";
 import { readCommuterSnapshot, type CommuterScope } from "@/lib/commuterCache";
 
@@ -15,6 +16,11 @@ export function OfflineCommuterView({ scope }: { scope: CommuterScope | null }) 
     return () => window.removeEventListener("storage", refresh);
   }, [scope]);
 
+  const privateClasses = snapshot?.schedule.privateClasses ?? [];
+  const enrolled = snapshot?.schedule.enrolledCourses ?? [];
+  const standaloneClasses = privateClasses.filter((entry) =>
+    !entry.sectionId || !enrolled.some((course) => course.sectionId === entry.sectionId));
+
   return (
     <main className="mx-auto min-h-screen max-w-4xl space-y-4 p-4">
       <div data-testid="offline-commuter-banner" className="flex items-center gap-2 rounded-xl bg-[#FEF3C7] p-3 text-sm font-bold text-[#92400E]">
@@ -23,18 +29,31 @@ export function OfflineCommuterView({ scope }: { scope: CommuterScope | null }) 
       </div>
       <section data-testid="bento-schedule-tile" className="space-y-2 rounded-xl border border-[#E4E7EE] bg-white p-4">
         <h1 className="font-bold">Saved class schedule</h1>
-        {snapshot?.schedule.enrolledCourses.length ? (
+        {enrolled.length ? (
           <ul className="space-y-2 text-sm">
-            {snapshot.schedule.enrolledCourses.map((course) => (
-              <li key={course.enrollmentId}>
+            {enrolled.map((course) => {
+              const imported = course.sectionId ? privateClasses.filter((entry) => entry.sectionId === course.sectionId) : [];
+              return <li key={course.enrollmentId}>
                 <strong>{course.subjectCourse} · {course.title}</strong>
-                {course.meetings?.[0] && (
+                {imported.length ? imported.map((entry) => (
+                  <div key={entry.key}>{formatPrivateClassMeeting(entry)}</div>
+                )) : course.meetings?.[0] && (
                   <div>{course.meetings[0].timeLabel} · {course.meetings[0].buildingName} {course.meetings[0].roomNumber}</div>
                 )}
+              </li>;
+            })}
+          </ul>
+        ) : standaloneClasses.length === 0 && <p className="text-sm">No class schedule is saved on this device.</p>}
+        {standaloneClasses.length > 0 && (
+          <ul aria-label="Private classes" className="space-y-2 text-sm">
+            {standaloneClasses.map((entry) => (
+              <li key={entry.termCode + ":" + entry.key}>
+                <strong>{entry.title}</strong>
+                <div>{formatPrivateClassMeeting(entry)}</div>
               </li>
             ))}
           </ul>
-        ) : <p className="text-sm">No class schedule is saved on this device.</p>}
+        )}
         {!!snapshot?.schedule.personalDeadlines.length && (
           <ul className="space-y-1 text-sm">
             {snapshot.schedule.personalDeadlines.map((deadline) => (

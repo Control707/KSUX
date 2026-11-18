@@ -7,12 +7,12 @@ import {
   BookOpen,
   CheckCircle2,
   ExternalLink,
-  FileUp,
   GraduationCap,
   MessageSquare,
   Search,
   Send,
 } from "lucide-react";
+import { PrivateScheduleEditor } from "./PrivateScheduleEditor";
 import { api } from "@convex/_generated/api";
 import {
   useViewerClient,
@@ -21,7 +21,9 @@ import {
 } from "@/lib/viewerClient";
 
 export function CourseHubView({ subjectCourse }: { subjectCourse: string }) {
-  const { authArgs } = useViewerClient();
+  const { auth, authArgs } = useViewerClient();
+  const studentScope = auth.status === "demo" ? auth.demoShortCode + ":" + auth.demoPersonaHandle
+    : auth.status === "student" ? auth.studentId : auth.status;
   const [selectedTerm, setSelectedTerm] = useState<string>();
   const banner = useViewerQuery(api.courses.listBannerTerms, {});
   const termCode = selectedTerm ?? banner?.activeTerm;
@@ -32,7 +34,6 @@ export function CourseHubView({ subjectCourse }: { subjectCourse: string }) {
   const [searchInput, setSearchInput] = useState("");
   const [postBody, setPostBody] = useState("");
   const [crossPost, setCrossPost] = useState(false);
-  const [icsBanner, setIcsBanner] = useState<string | null>(null);
   const [loadingSyllabus, setLoadingSyllabus] = useState(false);
 
   const detail = useViewerQuery(api.courses.getCourseHubDetail, termCode ? {
@@ -59,7 +60,6 @@ export function CourseHubView({ subjectCourse }: { subjectCourse: string }) {
 
   const enrollMutation = useViewerMutation(api.courses.enrollInCourseHub);
   const leaveMutation = useViewerMutation(api.courses.leaveCourseHub);
-  const importIcs = useViewerMutation(api.courses.importScheduleFromIcs);
   const createPost = useViewerMutation(api.feed.createPost);
   const fetchSyllabusAction = useAction(api.courses.fetchAndCacheSyllabus);
   const touchSyllabus = useViewerMutation(api.courses.touchCourseSyllabus);
@@ -68,20 +68,6 @@ export function CourseHubView({ subjectCourse }: { subjectCourse: string }) {
   useEffect(() => {
     if (openedCacheEntry) void touchSyllabus({ cacheEntryId: openedCacheEntry }).catch(() => {});
   }, [openedCacheEntry, touchSyllabus]);
-
-  const handleIcsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !termCode) return;
-    try {
-      const rawIcs = await file.text();
-      const res = await importIcs({ rawIcs, termCode });
-      setIcsBanner(
-        `Matched ${res.matchedCourses.length} Banner 9 course(s) and imported ${res.importedDeadlinesCount} private deadline(s) (stateless — zero URLs stored).`
-      );
-    } catch (err: any) {
-      setIcsBanner(err?.data?.message || err?.message || ".ics import failed.");
-    }
-  };
 
   const handlePostInHub = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,24 +150,10 @@ export function CourseHubView({ subjectCourse }: { subjectCourse: string }) {
               </Link>
             )}
 
-            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-[#D99B00] bg-[#FFF6DC] px-3 py-2 text-xs font-extrabold text-[#111317]">
-              <FileUp className="h-3.5 w-3.5" />
-              <span>Import .ics Schedule</span>
-              <input
-                type="file"
-                accept=".ics,text/calendar"
-                onChange={handleIcsUpload}
-                className="hidden"
-              />
-            </label>
           </div>
         </div>
 
-        {icsBanner && (
-          <div className="mt-3 rounded-xl bg-[#DCFCE7] px-3 py-2 text-xs font-bold text-[#15803D]">
-            {icsBanner}
-          </div>
-        )}
+        {termCode && <PrivateScheduleEditor key={studentScope + ":" + termCode} termCode={termCode} />}
 
         {/* Section Picker / Enrollment Controls */}
         {detail && (
