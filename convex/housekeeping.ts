@@ -81,6 +81,20 @@ export const collectPurgeableMediaKeys = internalMutation({
         .take(BATCH_LIMIT - assets.size));
     }
 
+    if (assets.size < BATCH_LIMIT - 2) {
+      // Reserve at most three writes per held photo (discard, detach, claim).
+      const held = await ctx.db.query("mediaAssets").withIndex("by_review_hold", (q) =>
+        q.eq("workspaceKey", "prod").eq("reviewStatus", "held").gt("holdExpiresAt", 0).lte("holdExpiresAt", now))
+        .take(Math.floor((BATCH_LIMIT - assets.size) / 3));
+      for (const asset of held) {
+        await ctx.db.patch(asset._id, { reviewStatus: "rejected", status: "deleted", url: "" });
+        const incidents = await ctx.db.query("incidents").withIndex("by_photo", (q) =>
+          q.eq("workspaceKey", asset.workspaceKey).eq("photoAssetId", asset._id)).take(1);
+        for (const incident of incidents) await ctx.db.patch(incident._id, { photoAssetId: undefined });
+      }
+      collect(held);
+    }
+
     // Claiming a pending upload prevents simultaneous attachment while storage is being cleaned.
     for (const asset of assets.values()) {
       if (asset.status !== "deleted" && asset.deleteClaimedAt === undefined) {
@@ -159,8 +173,23 @@ export const executePurgeBatch = internalMutation({
 
     for (const table of [...v2StudentWorkspaceTables, "moderators"] as const) {
       if (budget() <= 0) break;
-      await deleteRows(await ctx.db.query(table).withIndex("by_purge", (q) =>
-        q.eq("workspaceKey", "prod").gt("purgeAt", 0).lte("purgeAt", now)).take(budget()));
+      if (table === "incidents") {
+        const incidents = await ctx.db.query("incidents").withIndex("by_purge", (q) =>
+          q.eq("workspaceKey", "prod").gt("purgeAt", 0).lte("purgeAt", now)).take(Math.floor(budget() / 2));
+        for (const incident of incidents) {
+          if (incident.photoAssetId) {
+            const asset = await ctx.db.get(incident.photoAssetId);
+            if (asset?.workspaceKey === incident.workspaceKey) {
+              await queueMediaDeletion(ctx, asset);
+              deletedCount++;
+            }
+          }
+          await deleteRows([incident]);
+        }
+      } else {
+        await deleteRows(await ctx.db.query(table).withIndex("by_purge", (q) =>
+          q.eq("workspaceKey", "prod").gt("purgeAt", 0).lte("purgeAt", now)).take(budget()));
+      }
     }
     for (const table of v2InstitutionalTables) {
       if (budget() <= 0) break;

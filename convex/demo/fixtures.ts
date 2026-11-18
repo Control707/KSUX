@@ -729,6 +729,7 @@ export async function cloneDemoWorkspaceFixtures(
       targetKey: quarantinedTargetKey,
       reason: "scam_spam",
       queueStatus: "quarantined",
+      priority: 3,
       createdAt: now - 45 * MIN,
     });
   }

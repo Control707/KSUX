@@ -519,6 +519,98 @@ export const continueStudentCleanup = internalMutation({
   },
 });
 
+// Keep v2 privacy cleanup independently bounded: each continuation advances the
+// append-only ledger cursor while destructive queries remove their own results.
+export async function cleanupV2Student(
+  ctx: MutationCtx, workspaceKey: string, studentId: Id<"students">,
+  deleted: boolean, cloutCursor: string | null = null, cloutDone = false,
+) {
+  const now = Date.now();
+  const limit = 25;
+  const incidentRows = (await Promise.all((deleted
+    ? ["visible", "under_review", "removed"] as const
+    : ["visible", "under_review"] as const).map((visibility) => ctx.db.query("incidents")
+    .withIndex("by_author_visibility", (q) => q.eq("workspaceKey", workspaceKey)
+      .eq("authorId", studentId).eq("visibility", visibility)).take(limit))));
+  for (const incident of incidentRows.flat()) {
+    await ctx.db.patch(incident._id, deleted
+      ? { visibility: "deleted", text: "", areaDetail: undefined, photoAssetId: undefined, nameLevel: "hidden", updateCount: 0 }
+      : { visibility: "removed", purgeAt: now + THIRTY_DAYS_MS });
+  }
+  const updates = deleted ? await ctx.db.query("incidentUpdates").withIndex("by_author_kind", (q) =>
+    q.eq("workspaceKey", workspaceKey).eq("authorId", studentId).eq("kind", "author_update")).take(limit) : [];
+  for (const update of updates) {
+    const incident = await ctx.db.get(update.incidentId);
+    if (incident?.workspaceKey === workspaceKey) {
+      await ctx.db.patch(incident._id, { updateCount: Math.max(0, incident.updateCount - 1) });
+    }
+    await ctx.db.delete(update._id);
+  }
+  const notes = deleted ? await ctx.db.query("incidentUpdates").withIndex("by_author_kind", (q) =>
+    q.eq("workspaceKey", workspaceKey).eq("authorId", studentId).eq("kind", "moderator_note")).take(limit) : [];
+  for (const note of notes) await ctx.db.patch(note._id, { authorId: undefined });
+
+  const totals = await ctx.db.query("cloutWeeklyTotals").withIndex("by_student_week_campus", (q) =>
+    q.eq("workspaceKey", workspaceKey).eq("studentId", studentId)).take(limit);
+  for (const total of totals) {
+    if (!total.hidden && total.countedTotal > 0) {
+      const board = await ctx.db.query("cloutBoardCounts").withIndex("by_campus_week", (q) =>
+        q.eq("workspaceKey", workspaceKey).eq("campus", total.campus).eq("weekKey", total.weekKey)).unique();
+      if (board) await ctx.db.patch(board._id, { visibleCount: Math.max(0, board.visibleCount - 1) });
+    }
+    await ctx.db.delete(total._id);
+  }
+  let nextCursor = cloutCursor;
+  let ledgerDone = cloutDone;
+  let deletedEvents = 0;
+  if (deleted) {
+    const events = await ctx.db.query("cloutEvents").withIndex("by_student_day", (q) =>
+      q.eq("workspaceKey", workspaceKey).eq("studentId", studentId)).take(limit);
+    for (const event of events) await ctx.db.delete(event._id);
+    deletedEvents = events.length;
+  } else if (!cloutDone) {
+    const page = await ctx.db.query("cloutEvents").withIndex("by_student_day", (q) =>
+      q.eq("workspaceKey", workspaceKey).eq("studentId", studentId)).paginate({ numItems: limit, cursor: cloutCursor });
+    for (const event of page.page) {
+      if (event.kind !== "earn") continue;
+      const reversed = await ctx.db.query("cloutEvents").withIndex("by_source", (q) =>
+        q.eq("workspaceKey", workspaceKey).eq("sourceType", event.sourceType).eq("sourceKey", event.sourceKey)
+          .eq("studentId", studentId).eq("kind", "reverse")).first();
+      if (!reversed) await ctx.db.insert("cloutEvents", {
+        workspaceKey, studentId, kind: "reverse", amount: event.amount, sourceType: event.sourceType,
+        sourceKey: event.sourceKey, targetKey: event.targetKey, partnerId: event.partnerId,
+        campus: event.campus, weekKey: event.weekKey, dayKeyET: event.dayKeyET, createdAt: now, purgeAt: now + THIRTY_DAYS_MS,
+      });
+    }
+    nextCursor = page.continueCursor;
+    ledgerDone = page.isDone;
+  }
+  await ctx.db.patch(studentId, { lifetimeClout: deleted ? undefined : 0, leaderboardHidden: true });
+  if (workspaceKey === "prod") {
+    const appointment = await ctx.db.query("moderators").withIndex("by_student", (q) =>
+      q.eq("workspaceKey", "prod").eq("studentId", studentId)).unique();
+    if (appointment && appointment.revokedAt === undefined) {
+      await ctx.db.patch(appointment._id, { revokedAt: now, purgeAt: now + THIRTY_DAYS_MS });
+    }
+  }
+  if ([...incidentRows, updates, notes, totals].some((rows) => rows.length === limit) ||
+    (deleted ? deletedEvents === limit : !ledgerDone)) {
+    await ctx.scheduler.runAfter(0, internal.students.continueV2StudentCleanup, {
+      workspaceKey, studentId, cloutCursor: nextCursor, cloutDone: ledgerDone,
+    });
+  }
+}
+
+export const continueV2StudentCleanup = internalMutation({
+  args: { workspaceKey: v.string(), studentId: v.id("students"), cloutCursor: v.union(v.string(), v.null()), cloutDone: v.boolean() },
+  handler: async (ctx, args) => {
+    const student = await ctx.db.get(args.studentId);
+    if (student?.workspaceKey === args.workspaceKey && student.accountStatus !== "active") {
+      await cleanupV2Student(ctx, args.workspaceKey, student._id, student.accountStatus === "deleted", args.cloutCursor, args.cloutDone);
+    }
+  },
+});
+
 export const deleteMyProfile = verifiedStudentMutation({
   args: {},
   handler: async (ctx) => {
@@ -535,6 +627,7 @@ export const deleteMyProfile = verifiedStudentMutation({
     });
 
     const purgedAssetCount = await closeStudentArtifactsAndMedia(ctx, "prod", actor._id, true);
+    await cleanupV2Student(ctx, "prod", actor._id, true);
 
     // Scrub stored canonicalEmail and release live handle slot to handleReservations (30d) while retaining tombstone row
     const tombstoneHandle = `deleted_${String(actor._id).slice(-10).toLowerCase()}`;

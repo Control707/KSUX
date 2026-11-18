@@ -174,7 +174,10 @@ export async function resolveViewerFromDb(
     );
     const appointment = await ctx.db.query("moderators").withIndex("by_student", (q) =>
       q.eq("workspaceKey", "prod").eq("studentId", actorStudent!._id)).unique();
-    const appointed = Boolean(appointment && appointment.revokedAt === undefined);
+    const appointed = Boolean(appointment && appointment.revokedAt === undefined &&
+      appointment.appointedAt <= now && (appointment.purgeAt === undefined || appointment.purgeAt > now) &&
+      actorStudent.emailDomainBadge === "verified_student" &&
+      actorStudent.canonicalEmail?.endsWith("@students.kennesaw.edu"));
     isModerator = isMaintainer || appointed;
     isCsa = Boolean(appointment?.isCsa && (appointed || isMaintainer));
     mode = "student";

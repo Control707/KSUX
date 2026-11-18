@@ -10,7 +10,7 @@ import {
   viewerMutation,
   viewerQuery,
 } from "./lib/viewer";
-import { closeStudentArtifactsAndMedia } from "./students";
+import { cleanupV2Student, closeStudentArtifactsAndMedia } from "./students";
 import { Id } from "./_generated/dataModel";
 import { getChatMembership, updateLatestMessagePreview } from "./chats";
 import { queueMediaDeletion } from "./lib/mediaCleanup";
@@ -251,6 +251,7 @@ export const submitReport = viewerMutation({
         reason: args.reason,
         notes: args.notes?.trim().slice(0, 300),
         queueStatus: "open",
+        priority: 3,
         createdAt: now,
       });
     }
@@ -625,6 +626,7 @@ export const reviewModerationTarget = moderatorMutation({
           student._id
         );
 
+        await cleanupV2Student(ctx, wsKey, student._id, false);
         const suspendedHandle = `suspended_${String(student._id).slice(-10).toLowerCase()}`;
         await ctx.db.patch(student._id, {
           canonicalEmail: undefined,

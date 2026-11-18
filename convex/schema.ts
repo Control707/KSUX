@@ -1151,7 +1151,8 @@ export default defineSchema({
     .index("by_demo_session", ["demoSessionId"])
     .index("by_owner", ["workspaceKey", "ownerStudentId"])
     .index("by_owner_status", ["workspaceKey", "ownerStudentId", "status"])
-    .index("by_status_created", ["status", "createdAt"]),
+    .index("by_status_created", ["status", "createdAt"])
+    .index("by_review_hold", ["workspaceKey", "reviewStatus", "holdExpiresAt"]),
 
   uploadReservations: defineTable({
     workspaceKey: v.string(),
@@ -1202,6 +1203,8 @@ export default defineSchema({
     demoLabel: v.optional(v.literal("Demo · not real")),
   }).index("by_campus_visibility_published", ["workspaceKey", "campus", "visibility", "publishedAt"])
     .index("by_author", ["workspaceKey", "authorId"])
+    .index("by_author_visibility", ["workspaceKey", "authorId", "visibility"])
+    .index("by_photo", ["workspaceKey", "photoAssetId"])
     .index("by_purge", ["workspaceKey", "purgeAt"]),
 
   incidentUpdates: defineTable({
@@ -1212,6 +1215,7 @@ export default defineSchema({
     officialUrl: v.optional(v.string()), createdAt: v.number(), purgeAt: v.number(),
   }).index("by_incident", ["workspaceKey", "incidentId", "createdAt"])
     .index("by_author", ["workspaceKey", "authorId"])
+    .index("by_author_kind", ["workspaceKey", "authorId", "kind"])
     .index("by_purge", ["workspaceKey", "purgeAt"]),
 
   moderators: defineTable({
