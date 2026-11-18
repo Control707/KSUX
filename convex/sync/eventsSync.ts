@@ -240,14 +240,26 @@ async function fetchLocalistEvents(fetchImpl?: UpstreamFetchFn) {
   let totalPages: number | undefined;
   let complete = false;
   for (let page = 1; page <= 8; page++) {
-    const response = await fetchUpstreamWithRetry(
-      `https://calendar.kennesaw.edu/api/2/events?pp=50&days=30&page=${page}`,
-      { headers: { Accept: "application/json" } }, fetchImpl);
-    const payload = await response.json();
-    if (!Array.isArray(payload?.events)) throw new Error("Invalid Localist events response");
-    events.push(...parseLocalistEventsPayload(payload));
+    let payload;
+    try {
+      const response = await fetchUpstreamWithRetry(
+        `https://calendar.kennesaw.edu/api/2/events?pp=50&days=30&page=${page}`,
+        { headers: { Accept: "application/json" } }, fetchImpl);
+      payload = await response.json();
+      if (!Array.isArray(payload?.events)) throw new Error("Invalid Localist events response");
+      const parsed = parseLocalistEventsPayload(payload);
+      if (payload.events.length && !parsed.length) throw new Error("No usable Localist Events");
+      events.push(...parsed);
+    } catch (error) {
+      if (page === 1) throw error;
+      break;
+    }
     const count = Number(payload.page?.total ?? payload.page?.total_pages);
     const current = Number(payload.page?.current);
+    if (page === 1 && count === 0 && !payload.events.length) {
+      complete = true;
+      break;
+    }
     if (!Number.isSafeInteger(count) || count < 1 || current !== page
         || (totalPages !== undefined && totalPages !== count)) break;
     totalPages = count;
@@ -267,8 +279,16 @@ async function fetchEngageEvents(fetchImpl?: UpstreamFetchFn) {
       { headers: { Accept: kind === "ics" ? "text/calendar" : "application/rss+xml, application/xml, text/xml" } },
       fetchImpl);
     const payload = await response.text();
-    if (kind === "ics" && /BEGIN:VCALENDAR/i.test(payload)) return parseEngageIcsPayload(payload);
-    if (kind === "rss" && /<rss\b/i.test(payload)) return parseEngageRssPayload(payload);
+    if (kind === "ics" && /BEGIN:VCALENDAR/i.test(payload) && /END:VCALENDAR/i.test(payload)) {
+      const parsed = parseEngageIcsPayload(payload);
+      if (!parsed.length && /BEGIN:VEVENT/i.test(payload)) throw new Error("No usable Engage calendar Events");
+      return parsed;
+    }
+    if (kind === "rss" && /<rss\b/i.test(payload) && /<\/rss>/i.test(payload)) {
+      const parsed = parseEngageRssPayload(payload);
+      if (!parsed.length && /<item\b/i.test(payload)) throw new Error("No usable Engage RSS Events");
+      return parsed;
+    }
     throw new Error(`Invalid Engage ${kind} response`);
   }));
   if (ics.status === "rejected" && rss.status === "rejected") throw new Error("Engage feeds unavailable");
@@ -283,6 +303,14 @@ async function fetchEngageEvents(fetchImpl?: UpstreamFetchFn) {
   }
   return combined;
 }
+
+const eventSourceObservation = v.object({
+  sourceKey: v.union(v.literal("localist_events"), v.literal("engage_events")),
+  outcome: v.union(v.literal("accepted"), v.literal("partial"), v.literal("failed")),
+  count: v.optional(v.number()),
+});
+
+type EventSourceObservation = import("convex/values").Infer<typeof eventSourceObservation>;
 
 export async function runEventsIngestCycle(params: {
   syncState: {
@@ -299,13 +327,15 @@ export async function runEventsIngestCycle(params: {
       status: "failed_or_aborted";
       failurePatch: ReturnType<typeof evaluateFailureStatePatch>;
       reason: string;
+      sourceObservations: EventSourceObservation[];
     }
-  | { status: "noop_unchanged"; payloadHash: string }
+  | { status: "noop_unchanged"; payloadHash: string; sourceObservations: EventSourceObservation[] }
   | {
       status: "ready_to_upsert";
       payloadHash: string;
       events: NormalizedUpstreamEvent[];
       localistCoverageComplete: boolean;
+      sourceObservations: EventSourceObservation[];
     }
 > {
   const { syncState, nowMs, fetchImpl } = params;
@@ -313,8 +343,17 @@ export async function runEventsIngestCycle(params: {
     return { status: "circuit_open" };
   }
 
+  const sourceObservations: EventSourceObservation[] = [];
   try {
     const [localist, engage] = await Promise.allSettled([fetchLocalistEvents(fetchImpl), fetchEngageEvents(fetchImpl)]);
+    sourceObservations.push(
+      localist.status === "fulfilled"
+        ? { sourceKey: "localist_events", outcome: localist.value.complete ? "accepted" : "partial", count: localist.value.events.length }
+        : { sourceKey: "localist_events", outcome: "failed" },
+      engage.status === "fulfilled"
+        ? { sourceKey: "engage_events", outcome: "accepted", count: engage.value.length }
+        : { sourceKey: "engage_events", outcome: "failed" },
+    );
     if (localist.status === "rejected" && engage.status === "rejected") {
       throw new Error("Localist and Engage feeds unavailable");
     }
@@ -325,18 +364,20 @@ export async function runEventsIngestCycle(params: {
     const localistCoverageComplete = localist.status === "fulfilled" && localist.value.complete
       && engage.status === "fulfilled";
 
-    if (isSuddenDropOrEmpty(syncState.activeRecordCount, deduped.length)) {
+    const verifiedEmpty = localistCoverageComplete && !deduped.length && !syncState.activeRecordCount;
+    if (!verifiedEmpty && isSuddenDropOrEmpty(syncState.activeRecordCount, deduped.length)) {
       const reason = `Aborted Events upsert: incoming ${deduped.length} vs previous ${syncState.activeRecordCount} (>80% drop or empty).`;
       return {
         status: "failed_or_aborted",
-        failurePatch: evaluateFailureStatePatch(syncState, nowMs, reason),
+        failurePatch: evaluateFailureStatePatch(syncState, nowMs, reason, "partial"),
+        sourceObservations,
         reason,
       };
     }
 
     const payloadHash = await computePayloadHash({ events: deduped, localistCoverageComplete });
     if (localistCoverageComplete && payloadHash === syncState.lastPayloadHash) {
-      return { status: "noop_unchanged", payloadHash };
+      return { status: "noop_unchanged", payloadHash, sourceObservations };
     }
 
     return {
@@ -344,6 +385,7 @@ export async function runEventsIngestCycle(params: {
       payloadHash,
       events: deduped,
       localistCoverageComplete,
+      sourceObservations,
     };
   } catch (err: any) {
     const reason = err?.message || "Upstream KSU Events sync error";
@@ -351,6 +393,7 @@ export async function runEventsIngestCycle(params: {
       status: "failed_or_aborted",
       failurePatch: evaluateFailureStatePatch(syncState, nowMs, reason),
       reason,
+      sourceObservations,
     };
   }
 }
@@ -369,6 +412,8 @@ export const applySyncedEventsInternal = internalMutation({
   args: {
     now: v.number(),
     localistCoverageComplete: v.optional(v.boolean()),
+    sourceObservations: v.optional(v.array(eventSourceObservation)),
+    partial: v.optional(v.boolean()),
     status: v.union(
       v.literal("noop_unchanged"),
       v.literal("ready_to_upsert"),
@@ -384,6 +429,26 @@ export const applySyncedEventsInternal = internalMutation({
       .withIndex("by_source", (q) => q.eq("sourceKey", "localist_engage_events"))
       .unique();
 
+    if (state?.lastAttemptAt !== undefined && state.lastAttemptAt > args.now) {
+      return { upserted: 0, cancelledUpstream: 0 };
+    }
+
+    for (const observation of args.sourceObservations ?? []) {
+      const previous = await ctx.db.query("feedSyncState")
+        .withIndex("by_source", (q) => q.eq("sourceKey", observation.sourceKey)).unique();
+      const accepted = observation.outcome === "accepted";
+      const fields = {
+        lastAttemptAt: args.now,
+        lastSuccessAt: accepted ? args.now : previous?.lastSuccessAt,
+        lastOutcome: observation.outcome,
+        consecutiveFailures: accepted ? 0 : (previous?.consecutiveFailures ?? 0) + 1,
+        activeRecordCount: accepted ? observation.count ?? 0 : previous?.activeRecordCount ?? 0,
+        lastAcceptedCount: accepted ? observation.count ?? 0 : previous?.lastAcceptedCount,
+      };
+      if (previous) await ctx.db.patch(previous._id, fields);
+      else await ctx.db.insert("feedSyncState", { sourceKey: observation.sourceKey, ...fields });
+    }
+
     if (args.status === "failed_or_aborted") {
       const base = state ?? {
         consecutiveFailures: 0,
@@ -392,7 +457,7 @@ export const applySyncedEventsInternal = internalMutation({
       const patch = evaluateFailureStatePatch(
         base,
         args.now,
-        args.failureReason ?? "Sync failed"
+        args.failureReason ?? "Sync failed", args.partial ? "partial" : "failed"
       );
       if (state) {
         await ctx.db.patch(state._id, patch);
@@ -404,6 +469,7 @@ export const applySyncedEventsInternal = internalMutation({
           backoffUntil: patch.backoffUntil,
           activeRecordCount: 0,
           lastError: patch.lastError,
+          lastOutcome: patch.lastOutcome,
         });
       }
       return { upserted: 0, cancelledUpstream: 0 };
@@ -414,6 +480,7 @@ export const applySyncedEventsInternal = internalMutation({
         await ctx.db.patch(state._id, {
           lastSuccessAt: args.now,
           lastAttemptAt: args.now,
+          lastOutcome: "accepted",
           consecutiveFailures: 0,
           backoffUntil: undefined,
           lastError: undefined,
@@ -517,6 +584,7 @@ export const applySyncedEventsInternal = internalMutation({
         backoffUntil: undefined,
         lastPayloadHash: args.payloadHash,
         activeRecordCount: args.localistCoverageComplete ? incoming.length : state.activeRecordCount,
+        lastOutcome: args.localistCoverageComplete ? "accepted" : "partial",
         lastError: args.localistCoverageComplete ? undefined : "Event feed coverage was incomplete",
       });
     } else {
@@ -527,6 +595,7 @@ export const applySyncedEventsInternal = internalMutation({
         consecutiveFailures: 0,
         lastPayloadHash: args.payloadHash,
         activeRecordCount: incoming.length,
+        lastOutcome: args.localistCoverageComplete ? "accepted" : "partial",
         lastError: args.localistCoverageComplete ? undefined : "Event feed coverage was incomplete",
       });
     }
@@ -560,6 +629,8 @@ export const runScheduledEventsSync = internalAction({
         now,
         status: "failed_or_aborted",
         failureReason: outcome.reason,
+        partial: outcome.failurePatch.lastOutcome === "partial",
+        sourceObservations: outcome.sourceObservations,
       });
       return { status: "failed_or_aborted" };
     }
@@ -568,6 +639,7 @@ export const runScheduledEventsSync = internalAction({
         now,
         status: "noop_unchanged",
         payloadHash: outcome.payloadHash,
+        sourceObservations: outcome.sourceObservations,
       });
       return { status: "noop_unchanged" };
     }
@@ -577,6 +649,7 @@ export const runScheduledEventsSync = internalAction({
       status: "ready_to_upsert",
       payloadHash: outcome.payloadHash,
       events: outcome.events,
+      sourceObservations: outcome.sourceObservations,
       localistCoverageComplete: outcome.localistCoverageComplete,
     });
     return { status: "updated" };

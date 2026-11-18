@@ -114,7 +114,7 @@ export function TransitView() {
             )}
             <span className="inline-flex items-center gap-1 rounded-full bg-[#DCFCE7] px-2.5 py-1 text-[11px] font-extrabold text-[#15803D]">
               <Radio className="h-3 w-3" />
-              <span>{browserVehicles ? "Direct Passio GPS" : "Synced GPS"}</span>
+              <span>{browserVehicles ? "Direct Passio GPS" : overview?.isFixture ? "Demo GPS" : overview?.fetchedAt && !overview.staleness.isStale ? "Synced Passio GPS" : "Passio GPS unavailable"}</span>
             </span>
             {(!browserVehicles || overview?.staleness.isStale) && (
               <a
@@ -185,7 +185,7 @@ export function TransitView() {
                 </div>
               </div>
               <span className="rounded-xl bg-[#111317] px-3 py-1 text-xs font-black text-[#FDBB30]">
-                Next bus: {route.nextEtaMinutes} min
+                {route.nextEtaMinutes === null ? "Next arrival unavailable" : "Next bus: " + route.nextEtaMinutes + " min"}
               </span>
             </div>
 
