@@ -25,7 +25,16 @@ function readRecord(storage: Storage, key: string): StoredSnapshot | null {
         !["Kennesaw", "Marietta", "All KSU"].includes(snapshot.campusFilter) ||
         !Array.isArray(snapshot.schedule?.enrolledCourses) ||
         !Array.isArray(snapshot.schedule?.personalDeadlines)) return null;
-    return value;
+    return {
+      ...value,
+      snapshot: {
+        ...snapshot,
+        schedule: {
+          ...snapshot.schedule,
+          privateClasses: Array.isArray(snapshot.schedule.privateClasses) ? snapshot.schedule.privateClasses : [],
+        },
+      },
+    };
   } catch {
     return null;
   }

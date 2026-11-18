@@ -251,6 +251,11 @@ export const getNowHud = viewerQuery({
       )
       .take(15);
 
+    const importedTerms = await ctx.db.query("privateScheduleTerms").withIndex("by_student_term", (q) =>
+      q.eq("workspaceKey", viewer.workspaceKey).eq("studentId", viewer.actorStudent._id)
+    ).order("desc").take(20);
+    const privateClasses = importedTerms.flatMap(({ termCode, entries }) =>
+      entries.map((entry) => ({ ...entry, termCode })));
     const enrolledCourses = [];
     const personalDeadlines: Array<{
       uid: string;
@@ -270,6 +275,7 @@ export const getNowHud = viewerQuery({
         enrolledCourses.push({
           enrollmentId: enr._id,
           courseHubId: hub._id,
+          sectionId: activeSection?._id,
           subjectCourse: hub.subjectCourse,
           title: hub.title,
           termCode: enr.termCode,
@@ -282,6 +288,15 @@ export const getNowHud = viewerQuery({
       for (const dl of enr.personalDeadlines) {
         if (dl.dueAt > now - 3600_000) {
           personalDeadlines.push(dl);
+        }
+      }
+    }
+    const deadlineIds = new Set(personalDeadlines.map(({ uid }) => uid));
+    for (const { personalDeadlines: imported } of importedTerms) {
+      for (const deadline of imported) {
+        if (deadline.dueAt > now - 3600_000 && !deadlineIds.has(deadline.uid)) {
+          personalDeadlines.push(deadline);
+          deadlineIds.add(deadline.uid);
         }
       }
     }
@@ -719,6 +734,7 @@ export const getNowHud = viewerQuery({
       campusFilter,
       schedule: {
         enrolledCourses,
+        privateClasses,
         personalDeadlines: personalDeadlines.slice(0, 5),
       },
       joinedClubs,

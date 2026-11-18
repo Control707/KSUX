@@ -1,5 +1,6 @@
 import { getIncidentLaunchGate, projectMonthlyV2Io } from "./lib/v2Launch";
 import { parseMaintainerEmails } from "./lib/viewer";
+import { describeFeedHealth } from "./lib/syncGuard";
 import { ConvexError, v } from "convex/values";
 import { setClubMembershipRole } from "./communities";
 import { makeStudentPairKey, sha256Hex } from "./lib/crypto";
@@ -292,6 +293,29 @@ export const submitReport = viewerMutation({
       distinctReporterCount,
       showKsuPoliceCallout: args.reason === "campus_safety",
     };
+  },
+});
+
+const campusFeeds = [
+  { key: "localist_events", name: "KSU Calendar (Localist)", maxAge: 2 * 60 * 60_000 },
+  { key: "engage_events", name: "Engage Events syndication", maxAge: 2 * 60 * 60_000 },
+  { key: "passio_shuttle", name: "Big Owl Bus (Passio GO)", maxAge: 15 * 60_000 },
+  { key: "libcal_study_rooms", name: "Study Rooms (LibCal)", maxAge: 15 * 60_000 },
+  { key: "ksu_dining_hours", name: "KSU Dining hours", maxAge: 26 * 60 * 60_000 },
+  { key: "nutrislice_dining", name: "Dining menus (Nutrislice)", maxAge: 24 * 60 * 60_000 },
+];
+
+export const getCampusFeedHealth = viewerQuery({
+  args: {},
+  handler: async (ctx) => {
+    if (ctx.viewer.mode !== "student" || !ctx.viewer.isModerator) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Campus feed health requires maintainer access." });
+    }
+    const now = Date.now();
+    return Promise.all(campusFeeds.map(async ({ key, name, maxAge }) => {
+      const state = await ctx.db.query("feedSyncState").withIndex("by_source", (q) => q.eq("sourceKey", key)).unique();
+      return { key, name, ...describeFeedHealth(state, now, maxAge) };
+    }));
   },
 });
 
