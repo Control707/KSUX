@@ -16,6 +16,7 @@ import type * as courses from "../courses.js";
 import type * as crons from "../crons.js";
 import type * as demo_fixtures from "../demo/fixtures.js";
 import type * as demo_session from "../demo/session.js";
+import type * as demo_v2Fixtures from "../demo/v2Fixtures.js";
 import type * as feed from "../feed.js";
 import type * as housekeeping from "../housekeeping.js";
 import type * as http from "../http.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   "demo/fixtures": typeof demo_fixtures;
   "demo/session": typeof demo_session;
+  "demo/v2Fixtures": typeof demo_v2Fixtures;
   feed: typeof feed;
   housekeeping: typeof housekeeping;
   http: typeof http;

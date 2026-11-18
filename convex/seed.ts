@@ -54,6 +54,8 @@ export const bootstrapKsu = internalMutation({
       if (!existing) {
         await ctx.db.insert("parkingLots", lot);
         parkingInserted++;
+      } else if (existing.hourlyBaselinePrior !== undefined) {
+        await ctx.db.patch(existing._id, { hourlyBaselinePrior: undefined });
       }
     }
 
@@ -129,17 +131,21 @@ export const bootstrapKsu = internalMutation({
       .query("shuttleSnapshots")
       .withIndex("by_singleton", (q) => q.eq("singletonKey", "latest"))
       .unique();
-    if (!existingShuttleSnap && includeFixtures) {
+    const legacyNoticeSnapshot = existingShuttleSnap?.serviceAlerts !== undefined;
+    if (legacyNoticeSnapshot && existingShuttleSnap) {
+      await ctx.db.delete(existingShuttleSnap._id);
+    }
+    if ((!existingShuttleSnap || legacyNoticeSnapshot) && includeFixtures) {
       const initSnap = (shuttleRoutesSeed as any).initialSnapshot;
       await ctx.db.insert("shuttleSnapshots", {
         singletonKey: "latest",
         vehicles: initSnap.vehicles,
         stopEtas: initSnap.stopEtas,
-        serviceAlerts: initSnap.serviceAlerts,
+        shuttleNotices: initSnap.shuttleNotices,
         fetchedAt: now,
         isFixture: true,
       });
-    } else if (existingShuttleSnap && !includeFixtures &&
+    } else if (existingShuttleSnap && !legacyNoticeSnapshot && !includeFixtures &&
       (existingShuttleSnap.isFixture ||
         (legacyShuttle?.lastSuccessAt === existingShuttleSnap.fetchedAt && !legacyShuttle.lastPayloadHash))) {
       await ctx.db.delete(existingShuttleSnap._id);
@@ -379,6 +385,15 @@ export const bootstrapKsu = internalMutation({
       } else if (existing && !includeFixtures && existing.summaryJson === JSON.stringify(syl.summary)) {
         await ctx.db.delete(existing._id);
       }
+    }
+
+    // The P0 institutional sources start in links-only mode.
+    for (const sourceKey of ["ksu_timely_warnings", "ksu_emergency_advisories"]) {
+      const source = await ctx.db.query("alertSources").withIndex("by_source", (q) =>
+        q.eq("workspaceKey", "ksu").eq("sourceKey", sourceKey)).unique();
+      if (!source) await ctx.db.insert("alertSources", {
+        workspaceKey: "ksu", sourceKey, adapterKind: "links_only", lastResult: "unavailable", killSwitch: "off",
+      });
     }
 
     // 9. Initialize feedSyncState rows

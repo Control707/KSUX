@@ -30,6 +30,8 @@ export interface ViewerContext {
   hiddenTargetKeys: ReadonlySet<string>;
   enrolledCourseHubIds: ReadonlySet<Id<"courseHubs">>;
   isModerator: boolean;
+  isMaintainer: boolean;
+  isCsa: boolean;
 }
 
 export interface PublicStudentProfile {
@@ -113,6 +115,8 @@ export async function resolveViewerFromDb(
   let demoShortCode: string | undefined;
   let actorStudent: Doc<"students"> | null = null;
   let isModerator = false;
+  let isMaintainer = false;
+  let isCsa = false;
   let studentSessionId: Id<"studentSessions"> | undefined;
   let studentSessionTokenHash: string | undefined;
   let studentSessionExpiresAt: number | undefined;
@@ -164,10 +168,15 @@ export async function resolveViewerFromDb(
     const maintainers = parseMaintainerEmails(
       process.env.KSUX_MAINTAINER_EMAILS
     );
-    isModerator = Boolean(
+    isMaintainer = Boolean(
       actorStudent.canonicalEmail &&
         maintainers.has(actorStudent.canonicalEmail)
     );
+    const appointment = await ctx.db.query("moderators").withIndex("by_student", (q) =>
+      q.eq("workspaceKey", "prod").eq("studentId", actorStudent!._id)).unique();
+    const appointed = Boolean(appointment && appointment.revokedAt === undefined);
+    isModerator = isMaintainer || appointed;
+    isCsa = Boolean(appointment?.isCsa && (appointed || isMaintainer));
     mode = "student";
     workspaceKey = "prod";
   } else if (auth.demoShortCode && auth.demoShortCode.trim().length > 0) {
@@ -231,6 +240,7 @@ export async function resolveViewerFromDb(
     demoSessionId = demoSession._id;
     demoShortCode = demoSession.shortCode;
     isModerator = true;
+    isMaintainer = actorStudent.handleLower === "maya_cs";
   } else {
     throw new ConvexError({
       code: "UNAUTHENTICATED",
@@ -249,6 +259,8 @@ export async function resolveViewerFromDb(
     demoShortCode,
     actorStudent,
     isModerator,
+    isMaintainer,
+    isCsa,
   });
 }
 

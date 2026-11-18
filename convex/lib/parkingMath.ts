@@ -1,5 +1,3 @@
-import { Doc } from "../_generated/dataModel";
-
 export const FULLNESS_TIER_LABELS: Record<0 | 1 | 2 | 3, string> = {
   0: "Open (<60%)",
   1: "Filling (60–85%)",
@@ -15,7 +13,6 @@ export function getEasternDayAndHour(nowMs: number): {
   minuteOfDay: number;
   dayName: string;
   hourLabel: string;
-  priorIndex: number;
 } {
   // Format in America/New_York
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -31,7 +28,6 @@ export function getEasternDayAndHour(nowMs: number): {
   const minRaw = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
   const hourOfDay = hrRaw === 24 ? 0 : hrRaw;
   const dayIdx = Math.max(0, DAY_NAMES_SHORT.indexOf(wk));
-  const priorIndex = dayIdx * 24 + hourOfDay;
 
   const ampm = hourOfDay >= 12 ? "PM" : "AM";
   const hr12 = hourOfDay % 12 === 0 ? 12 : hourOfDay % 12;
@@ -42,14 +38,13 @@ export function getEasternDayAndHour(nowMs: number): {
     minuteOfDay: hourOfDay * 60 + minRaw,
     dayName: DAY_NAMES_SHORT[dayIdx] ?? "Mon",
     hourLabel: `${hr12} ${ampm}`,
-    priorIndex,
   };
 }
 
 export interface EvaluatedParkingStatus {
-  effectiveTier: 0 | 1 | 2 | 3;
+  effectiveTier: 0 | 1 | 2 | 3 | null;
   tierLabel: string;
-  provenanceKind: "verified_multi" | "blended_single" | "baseline_prior";
+  provenanceKind: "verified_multi" | "single_report" | "no_recent_reports";
   provenanceLabel: string;
   activeReportCount: number;
   latestReportMinutesAgo?: number;
@@ -57,7 +52,6 @@ export interface EvaluatedParkingStatus {
 }
 
 export function evaluateParkingLotFullness(
-  lot: Pick<Doc<"parkingLots">, "hourlyBaselinePrior">,
   activeReports: Array<{
     authorId?: string;
     fullnessTier?: 0 | 1 | 2 | 3;
@@ -68,14 +62,6 @@ export function evaluateParkingLotFullness(
   }>,
   nowMs: number
 ): EvaluatedParkingStatus {
-  const { dayName, hourLabel, priorIndex } = getEasternDayAndHour(nowMs);
-  const priorRaw = lot.hourlyBaselinePrior[priorIndex] ?? 1;
-  const priorTier = Math.max(0, Math.min(3, Math.round(priorRaw))) as
-    | 0
-    | 1
-    | 2
-    | 3;
-
   // Filter strictly active reports inside the 45m decay window
   const eligible = activeReports
     .filter(
@@ -95,10 +81,10 @@ export function evaluateParkingLotFullness(
 
   if (valid.length === 0) {
     return {
-      effectiveTier: priorTier,
-      tierLabel: FULLNESS_TIER_LABELS[priorTier],
-      provenanceKind: "baseline_prior",
-      provenanceLabel: `Estimated · Modeled ${dayName} ${hourLabel} baseline`,
+      effectiveTier: null,
+      tierLabel: "No recent reports",
+      provenanceKind: "no_recent_reports",
+      provenanceLabel: "Parking Lot availability unavailable",
       activeReportCount: 0,
     };
   }
@@ -110,16 +96,11 @@ export function evaluateParkingLotFullness(
   );
 
   if (valid.length === 1) {
-    const blended = 0.7 * latest.fullnessTier! + 0.3 * priorTier;
-    const effectiveTier = Math.max(0, Math.min(3, Math.round(blended))) as
-      | 0
-      | 1
-      | 2
-      | 3;
+    const effectiveTier = latest.fullnessTier!;
     return {
       effectiveTier,
       tierLabel: FULLNESS_TIER_LABELS[effectiveTier],
-      provenanceKind: "blended_single",
+      provenanceKind: "single_report",
       provenanceLabel: `Live · 1 Student report (${minsAgo}m ago)`,
       activeReportCount: 1,
       latestReportMinutesAgo: minsAgo,
@@ -160,7 +141,7 @@ export function evaluateParkingLotFullness(
     weightTotal += weight;
   }
 
-  const avg = weightTotal > 0 ? weightedSum / weightTotal : priorTier;
+  const avg = weightTotal > 0 ? weightedSum / weightTotal : latest.fullnessTier!;
   const effectiveTier = Math.max(0, Math.min(3, Math.round(avg))) as
     | 0
     | 1

@@ -188,7 +188,7 @@ export const shellSummary = viewerQuery({
             .take(5),
         ]);
 
-        const evaluated = evaluateParkingLotFullness(lot, fullnessReports, now);
+        const evaluated = evaluateParkingLotFullness(fullnessReports, now);
         const activeOpenings = spotOpenings.filter(
           (s) => s.status === "active" && s.goneVoterIds.length < 2
         );
@@ -212,6 +212,8 @@ export const shellSummary = viewerQuery({
         workspaceKey: viewer.workspaceKey,
         demoShortCode: viewer.demoShortCode,
         isModerator: viewer.isModerator,
+        isMaintainer: viewer.isMaintainer,
+        isCsa: viewer.isCsa,
         student: toPublicStudent(viewer.actorStudent),
         activeCampusFilter: viewer.actorStudent.activeCampusFilter,
         permitTier: viewer.actorStudent.permitTier,
@@ -375,7 +377,7 @@ export const getNowHud = viewerQuery({
             .take(5),
         ]);
 
-        const evaluated = evaluateParkingLotFullness(lot, fullnessReports, now);
+        const evaluated = evaluateParkingLotFullness(fullnessReports, now);
         const activeOpenings = spotOpenings.filter(
           (s) => s.status === "active" && s.goneVoterIds.length < 2
         );
@@ -389,7 +391,7 @@ export const getNowHud = viewerQuery({
           shuttleEtaMinutes?: number;
         } | null = null;
 
-        if (evaluated.effectiveTier >= 2 && lot.overflowTargetLotSlugs.length > 0) {
+        if (evaluated.effectiveTier !== null && evaluated.effectiveTier >= 2 && lot.overflowTargetLotSlugs.length > 0) {
           for (const targetSlug of lot.overflowTargetLotSlugs) {
             const overflowLot = await ctx.db
               .query("parkingLots")
@@ -407,11 +409,10 @@ export const getNowHud = viewerQuery({
               )
               .take(15);
             const overflowEval = evaluateParkingLotFullness(
-              overflowLot,
               overflowReports,
               now
             );
-            if (overflowEval.effectiveTier <= 1) {
+            if (overflowEval.effectiveTier !== null && overflowEval.effectiveTier <= 1) {
               const routeId = overflowLot.servedByShuttleRouteIds[0];
               const route = routeId ? await ctx.db
                 .query("shuttleRoutes")

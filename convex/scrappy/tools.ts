@@ -38,7 +38,7 @@ async function resolvePublicToolViewer(ctx: QueryCtx, args: {
   }
   if (trigger.workspaceKey === "prod") {
     return loadViewerScope(ctx, {
-      mode: "student", workspaceKey: trigger.workspaceKey, actorStudent: author, isModerator: false,
+      mode: "student", workspaceKey: trigger.workspaceKey, actorStudent: author, isModerator: false, isMaintainer: false, isCsa: false,
     });
   }
   const demoId = ctx.db.normalizeId("demoSessions", trigger.workspaceKey.slice("demo:".length));
@@ -48,7 +48,7 @@ async function resolvePublicToolViewer(ctx: QueryCtx, args: {
   }
   return loadViewerScope(ctx, {
     mode: "demo", workspaceKey: trigger.workspaceKey, demoSessionId: demo._id,
-    demoShortCode: demo.shortCode, actorStudent: author, isModerator: false,
+    demoShortCode: demo.shortCode, actorStudent: author, isModerator: false, isMaintainer: false, isCsa: false,
   });
 }
 
@@ -484,7 +484,7 @@ export const getCampusDailyPulse = internalQuery({
               .gt("expiresAt", now)
           )
           .take(15);
-        const ev = evaluateParkingLotFullness(lot, reports, now);
+        const ev = evaluateParkingLotFullness(reports, now);
         return {
           name: lot.name,
           slug: lot.slug,
@@ -673,7 +673,7 @@ export const getEntityDetail = internalQuery({
             .gt("expiresAt", now)
         )
         .take(15);
-      const ev = evaluateParkingLotFullness(lot, reports, now);
+      const ev = evaluateParkingLotFullness(reports, now);
       return {
         found: true,
         detail: {

@@ -127,7 +127,7 @@ export const applyShuttleSyncInternal = internalMutation({
     failureReason: v.optional(v.string()),
     vehicles: v.optional(v.array(v.any())),
     stopEtas: v.optional(v.array(v.any())),
-    serviceAlerts: v.optional(v.array(v.any())),
+    shuttleNotices: v.optional(v.array(v.any())),
   },
   handler: async (ctx, args) => {
     const state = await ctx.db
@@ -155,18 +155,20 @@ export const applyShuttleSyncInternal = internalMutation({
     const streamPatch = {
       vehicles: args.vehicles ?? prior?.vehicles ?? [],
       stopEtas: args.stopEtas ?? prior?.stopEtas ?? [],
-      serviceAlerts: args.serviceAlerts ?? prior?.serviceAlerts ?? [],
+      shuttleNotices: args.shuttleNotices ?? prior?.shuttleNotices ?? [],
       vehiclesFetchedAt: args.vehicles !== undefined ? args.now : prior?.vehiclesFetchedAt,
       etasFetchedAt: args.stopEtas !== undefined ? args.now : prior?.etasFetchedAt,
-      alertsFetchedAt: args.serviceAlerts !== undefined ? args.now : prior?.alertsFetchedAt,
+      noticesFetchedAt: args.shuttleNotices !== undefined ? args.now : prior?.noticesFetchedAt,
       fetchedAt: args.now,
       isFixture: undefined,
+      serviceAlerts: undefined,
+      alertsFetchedAt: undefined,
     };
     if (snap) await ctx.db.patch(snap._id, streamPatch);
     else await ctx.db.insert("shuttleSnapshots", { singletonKey: "latest", ...streamPatch });
 
     const allStreamsAvailable = args.vehicles !== undefined && args.stopEtas !== undefined
-      && args.serviceAlerts !== undefined;
+      && args.shuttleNotices !== undefined;
     const syncPatch = {
       lastSuccessAt: allStreamsAvailable ? args.now : state?.lastSuccessAt,
       lastAttemptAt: args.now,
@@ -296,7 +298,7 @@ export const runScheduledShuttleSync = internalAction({
         payloadHash: outcome.payloadHash,
         vehicles: outcome.vehicles,
         stopEtas: outcome.stopEtas,
-        serviceAlerts: outcome.serviceAlerts,
+        shuttleNotices: outcome.shuttleNotices,
       }
     );
     return { status: outcome.status === "noop_unchanged" ? outcome.status : "updated" };

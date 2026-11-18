@@ -7,7 +7,22 @@ import type { Doc, Id, TableNames } from "./_generated/dataModel";
 const BATCH_LIMIT = 200;
 const HOUR = 60 * 60 * 1000;
 
+const v2StudentWorkspaceTables = [
+  "incidentUpdates", "incidents", "appeals", "moderatorActions",
+  "cloutEvents", "cloutWeeklyTotals", "cloutBoardCounts",
+] as const;
+const v2InstitutionalTables = ["alertItems", "alertSources"] as const;
+
 const demoIndexes = {
+  incidentUpdates: "by_purge",
+  incidents: "by_purge",
+  appeals: "by_purge",
+  moderatorActions: "by_purge",
+  cloutEvents: "by_purge",
+  cloutWeeklyTotals: "by_purge",
+  cloutBoardCounts: "by_purge",
+  alertItems: "by_purge",
+  alertSources: "by_purge",
   scrappyMessages: "by_thread_created",
   scrappyThreads: "by_student_recent",
   chatMessages: "by_chat_seq",
@@ -139,6 +154,25 @@ export const executePurgeBatch = internalMutation({
         break;
       }
       await deleteRows([demo]);
+    }
+
+    for (const table of [...v2StudentWorkspaceTables, "moderators"] as const) {
+      if (budget() <= 0) break;
+      await deleteRows(await ctx.db.query(table).withIndex("by_purge", (q) =>
+        q.eq("workspaceKey", "prod").gt("purgeAt", 0).lte("purgeAt", now)).take(budget()));
+    }
+    for (const table of v2InstitutionalTables) {
+      if (budget() <= 0) break;
+      await deleteRows(await ctx.db.query(table).withIndex("by_purge", (q) =>
+        q.eq("workspaceKey", "ksu").gt("purgeAt", 0).lte("purgeAt", now)).take(budget()));
+    }
+    if (budget() > 0) {
+      const snapshots = await ctx.db.query("moderatorActions").withIndex("by_snapshot_purge", (q) =>
+        q.eq("workspaceKey", "prod").gt("snapshotPurgeAt", 0).lte("snapshotPurgeAt", now)).take(budget());
+      for (const snapshot of snapshots) {
+        await ctx.db.patch(snapshot._id, { contentSnapshot: undefined, snapshotPurgeAt: undefined });
+        deletedCount++;
+      }
     }
 
     const pruneQueries = [

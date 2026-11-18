@@ -56,7 +56,7 @@ function parseAlerts(entities: any[]) {
     const routeIds = Array.isArray(alert.informed_entity) ? alert.informed_entity
       .flatMap((entity: any) => entity?.route_id ? [String(entity.route_id)] : []) : [];
     return [{
-      alertId: String(id),
+      noticeId: String(id),
       title: title.slice(0, 160),
       body: String(alert.description_text?.translation?.[0]?.text ?? "").slice(0, 600),
       passioRouteIds: routeIds,
@@ -107,9 +107,9 @@ export async function runPassioShuttleIngestCycle(params: {
 
   const vehicles = positionResult.status === "fulfilled" ? positionResult.value : undefined;
   const stopEtas = etaResult.status === "fulfilled" ? etaResult.value : undefined;
-  const serviceAlerts = alertResult.status === "fulfilled" ? alertResult.value : undefined;
+  const shuttleNotices = alertResult.status === "fulfilled" ? alertResult.value : undefined;
   // A successful empty stream replaces its cached rows; only unavailable streams retain them.
-  if (vehicles === undefined && stopEtas === undefined && serviceAlerts === undefined) {
+  if (vehicles === undefined && stopEtas === undefined && shuttleNotices === undefined) {
     const reason = "Passio provided no usable shuttle data";
     return { status: "failed" as const, reason, failurePatch: evaluateFailureStatePatch(syncState, nowMs, reason) };
   }
@@ -117,11 +117,11 @@ export async function runPassioShuttleIngestCycle(params: {
   const payloadHash = await computePayloadHash({
     vehicles,
     stopEtas: stopEtas?.map(({ etaMinutes: _relativeMinutes, ...eta }) => eta),
-    serviceAlerts,
+    shuttleNotices,
   });
   return {
-    status: vehicles && stopEtas && serviceAlerts && payloadHash === syncState.lastPayloadHash
+    status: vehicles && stopEtas && shuttleNotices && payloadHash === syncState.lastPayloadHash
       ? "noop_unchanged" as const : "ready_to_upsert" as const,
-    payloadHash, vehicles, stopEtas, serviceAlerts,
+    payloadHash, vehicles, stopEtas, shuttleNotices,
   };
 }

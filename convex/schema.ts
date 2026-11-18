@@ -117,6 +117,8 @@ export default defineSchema({
     permitTier: v.optional(v.string()),
     pinnedParkingLotIds: v.array(v.id("parkingLots")),
     completedDealCount: v.number(),
+    lifetimeClout: v.optional(v.number()),
+    leaderboardHidden: v.optional(v.boolean()),
     onboardingCompleted: v.optional(v.boolean()),
     accountStatus: v.union(
       v.literal("active"),
@@ -204,7 +206,7 @@ export default defineSchema({
       v.literal("listing"),
       v.literal("study_session"),
       v.literal("student"),
-      v.literal("chat_message")
+      v.literal("chat_message"), v.literal("incident")
     ),
     targetKey: v.string(),
     reason: v.union(
@@ -212,18 +214,21 @@ export default defineSchema({
       v.literal("scam_spam"),
       v.literal("prohibited_item"),
       v.literal("impersonation"),
-      v.literal("campus_safety")
+      v.literal("campus_safety"), v.literal("identifies_me"), v.literal("identifies_person"), v.literal("false_misleading")
     ),
     notes: v.optional(v.string()),
     queueStatus: v.union(
       v.literal("open"),
       v.literal("quarantined"),
       v.literal("restored"),
+      v.literal("dismissed"),
       v.literal("removed")
     ),
+    priority: v.optional(v.union(v.literal(0), v.literal(1), v.literal(2), v.literal(3))),
     reviewedById: v.optional(v.id("students")),
     createdAt: v.number(),
   })
+    .index("by_queue_priority", ["workspaceKey", "queueStatus", "priority", "createdAt"])
     .index("by_reporter", ["workspaceKey", "reporterId"])
     .index("by_target", ["workspaceKey", "targetKey"])
     .index("by_queue", ["workspaceKey", "queueStatus", "createdAt"]),
@@ -586,6 +591,9 @@ export default defineSchema({
   }).index("by_chat_seq", ["workspaceKey", "chatId", "seq"]),
 
   pushSubscriptions: defineTable({
+    workspaceKey: v.optional(v.literal("prod")),
+    officialAlertOptIn: v.optional(v.boolean()),
+    officialAlertOptedInAt: v.optional(v.number()),
     studentId: v.id("students"),
     endpoint: v.string(),
     p256dh: v.string(),
@@ -595,7 +603,8 @@ export default defineSchema({
     lastUsedAt: v.number(),
   })
     .index("by_student", ["studentId"])
-    .index("by_endpoint", ["endpoint"]),
+    .index("by_endpoint", ["endpoint"])
+    .index("by_official_alert_opt_in", ["workspaceKey", "officialAlertOptIn", "officialAlertOptedInAt"]),
 
   // =========================================================================
   // D. KSU Daily-Life Catalogs, Snapshots, Enrollments & Pulses (18 Tables)
@@ -623,7 +632,8 @@ export default defineSchema({
     permitTiers: v.array(v.string()),
     servedByShuttleRouteIds: v.array(v.string()),
     overflowTargetLotSlugs: v.array(v.string()),
-    hourlyBaselinePrior: v.array(v.number()),
+    // Legacy deploy compatibility. Seeding removes this retired field.
+    hourlyBaselinePrior: v.optional(v.array(v.number())),
     latitude: v.number(),
     longitude: v.number(),
     geoFeatureId: v.string(),
@@ -989,18 +999,27 @@ export default defineSchema({
         arrivalAt: v.optional(v.number()),
       })
     ),
-    serviceAlerts: v.array(
+    shuttleNotices: v.optional(v.array(
+      v.object({
+        noticeId: v.string(),
+        title: v.string(),
+        body: v.string(),
+        passioRouteIds: v.array(v.string()),
+      })
+    )),
+    serviceAlerts: v.optional(v.array(
       v.object({
         alertId: v.string(),
         title: v.string(),
         body: v.string(),
         passioRouteIds: v.array(v.string()),
       })
-    ),
+    )),
     fetchedAt: v.number(),
     isFixture: v.optional(v.boolean()),
     vehiclesFetchedAt: v.optional(v.number()),
     etasFetchedAt: v.optional(v.number()),
+    noticesFetchedAt: v.optional(v.number()),
     alertsFetchedAt: v.optional(v.number()),
   }).index("by_singleton", ["singletonKey"]),
 
@@ -1080,6 +1099,8 @@ export default defineSchema({
   }).index("by_thread_created", ["workspaceKey", "threadId", "createdAt"]),
 
   mediaAssets: defineTable({
+    reviewStatus: v.optional(v.union(v.literal("held"), v.literal("approved"), v.literal("rejected"))),
+    holdExpiresAt: v.optional(v.number()),
     workspaceKey: v.string(),
     demoSessionId: v.optional(v.id("demoSessions")),
     ownerStudentId: v.id("students"),
@@ -1089,7 +1110,7 @@ export default defineSchema({
       v.literal("avatar"),
       v.literal("post"),
       v.literal("listing"),
-      v.literal("chat")
+      v.literal("chat"), v.literal("incident")
     ),
     byteSize: v.number(),
     width: v.number(),
@@ -1142,4 +1163,105 @@ export default defineSchema({
   })
     .index("by_pair_kind", ["workspaceKey", "kind", "pairKey"])
     .index("by_expires", ["expiresAt"]),
+
+  incidents: defineTable({
+    workspaceKey: v.string(), authorId: v.id("students"),
+    category: v.union(v.literal("fire"), v.literal("hazard"), v.literal("crash"), v.literal("theft"),
+      v.literal("damage"), v.literal("outage"), v.literal("area_closed"), v.literal("other")),
+    campus: campusValidator, buildingId: v.string(), areaDetail: v.optional(v.string()),
+    observedAt: v.number(), text: v.string(),
+    nameLevel: v.union(v.literal("show_handle"), v.literal("hidden")),
+    photoAssetId: v.optional(v.id("mediaAssets")),
+    visibility: v.union(v.literal("visible"), v.literal("under_review"), v.literal("removed"), v.literal("deleted")),
+    publishedAt: v.number(), lockedAt: v.number(), lastActivityAt: v.number(),
+    updateCount: v.number(), purgeAt: v.number(),
+    demoLabel: v.optional(v.literal("Demo · not real")),
+  }).index("by_campus_visibility_published", ["workspaceKey", "campus", "visibility", "publishedAt"])
+    .index("by_author", ["workspaceKey", "authorId"])
+    .index("by_purge", ["workspaceKey", "purgeAt"]),
+
+  incidentUpdates: defineTable({
+    workspaceKey: v.string(), incidentId: v.id("incidents"),
+    kind: v.union(v.literal("author_update"), v.literal("moderator_note")),
+    authorId: v.optional(v.id("students")), text: v.optional(v.string()),
+    templateId: v.optional(v.string()), alertId: v.optional(v.id("alertItems")),
+    officialUrl: v.optional(v.string()), createdAt: v.number(), purgeAt: v.number(),
+  }).index("by_incident", ["workspaceKey", "incidentId", "createdAt"])
+    .index("by_author", ["workspaceKey", "authorId"])
+    .index("by_purge", ["workspaceKey", "purgeAt"]),
+
+  moderators: defineTable({
+    workspaceKey: v.literal("prod"), studentId: v.id("students"),
+    appointedById: v.id("students"), csaStatement: v.string(), isCsa: v.boolean(),
+    appointedAt: v.number(), revokedAt: v.optional(v.number()), purgeAt: v.optional(v.number()),
+  }).index("by_student", ["workspaceKey", "studentId"])
+    .index("by_revoked", ["workspaceKey", "revokedAt"])
+    .index("by_purge", ["workspaceKey", "purgeAt"]),
+
+  moderatorActions: defineTable({
+    workspaceKey: v.string(), actorId: v.id("students"), action: v.string(),
+    targetType: v.string(), targetKey: v.string(), templateId: v.optional(v.string()),
+    reasonId: v.optional(v.string()), contentSnapshot: v.optional(v.string()),
+    snapshotPurgeAt: v.optional(v.number()), createdAt: v.number(), purgeAt: v.number(),
+  }).index("by_target", ["workspaceKey", "targetType", "targetKey", "createdAt"])
+    .index("by_created", ["workspaceKey", "createdAt"])
+    .index("by_snapshot_purge", ["workspaceKey", "snapshotPurgeAt"])
+    .index("by_purge", ["workspaceKey", "purgeAt"]),
+
+  appeals: defineTable({
+    workspaceKey: v.string(), decisionActionId: v.id("moderatorActions"),
+    appellantId: v.id("students"), reviewerId: v.optional(v.id("students")),
+    status: v.union(v.literal("open"), v.literal("upheld"), v.literal("overturned")),
+    text: v.optional(v.string()), createdAt: v.number(), purgeAt: v.number(),
+  }).index("by_decision", ["workspaceKey", "decisionActionId"])
+    .index("by_status", ["workspaceKey", "status", "createdAt"])
+    .index("by_purge", ["workspaceKey", "purgeAt"]),
+
+  alertSources: defineTable({
+    workspaceKey: v.string(), sourceKey: v.string(),
+    adapterKind: v.union(v.literal("links_only"), v.literal("html_copy"), v.literal("rave_stub")),
+    lastResult: v.union(v.literal("ok"), v.literal("quiet"), v.literal("unavailable"), v.literal("unrecognized")),
+    quietText: v.optional(v.string()), lastSuccessAt: v.optional(v.number()), lastAttemptAt: v.optional(v.number()),
+    backoffUntil: v.optional(v.number()), lastPayloadHash: v.optional(v.string()),
+    killSwitch: v.union(v.literal("off"), v.literal("manual"), v.literal("auto")),
+    killReason: v.optional(v.string()), purgeAt: v.optional(v.number()),
+  }).index("by_source", ["workspaceKey", "sourceKey"])
+    .index("by_purge", ["workspaceKey", "purgeAt"]),
+
+  alertItems: defineTable({
+    workspaceKey: v.string(), sourceId: v.id("alertSources"), itemKey: v.string(),
+    category: v.union(v.literal("timely_warning"), v.literal("emergency_advisory")),
+    headline: v.string(), excerpt: v.string(), officialUrl: v.optional(v.string()),
+    campus: v.optional(campusValidator), officialIssuedAt: v.optional(v.number()),
+    firstObservedAt: v.number(), lastSeenAt: v.number(),
+    state: v.union(v.literal("issued"), v.literal("updated"), v.literal("all_clear"), v.literal("no_longer_listed")),
+    confirmedFetches: v.number(), pushedAt: v.optional(v.number()), purgeAt: v.number(),
+    demoLabel: v.optional(v.literal("Demo · not real")),
+  }).index("by_source_item", ["workspaceKey", "sourceId", "itemKey"])
+    .index("by_observed", ["workspaceKey", "firstObservedAt"])
+    .index("by_purge", ["workspaceKey", "purgeAt"]),
+
+  cloutEvents: defineTable({
+    workspaceKey: v.string(), studentId: v.id("students"),
+    kind: v.union(v.literal("earn"), v.literal("hold"), v.literal("release"), v.literal("reverse")),
+    amount: v.number(), sourceType: v.union(v.literal("parking_report"), v.literal("spot_opening"), v.literal("line_check"), v.literal("study_vibe"), v.literal("handoff")),
+    sourceKey: v.string(), targetKey: v.string(), partnerId: v.optional(v.id("students")),
+    campus: campusValidator, weekKey: v.string(), dayKeyET: v.string(), createdAt: v.number(), purgeAt: v.number(),
+  }).index("by_student_day", ["workspaceKey", "studentId", "dayKeyET"])
+    .index("by_target_day", ["workspaceKey", "targetKey", "dayKeyET"])
+    .index("by_source", ["workspaceKey", "sourceType", "sourceKey", "studentId", "kind"])
+    .index("by_purge", ["workspaceKey", "purgeAt"]),
+
+  cloutWeeklyTotals: defineTable({
+    workspaceKey: v.string(), studentId: v.id("students"), campus: campusValidator,
+    weekKey: v.string(), countedTotal: v.number(), heldTotal: v.number(), hidden: v.boolean(), purgeAt: v.number(),
+  }).index("by_student_week_campus", ["workspaceKey", "studentId", "weekKey", "campus"])
+    .index("by_board", ["workspaceKey", "campus", "weekKey", "hidden", "countedTotal"])
+    .index("by_purge", ["workspaceKey", "purgeAt"]),
+
+  cloutBoardCounts: defineTable({
+    workspaceKey: v.string(), campus: campusValidator, weekKey: v.string(), visibleCount: v.number(), purgeAt: v.number(),
+  }).index("by_campus_week", ["workspaceKey", "campus", "weekKey"])
+    .index("by_purge", ["workspaceKey", "purgeAt"]),
+
 });

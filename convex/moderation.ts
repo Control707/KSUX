@@ -348,6 +348,8 @@ export const getModerationQueue = viewerQuery({
     >();
 
     for (const r of [...quarantinedReports, ...openReports]) {
+      // Incident content belongs to the v2 queue and its CSA/own-item guards.
+      if (r.targetType === "incident") continue;
       const targetId = r.targetKey.slice(r.targetType.length + 1);
       const existing = grouped.get(r.targetKey);
       if (!existing) {
@@ -478,6 +480,9 @@ export const reviewModerationTarget = moderatorMutation({
   handler: async (ctx, args) => {
     const now = Date.now();
     const wsKey = ctx.viewer.workspaceKey;
+    if (args.decision === "suspend_student" && !ctx.viewer.isMaintainer) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Only maintainers can suspend Students." });
+    }
     const targetKey = makeTargetKey(args.targetType, args.targetId);
 
     let targetAuthorId: Id<"students"> | undefined;

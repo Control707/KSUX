@@ -87,7 +87,7 @@ export const listParkingLots = viewerQuery({
             .take(10),
         ]);
 
-        const evaluated = evaluateParkingLotFullness(lot, fullnessReports, now);
+        const evaluated = evaluateParkingLotFullness(fullnessReports, now);
         const activeSpotOpenings = spotOpenings.filter(
           (s) => s.status === "active" && s.goneVoterIds.length < 2
         );
@@ -114,7 +114,7 @@ export const listParkingLots = viewerQuery({
       } | null = null;
 
       if (
-        entry.evaluated.effectiveTier >= 2 &&
+        entry.evaluated.effectiveTier !== null && entry.evaluated.effectiveTier >= 2 &&
         lot.overflowTargetLotSlugs.length > 0
       ) {
         for (const targetSlug of lot.overflowTargetLotSlugs) {
@@ -139,7 +139,6 @@ export const listParkingLots = viewerQuery({
               targetEntry = {
                 lot: fetchedOverflow,
                 evaluated: evaluateParkingLotFullness(
-                  fetchedOverflow,
                   reports,
                   now
                 ),
@@ -148,7 +147,7 @@ export const listParkingLots = viewerQuery({
             }
           }
 
-          if (targetEntry && targetEntry.evaluated.effectiveTier <= 1) {
+          if (targetEntry && targetEntry.evaluated.effectiveTier !== null && targetEntry.evaluated.effectiveTier <= 1) {
             const routeId = targetEntry.lot.servedByShuttleRouteIds[0];
             const route = allRoutes.find((r) => r.passioRouteId === routeId);
             const eta = routeId ? freshShuttleEta(latestShuttleSnap, routeId, now, viewer.mode === "demo") : null;

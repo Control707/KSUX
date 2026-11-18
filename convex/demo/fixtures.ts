@@ -1,3 +1,4 @@
+import { seedV2DemoStates } from "./v2Fixtures";
 import { MutationCtx } from "../_generated/server";
 import { Doc, Id } from "../_generated/dataModel";
 import { makeStudentPairKey } from "../lib/crypto";
@@ -1230,6 +1231,8 @@ export async function cloneDemoWorkspaceFixtures(
     publishedAt: now - 4 * MIN,
     expiresAt: now + 11 * MIN,
   });
+
+  await seedV2DemoStates(ctx, demoSessionId, { mayaId, jordanId, alexId }, now);
 
   return { mayaId, jordanId, alexId };
 }

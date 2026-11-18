@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { AlertTriangle, Bus, Radio } from "lucide-react";
+import { Info, Bus, Radio } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { useViewerMutation, useViewerQuery } from "@/lib/viewerClient";
 import {
@@ -138,16 +138,17 @@ export function TransitView() {
       </div>
 
       {/* Service Alerts */}
-      {(overview?.serviceAlerts ?? []).map((al) => (
+      {(overview?.shuttleNotices ?? []).map((al) => (
         <div
-          key={al.alertId}
-          className="rounded-2xl border border-[#FDBB30] bg-[#FFF6DC] p-3.5 text-xs text-[#111317]"
+          key={al.noticeId}
+          className="rounded-2xl border border-[#E4E7EE] bg-[#F4F6FA] p-3.5 text-xs text-[#111317]"
         >
           <div className="flex items-center gap-1.5 font-extrabold">
-            <AlertTriangle className="h-4 w-4 text-[#B45309]" />
+            <Info className="h-4 w-4 text-[#5E6675]" />
             <span>{al.title}</span>
           </div>
           <p className="mt-1 text-[#374151]">{al.body}</p>
+          <p className="mt-1 text-[#5E6675]">Shuttle Notice · Big Owl Bus via Passio GO</p>
         </div>
       ))}
 

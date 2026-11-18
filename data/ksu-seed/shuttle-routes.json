@@ -681,9 +681,9 @@
         "loadLabel": "Moderate Load"
       }
     ],
-    "serviceAlerts": [
+    "shuttleNotices": [
       {
-        "alertId": "bob-i75-advisory",
+        "noticeId": "bob-i75-advisory",
         "title": "KM Intercampus Express Advisory",
         "body": "KM Kennesaw / Marietta buses are using Cobb Pkwy (US-41) alternate routing during afternoon I-75 peak traffic.",
         "passioRouteIds": [

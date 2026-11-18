@@ -27,26 +27,6 @@ function makeBoxPolygon(
   ];
 }
 
-function build168HourPrior(peakBias: 0 | 1 | 2 | 3): number[] {
-  const arr: number[] = [];
-  for (let day = 0; day < 7; day++) {
-    const isWeekend = day === 0 || day === 6;
-    const isTueThu = day === 2 || day === 4;
-    for (let hr = 0; hr < 24; hr++) {
-      if (isWeekend) {
-        arr.push(hr >= 11 && hr <= 17 ? Math.min(1, peakBias) : 0);
-      } else if (hr >= 10 && hr <= 14) {
-        const boost = isTueThu ? peakBias : Math.max(0, peakBias - 1);
-        arr.push(Math.min(3, Math.max(0, boost)));
-      } else if (hr >= 8 && hr <= 17) {
-        arr.push(Math.min(2, Math.max(0, peakBias - 1)));
-      } else {
-        arr.push(0);
-      }
-    }
-  }
-  return arr;
-}
 
 // =========================================================================
 // 1. 72 Parking Lots (44 Kennesaw + 28 Marietta) + GeoJSON
@@ -61,7 +41,6 @@ interface SeedParkingLot {
   permitTiers: string[];
   servedByShuttleRouteIds: string[];
   overflowTargetLotSlugs: string[];
-  hourlyBaselinePrior: number[];
   latitude: number;
   longitude: number;
   geoFeatureId: string;
@@ -276,7 +255,6 @@ for (const lot of kennesawNamedLots) {
     permitTiers: lot.permitTiers,
     servedByShuttleRouteIds: lot.shuttleIds,
     overflowTargetLotSlugs: lot.overflow,
-    hourlyBaselinePrior: build168HourPrior(lot.peak),
     latitude: lot.lat,
     longitude: lot.lng,
     geoFeatureId: `lot-${lot.slug}`,
@@ -305,7 +283,6 @@ for (let i = 1; i <= 30; i++) {
     permitTiers: tierGroup,
     servedByShuttleRouteIds: ["74761"],
     overflowTargetLotSlugs: ["town-point-economy-lot", "shuttle-lot-3305"],
-    hourlyBaselinePrior: build168HourPrior(i <= 10 ? 2 : 1),
     latitude: lat,
     longitude: lng,
     geoFeatureId: `lot-${slug}`,
@@ -364,7 +341,6 @@ for (const lot of mariettaNamedLots) {
     permitTiers: lot.permitTiers,
     servedByShuttleRouteIds: lot.shuttleIds,
     overflowTargetLotSlugs: lot.overflow,
-    hourlyBaselinePrior: build168HourPrior(lot.peak),
     latitude: lot.lat,
     longitude: lot.lng,
     geoFeatureId: `lot-${lot.slug}`,
@@ -419,7 +395,6 @@ mariettaCodes.forEach((code, idx) => {
         : ["Economy", "Shuttle", "Faculty/Staff"],
     servedByShuttleRouteIds: ["74764"],
     overflowTargetLotSlugs: ["marietta-shuttle-lot"],
-    hourlyBaselinePrior: build168HourPrior(idx < 8 ? 2 : 1),
     latitude: lat,
     longitude: lng,
     geoFeatureId: `lot-${slug}`,
@@ -823,9 +798,9 @@ const initialShuttleSnapshot = {
     etaMinutes: 3 + (idx % 7),
     loadLabel: idx % 3 === 0 ? "Seats Open" : idx % 3 === 1 ? "Moderate Load" : "Standing Room",
   })),
-  serviceAlerts: [
+  shuttleNotices: [
     {
-      alertId: "bob-i75-advisory",
+      noticeId: "bob-i75-advisory",
       title: "KM Intercampus Express Advisory",
       body: "KM Kennesaw / Marietta buses are using Cobb Pkwy (US-41) alternate routing during afternoon I-75 peak traffic.",
       passioRouteIds: ["74760"],
