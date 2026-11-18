@@ -68,6 +68,10 @@ _Avoid_: Garage, parking zone
 A time-stamped Student update reporting current fullness or an about-to-open space in a Parking Lot.
 _Avoid_: Sensor ping, lot reservation
 
+**Line Check**:
+A time-stamped Student update on the current wait at a Dining Venue.
+_Avoid_: Queue ping, wait report
+
 **Study Room**:
 A library or campus building space available for individual or group study on either Campus.
 _Avoid_: Classroom, office
@@ -84,9 +88,61 @@ _Avoid_: Calendar item, activity
 A Big Owl Bus (BOB) transit route connecting stops within or between the Kennesaw and Marietta Campuses.
 _Avoid_: Bus line, commute track
 
+**Shuttle Notice**:
+A detour, delay, or service change published by the shuttle operator for one or more Shuttle Routes.
+_Avoid_: Alert, service alert
+
 **Dining Venue**:
 A KSU dining hall (`The Commons` or `Stingers`) or campus retail eatery on the Kennesaw or Marietta Campus.
 _Avoid_: Restaurant, cafeteria, store, vendor
+
+### Safety
+
+**Incident**:
+A Student's unverified community account of something they observed on a Campus, giving a category, Campus and building or area, a claimed observed time, a short description, and an optional moderator-reviewed photo; it is not a Post and never appears in the Feed.
+_Avoid_: Incident report, safety post, community alert, tip
+
+**Incident Update**:
+A dated addition beneath an Incident, either an author update or a moderator note; the original Incident is never rewritten.
+_Avoid_: Edit, comment, reply, resolution
+
+**Alert**:
+A safety notice issued by a named official source (such as KSU Alert, University Police, or KSU emergency management) and shown by KSUX with its source and timestamps; only an official source can create, update, or clear one.
+_Avoid_: Community alert, warning, notification
+
+**Moderation Report**:
+A Student's request that KSUX Moderators review a piece of content or a Student for a stated reason; it never contacts police.
+_Avoid_: Flag, police report, report (unqualified)
+
+**Moderator**:
+A volunteer KSUX Student, appointed by maintainers, who reviews Moderation Reports, Incident photos and Appeals and writes moderator notes; not police, not KSU staff, and not on call.
+_Avoid_: Admin, dispatcher, officer
+
+**Redaction**:
+A Moderator's removal of identifying or prohibited passages from an Incident, always disclosed on the Incident with a moderator note; the only change ever made to an Incident's original text after it is posted.
+_Avoid_: Edit, censorship, correction
+
+**Appeal**:
+An author's single request, per moderation decision, for a different Moderator to review that decision again.
+_Avoid_: Dispute, complaint, ticket
+
+**Emergency Panel**:
+The full-screen choice of calling 911, calling KSU Police, or texting KSU Police, shown before every Incident and every Campus Safety Moderation Report.
+_Avoid_: SOS button, panic button
+
+**Safety Card**:
+The fixed, non-AI answer Scrappy gives to any safety question, pointing to the Emergency Panel, Safety and official sources instead of describing campus safety.
+_Avoid_: safety summary, safety answer
+
+### Recognition
+
+**Clout**:
+Points a verified Student earns for corroborated, low-stakes logistics contributions such as Parking Reports, Line Checks, Study Room vibes, and completed handoffs; it never measures reliability and is never earned from or shown on safety content.
+_Avoid_: Points, karma, reputation, trust score
+
+**Leaderboard**:
+The weekly, per-Campus ranking of Students by Clout earned that week, which Students can opt out of appearing on.
+_Avoid_: Ranking, hall of fame, scoreboard
 
 ### Campus AI
 
