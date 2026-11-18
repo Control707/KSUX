@@ -11,7 +11,7 @@ A verified Kennesaw State University community member authenticated via a `@stud
 _Avoid_: User, member, account
 
 **Campus**:
-One of Kennesaw State University's two physical campuses — `Kennesaw` or `Marietta` — used to scope local feeds, parking, study spaces, dining, transit, and meetups.
+One of Kennesaw State University's two physical campuses — `Kennesaw` or `Marietta` — chosen as a location setting on place-based screens (Now, Parking, Transit, Study, Dining, Events, and Incidents) and shown as a badge on KSU-wide content such as Posts and Listings.
 _Avoid_: Site, branch, location
 
 **Judge Demo Mode**:
@@ -25,7 +25,7 @@ A short campus update, media share, reply, or repost published to the Feed.
 _Avoid_: Tweet, status, wall post
 
 **Feed**:
-The real-time stream of campus Posts, filterable by Campus, following graph, or trending topic.
+The real-time KSU-wide stream of Posts from both Campuses, viewable as All KSU, Following, or Trending, with each Post showing its Campus.
 _Avoid_: Timeline, wall
 
 **Direct Message (DM)**:
@@ -103,7 +103,7 @@ A Student's unverified community account of something they observed on a Campus,
 _Avoid_: Incident report, safety post, community alert, tip
 
 **Incident Update**:
-A dated addition beneath an Incident, either an author update or a moderator note; the original Incident is never rewritten.
+A dated addition beneath an Incident, either an author update or a moderator note; after the author's 5-minute edit window, the original is changed only by Redaction.
 _Avoid_: Edit, comment, reply, resolution
 
 **Alert**:
@@ -119,7 +119,7 @@ A volunteer KSUX Student, appointed by maintainers, who reviews Moderation Repor
 _Avoid_: Admin, dispatcher, officer
 
 **Redaction**:
-A Moderator's removal of identifying or prohibited passages from an Incident, always disclosed on the Incident with a moderator note; the only change ever made to an Incident's original text after it is posted.
+A Moderator's removal of identifying or prohibited passages from an Incident, always disclosed on the Incident with a moderator note; the only change ever made to an Incident's original text once the author's 5-minute edit window has passed.
 _Avoid_: Edit, censorship, correction
 
 **Appeal**:
@@ -147,6 +147,6 @@ _Avoid_: Ranking, hall of fame, scoreboard
 ### Campus AI
 
 **Scrappy**:
-KSUX's campus AI owl assistant able to answer Student questions across all public KSUX modules via a dedicated chat view or `@scrappy` mentions in Feed Posts and replies, without access to Direct Messages, Group Chats, or Deal Chats.
+KSUX's campus AI owl assistant able to answer Student questions across public KSUX modules via a dedicated chat view or `@scrappy` mentions in Feed Posts and replies, without access to Direct Messages, Group Chats, Deal Chats, Incidents, Alerts, or anyone's Clout; it answers safety questions with the Safety Card.
 _Avoid_: Bot, copilot, Grok clone
 
