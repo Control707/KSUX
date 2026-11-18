@@ -525,6 +525,17 @@ legend{font-size:var(--fs-sm);font-weight:700;padding:0;margin-bottom:var(--sp-1
   .best .pct-s{grid-column:2}
   .lay-sheet .sheet[data-snap="peek"]{max-height:70%;overflow:auto}
 }
+
+.quick{background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);padding:var(--sp-3) var(--sp-4);display:grid;gap:var(--sp-2)}
+.qr-h{font-size:var(--fs-sm);font-weight:600}
+.qr-h b{font-weight:800}
+.qr-tiers{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-1)}
+.qr-tiers .btn{flex-direction:column;gap:2px;padding:var(--sp-1);border-radius:var(--r-sm);min-height:3.5rem;font-size:var(--fs-xs)}
+.clout summary{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);min-height:var(--target);cursor:pointer;list-style:none;flex-wrap:wrap}
+.clout summary::-webkit-details-marker{display:none}
+.clout summary .meta{text-decoration:underline}
+.lay-sheet .sheet[data-snap="half"] .peek .quick,.lay-sheet .sheet[data-snap="full"] .peek .quick{display:none}
+@container app (max-width:18em){.qr-tiers{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
@@ -550,6 +561,8 @@ legend{font-size:var(--fs-sm);font-weight:700;padding:0;margin-bottom:var(--sp-1
   <label>Text <input type="range" id="ctlText" min="100" max="200" step="25"><output id="textOut"></output></label>
   <label>Vision <select id="ctlCvd"><option value="">normal</option><option value="protan">protanopia</option><option value="deutan">deuteranopia</option><option value="tritan">tritanopia</option><option value="achroma">greyscale</option></select></label>
   <label>Frame <select id="ctlFrame"><option value="phone">phone 390</option><option value="fluid">fluid (≥1024 = desktop)</option></select></label>
+  <button id="simAgree" data-a2="simAgree">Sim: another Student agrees</button>
+  <button id="simTook" data-a2="simTook">Sim: spot taken</button>
   <button id="ctlNotes" aria-expanded="false">Patterns under test</button>
   <a href="v2-shell-c.html#/parking">v2 shell (first pass)</a>
 </div>
@@ -598,7 +611,7 @@ function destFor(campus){const name=S.dest[campus];return DEST[campus].find(d=>d
 const qs=new URLSearchParams(location.search);
 const S={layout:qs.get('layout')||'sheet',theme:'light',motion:'system',text:100,cvd:'',frame:'phone',
   campus:'Kennesaw',permit:'Central',q:'',sort:'room',showOther:false,dest:{Kennesaw:'Carmichael Student Center',Marietta:'Academic Building (Q)'},
-  snap:'peek',tab:'map',sel:null,open:null,level:{},pinned:['central-parking-deck'],leaving:null,legend:false,dialog:null,notes:false};
+  snap:'peek',tab:'map',sel:null,open:null,level:{},pinned:['central-parking-deck'],leaving:null,clout:{bal:140,pending:[],log:[]},quick:null,legend:false,dialog:null,notes:false};
 const reduced=()=>S.motion==='reduce'||(S.motion==='system'&&matchMedia('(prefers-reduced-motion: reduce)').matches);
 const inCampus=l=>S.campus==='All KSU'||l.campus===S.campus;
 const permitOK=l=>S.permit==='All'||l.permits.includes(S.permit);
@@ -620,6 +633,7 @@ const P={
  bag:'<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>',chat:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
  owl:'<path d="M5 9c0-3.5 3-6 7-6s7 2.5 7 6v6a7 7 0 0 1-14 0Z"/><circle cx="9" cy="10.5" r="2"/><circle cx="15" cy="10.5" r="2"/><path d="m11 14.5 1 1.2 1-1.2"/><path d="M5 5 7 7M19 5l-2 2"/>',
  bus:'<rect x="4" y="3" width="16" height="15" rx="2"/><path d="M4 11h16M8 3v8M16 3v8"/><circle cx="8" cy="18" r="1.5"/><circle cx="16" cy="18" r="1.5"/>',
+ star:'<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
  undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',zap:'<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',
  open:'<circle cx="12" cy="12" r="8"/>',
  filling:'<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/>',
@@ -666,9 +680,9 @@ function lotItem(l){
     <span class="pctv num" aria-hidden="true">${l.pct}%</span></div>
    ${fillBar(l)}
    <div class="row">${tierChip(t)}${S.campus==='All KSU'?`<span class="chip ${l.campus==='Marietta'?'m':'k'}">${l.campus}</span>`:''}${w?`<span class="meta">${ic('walk',14)} ${w} min to ${esc(d[0])}</span>`:''}${!ok?'<span class="chip outline">Not your permit</span>':''}</div>
-   ${l.openings.map((o,i)=>`<p class="note ok leaving-live"><span>${ic('car',16)} Spot opening on ${esc(o.level)} in ~5 min · ${o.left} min left (anonymous)</span>${o.mine?`<button class="link" data-a="cancelLeaving">Cancel mine</button>`:`<button class="link" data-a="gone" data-x="${l.slug}:${i}">Mark gone (${o.gone}/2)</button>`}</p>`).join('')}
+   ${l.openings.map((o,i)=>`<p class="note ok leaving-live"><span>${ic('car',16)} Spot opening on ${esc(o.level)} in ~5 min · ${o.left} min left (anonymous)</span>${o.mine?`<span class="meta" style="color:inherit">${ic('clock',14)} Clout when someone takes it · <button class="link" data-a="cancelLeaving">Cancel</button></span>`:`<span class="row"><button class="link" data-a="took" data-x="${l.slug}:${i}">I took this spot</button><button class="link" data-a="gone" data-x="${l.slug}:${i}">Gone (${o.gone}/2)</button></span>`}</p>`).join('')}
    ${open?`<div class="stack" id="det-${l.slug}">
-    ${l.mine?`<p class="mine">You reported <b>${TIERS[l.mine]}</b>${l.mineLevel?` on ${esc(l.mineLevel)}`:''} just now. It fades over 45 min. <button class="link" data-a="undo" data-x="${l.slug}">Undo</button></p>`:''}
+    ${l.mine?`<p class="mine">You reported <b>${TIERS[l.mine]}</b>${l.mineLevel?` on ${esc(l.mineLevel)}`:''} just now. It fades over 45 min. ${pendingFor(l.slug)?`<span class="chip outline">${ic('clock',14)}Clout pending · needs 1 matching report</span>`:''} <button class="link" data-a="undo" data-x="${l.slug}">Undo</button></p>`:''}
     ${l.levels.length>1?`<fieldset><legend>Deck level (optional)</legend><div class="seg">${l.levels.map(v=>`<button type="button" id="lv-${l.slug}-${v}" data-a="level" data-x="${l.slug}:${v}" aria-pressed="${lvl===v}">${esc(v)}</button>`).join('')}</div></fieldset>`:''}
     <fieldset><legend>How full is it right now?${lvl?` (${esc(lvl)})`:''}</legend><div class="tierbtns">${Object.keys(TIERS).map(k=>`<button class="btn" id="rp-${l.slug}-${k}" data-a="report" data-x="${l.slug}:${k}" aria-pressed="${l.mine===k}">${glyph(k,20)}<span>${TIERS[k]}<small>${RANGE[k]}</small></span></button>`).join('')}</div></fieldset>
     <div class="row"><button class="btn" id="pin-${l.slug}" data-a="pin" data-x="${l.slug}" aria-pressed="${pin}">${ic('pin',16)}${pin?'Pinned to Now':'Pin to Now'}</button><button class="btn" id="show-${l.slug}" data-a="showOnMap" data-x="${l.slug}">${ic('map',16)}Show on map</button><button class="btn" id="lv5-${l.slug}" data-a="leavingFrom" data-x="${l.slug}">${ic('car',16)}Leaving here in ~5 min</button></div>
@@ -684,8 +698,10 @@ function sheet(){
    ${S.offline?`<p class="note warn" style="margin:0 var(--sp-4) var(--sp-2)" role="status">You're offline. Showing fullness saved at 1:42 PM. It is not current.</p>`:''}
    ${S.leaving?`<p class="note ok leaving-live" style="margin:0 var(--sp-4) var(--sp-2)"><span>Shared: spot opening at ${esc(bySlug[S.leaving.slug].name)}${S.leaving.level?' '+esc(S.leaving.level):''} for 10 min.</span><button class="link" data-a="cancelLeaving">Cancel</button></p>`:''}
    <div class="peek">
+    ${quickRow()}
     ${b?`<div class="best">${glyph(tier(b),28)}<button class="nm" id="best" data-a="focusLot" data-x="${b.slug}"><span class="kicker" style="color:var(--muted)">Best bet for your ${esc(S.permit==='All'?'':S.permit+' ')}permit</span><b>${esc(b.name)}</b><span class="meta">${TIERS[tier(b)]} · ${walk(b)} min walk · ${live(b)?'live':'estimate'}</span></button><span class="pct-s num" aria-hidden="true">${b.pct}%</span></div>`:''}
     <div class="actions2"><button class="btn primary" id="rpt" data-a="reportPick" aria-haspopup="dialog">${ic('plus',18)}Parking Report</button><button class="btn dark" id="lvg" data-a="leavingPick" aria-haspopup="dialog">${ic('car',18)}I'm leaving ~5 min</button></div>
+    ${cloutStrip()}
    </div>
    <div class="sheet-body" id="lotList">
     <div class="sheet-h"><h2 id="lot-list-h" tabindex="-1">${ls.length} lot${ls.length===1?'':'s'}</h2><span class="meta">${S.campus==='All KSU'?'Both campuses':esc(S.campus)}</span></div>
@@ -716,6 +732,30 @@ function render(opt={}){
   if(map){requestAnimationFrame(()=>map.resize());syncMap();}
 }
 
+/* ===== Clout (rules agreed on #52; amounts are placeholders) ===== */
+const CLOUT_REPORT=5, CLOUT_SPOT=5, CLOUT_CAP=40;
+const pendingFor=slug=>S.clout.pending.find(p=>p.slug===slug&&p.kind==='report');
+const earnedToday=()=>S.clout.log.reduce((a,x)=>a+x.amt,0);
+function quickLot(){const q=S.quick&&bySlug[S.quick];if(q&&inCampus(q))return q;const c=candidates();return c[0];}
+function quickRow(){
+  const l=quickLot();if(!l)return '';const done=l.mine;
+  return `<section class="quick" aria-labelledby="qr-h"><div class="spread"><h2 id="qr-h" class="qr-h">${done?'Thanks for reporting':'Just parked? How full is'} <b>${esc(l.name)}</b>${done?'':'?'}</h2>
+    <button class="link" id="qr-change" data-a="reportPick" aria-haspopup="dialog">Different lot</button></div>
+    ${done?`<p class="meta">${ic('clock',14)} You'll get Clout when another Student's report agrees within 20 min.</p>`:
+    `<div class="qr-tiers" role="group" aria-label="Report ${esc(l.name)} fullness. One tap publishes.">${Object.keys(TIERS).map(k=>`<button class="btn" id="qr-${k}" data-a="quickReport" data-x="${l.slug}:${k}">${glyph(k,18)}<span>${TIERS[k]}</span></button>`).join('')}</div>
+    <p class="meta">One tap publishes · Clout when another Student agrees.</p>`}</section>`;
+}
+function cloutStrip(){
+  const n=S.clout.pending.length,cap=earnedToday()>=CLOUT_CAP;
+  return `<details class="clout"><summary><span class="row">${ic('star',18)}<b class="num">${S.clout.bal} Clout</b>${n?`<span class="chip outline">${ic('clock',14)}${n} pending</span>`:''}${cap?'<span class="chip warn">Daily cap reached</span>':''}</span><span class="meta">How it works</span></summary>
+   <ul class="meta" style="margin:var(--sp-2) 0 0;padding-left:1.1rem;display:grid;gap:var(--sp-1)">
+    <li>Report a lot or deck floor as you park or leave. You earn Clout once another Student's report on the same lot agrees within 20 min.</li>
+    <li>Sharing “I'm leaving” earns Clout when a Student taps “I took this spot”.</li>
+    <li>No location tracking. One report per lot every 10 min, a daily cap, no streaks. Removed reports lose their Clout.</li>
+    <li>Safety and Incident reports never earn Clout.</li></ul>
+   ${n?`<p class="meta" style="margin-top:var(--sp-2)"><b>Waiting:</b> ${S.clout.pending.map(p=>`${p.kind==='spot'?'Spot opening':'Report'} · ${esc(bySlug[p.slug].name)}`).join('; ')}</p>`:''}</details>`;
+}
+
 /* ===================== DIALOGS (Direction C sheet primitive) ===================== */
 function candidates(){const ls=[];const add=s=>{if(s&&bySlug[s]&&!ls.includes(bySlug[s])&&inCampus(bySlug[s]))ls.push(bySlug[s]);};
   add(S.sel);S.pinned.forEach(add);LOTS.filter(l=>inCampus(l)&&permitOK(l)).sort((a,b)=>walk(a)-walk(b)).forEach(l=>add(l.slug));return ls.slice(0,5);}
@@ -730,7 +770,8 @@ function renderDialog(){
      <fieldset><legend>How full is ${esc(l.name)}${lv?' '+esc(lv):''} right now? Tapping publishes.</legend><div class="tierbtns">${Object.keys(TIERS).map(k=>`<button class="btn" data-a="dreport" data-x="${k}">${glyph(k,20)}<span>${TIERS[k]}<small>${RANGE[k]}</small></span></button>`).join('')}</div></fieldset>
      <p class="meta">Anonymous to other Students. Fades over 45 min. Not shown to KSU Parking Services.</p>`
    :`<div class="dlg-head"><h2 id="dlg-h">I'm leaving in ~5 min</h2><button class="icon-btn" data-a="close" aria-label="Close">${ic('x')}</button></div>${lotPick}
-     <p class="meta">Drivers looking at this lot see “Spot opening in ~5 min” for 10 minutes. Your name is never shown.</p>
+     <fieldset><legend>How full is it as you leave? (optional)</legend><div class="seg">${['skip',...Object.keys(TIERS)].map(k=>`<button type="button" id="dlt-${k}" data-a="dleaveTier" data-x="${k}" aria-pressed="${(d.tier||'skip')===k}">${k==='skip'?'Not sure':glyph(k,16)+TIERS[k]}</button>`).join('')}</div></fieldset>
+     <p class="meta">Drivers looking at this lot see “Spot opening in ~5 min” for 10 minutes. Your name is never shown. You get Clout when someone taps “I took this spot”${d.tier&&d.tier!=='skip'?', and for the rating when another report agrees':''}.</p>
      <div class="dlg-actions"><button class="btn" data-a="close">Cancel</button><button class="btn dark" data-a="dleaving">${ic('car',18)}Share spot opening</button></div>`;
   root.innerHTML=`<div class="backdrop" data-a="close"></div><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-h"><div class="handle"></div>${body}</div>`;
   if(d.justOpened){d.justOpened=false;(root.querySelector('input:checked')||root.querySelector('button')).focus();}
@@ -814,8 +855,12 @@ function selectFromMap(slug){
 function publish(slug,t,level){
   const l=bySlug[slug];l.prev={pct:l.pct,ago:l.ago,n:l.n,mine:l.mine,mineLevel:l.mineLevel};
   l.mine=t;l.mineLevel=level||'';l.pct=Math.round((l.pct+MID[t]*2)/3);if(tierOf(l.pct)!==t)l.pct=MID[t];l.ago=0;l.n=(live(l)?l.n:0)+1;
-  toast(`Parking Report: ${l.name}${level?' '+level:''} is ${TIERS[t]}.`,slug);
+  S.clout.pending=S.clout.pending.filter(p=>!(p.slug===slug&&p.kind==='report'));S.clout.pending.push({slug,kind:'report',t});
+  toast(`Reported ${l.name}${level?' '+level:''}: ${TIERS[t]}. Clout when another Student agrees.`,slug);
 }
+function award(p,why){const room=Math.max(0,CLOUT_CAP-earnedToday());const amt=Math.min(room,p.kind==='spot'?CLOUT_SPOT:CLOUT_REPORT);
+  S.clout.pending=S.clout.pending.filter(x=>x!==p);if(amt){S.clout.bal+=amt;S.clout.log.push({amt});}
+  const m=amt?`+${amt} Clout: ${why}`:`${why} (daily Clout cap reached)`;toast(m);say(m);}
 const A={
  campus:(el,x)=>{S.campus=x;S.sel=null;S.open=null;if(x!=='All KSU'&&!S.permit)S.permit='All';render({focus:'#cmp-'+x.replace(' ','')});fitCampus();},
  zoom:(el,x)=>{if(!map)return;(+x>0?map.zoomIn:map.zoomOut).call(map,motionOpts());say(`Zoom ${+x>0?'in':'out'}`);},
@@ -828,22 +873,28 @@ const A={
  showOnMap:(el,x)=>{S.sel=x;if(S.layout==='tabs')S.tab='map';if(S.layout==='sheet')S.snap='peek';render({focus:'#zin'});fly(bySlug[x]);say(`${bySlug[x].name} highlighted on the map with a blue outline.`);},
  level:(el,x)=>{const [s,v]=x.split(':');S.level[s]=S.level[s]===v?'':v;render({focus:`#lv-${s}-${v}`});},
  report:(el,x)=>{const [s,t]=x.split(':');publish(s,t,S.level[s]);render({focus:`#rp-${s}-${t}`});},
- undo:(el,x)=>{const l=bySlug[x];if(!l.prev)return;Object.assign(l,l.prev);l.prev=null;toast(`Report on ${l.name} removed.`);render();},
+ undo:(el,x)=>{const l=bySlug[x];if(!l.prev)return;S.clout.pending=S.clout.pending.filter(p=>!(p.slug===x&&p.kind==='report'));Object.assign(l,l.prev);l.prev=null;toast(`Report on ${l.name} removed.`);render();},
  pin:(el,x)=>{const p=S.pinned,i=p.indexOf(x);if(i>=0)p.splice(i,1);else{if(p.length>=2){toast(`Unpinned ${bySlug[p[0]].name} (2 max).`);p.shift();}p.push(x);}render({focus:'#pin-'+x});},
  gone:(el,x)=>{const [s,i]=x.split(':');const o=bySlug[s].openings[+i];o.gone++;if(o.gone>=2){bySlug[s].openings.splice(+i,1);toast('Spot opening removed (2 Students said it’s gone).');}render();},
  leavingFrom:(el,x)=>{startLeaving(x,S.level[x]);render({focus:'#lv5-'+x});},
- cancelLeaving:()=>{if(!S.leaving)return;const l=bySlug[S.leaving.slug];l.openings=l.openings.filter(o=>!o.mine);S.leaving=null;toast('Spot opening cancelled.');render();},
+ cancelLeaving:()=>{if(!S.leaving)return;S.clout.pending=S.clout.pending.filter(p=>p.kind!=='spot');const l=bySlug[S.leaving.slug];l.openings=l.openings.filter(o=>!o.mine);S.leaving=null;toast('Spot opening cancelled.');render();},
  other:()=>{S.showOther=!S.showOther;render({focus:'#other'});},
  reportPick:el=>openDialog('report','#rpt'), leavingPick:el=>openDialog('leaving','#lvg'),
  close:()=>closeDialog(),
  dlevel:(el,x)=>{S.dialog.level=S.dialog.level===x?'':x;render({focus:'#dl-'+x});},
  dreport:(el,x)=>{const d=S.dialog;publish(d.slug,x,d.level);S.dialog=null;S.sel=d.slug;render({focus:lastTrigger});},
- dleaving:()=>{const d=S.dialog;startLeaving(d.slug,d.level);S.dialog=null;render({focus:lastTrigger});},
+ dleaveTier:(el,x)=>{S.dialog.tier=x;render({focus:'#dlt-'+x});},
+ quickReport:(el,x)=>{const [s,t]=x.split(':');S.quick=s;publish(s,t,'');render({focus:'#qr-change'});},
+ took:(el,x)=>{const [s,i]=x.split(':');bySlug[s].openings.splice(+i,1);toast('Thanks! The Student who shared it gets Clout.');render();},
+ simAgree:()=>{const p=S.clout.pending.find(p=>p.kind==='report');if(!p){toast('No pending report to confirm.');return;}const l=bySlug[p.slug];l.n+=1;award(p,`another Student confirmed ${l.name} is ${TIERS[p.t]}`);render();},
+ simTook:()=>{const p=S.clout.pending.find(p=>p.kind==='spot');if(!p){toast('No spot opening shared.');return;}const l=bySlug[p.slug];l.openings=l.openings.filter(o=>!o.mine);S.leaving=null;award(p,`a Student took your spot at ${l.name}`);render();},
+ dleaving:()=>{const d=S.dialog;if(d.tier&&d.tier!=='skip')publish(d.slug,d.tier,d.level);startLeaving(d.slug,d.level);S.dialog=null;render({focus:lastTrigger});},
 };
 function startLeaving(slug,level){
   if(S.leaving)bySlug[S.leaving.slug].openings=bySlug[S.leaving.slug].openings.filter(o=>!o.mine);
   bySlug[slug].openings.unshift({level:level||'this lot',gone:0,mine:true,left:10});S.leaving={slug,level};
-  toast(`Spot opening shared for ${bySlug[slug].name}. Visible 10 min.`);
+  S.clout.pending=S.clout.pending.filter(p=>p.kind!=='spot');S.clout.pending.push({slug,kind:'spot'});
+  toast(`Spot opening shared for ${bySlug[slug].name}. Clout when someone takes it.`);
 }
 document.addEventListener('click',e=>{const el=e.target.closest('[data-a]');if(!el||!el.closest('#app'))return;
   if(el.tagName==='A')e.preventDefault();const f=A[el.dataset.a];if(f){e.preventDefault();f(el,el.dataset.x);}});
@@ -870,7 +921,8 @@ $('#notes').innerHTML=`<button class="x" onclick="$('#ctlNotes').click()">Close<
 <li><b>Confidence</b>: solid outline = live Student reports (≤45 min); dashed = estimate; list rows dim the % when stale, and the provenance line says which.</li>
 <li><b>Permit</b> filters by default; “Show N lots your permit can't use” adds them greyed with a struck pin.</li>
 <li><b>Parking Report</b> in 2 taps: “Parking Report” → (nearest/pinned lot pre-selected) → tap a tier = published, with Undo in the toast and in the lot. Same flow inline on any expanded lot. Deck level stays optional.</li>
-<li><b>Spot Opening</b>: “I'm leaving ~5 min” → confirm lot → share; one active per Student; others “Mark gone” (2 votes removes).</li>
+<li><b>Spot Opening</b>: “I'm leaving ~5 min” → confirm lot → optional fullness rating → share. One active per Student. Others tap “I took this spot” (pays the sharer Clout) or “Gone” (2 votes removes).</li>
+<li><b>Clout (round 2, agreed on #52)</b>: the peek opens with “Just parked? How full is &lt;pinned/nearest lot&gt;?” where one tap publishes. Clout is paid only on corroboration (a matching report within 20 min, or “I took this spot”), shown as <i>pending</i> until then. No location check. Daily cap, no streaks, Undo removes the pending Clout. <b>Amounts (+5, cap 40) are placeholders.</b> Use the bar's “Sim: another Student agrees” / “Sim: spot taken” to play the payout.</li>
 <li><b>List parity</b>: every lot on the map is in the list in the chosen order; tapping a lot on the map opens the same row and announces it; “Show on map” goes the other way with a blue (focus-colour) outline, never colour-coded status.</li>
 <li><b>Map keyboard</b>: canvas is focusable (arrows pan, +/− zoom) with a “Skip map” link first; zoom in / out / recenter buttons are 44 px; rotation and pitch are off. OSM attribution is on (fixes the <code>attributionControl:false</code> gap).</li>
 <li><b>Reduced motion</b>: camera moves become jumps (duration 0), sheet snaps without sliding.</li>
@@ -878,6 +930,7 @@ $('#notes').innerHTML=`<button class="x" onclick="$('#ctlNotes').click()">Close<
 </ol>
 <h2>Not decided here</h2><ul><li>Real fullness model and decay (unchanged from SPEC §4.x).</li><li>Where Incidents/Alerts sit on maps (navigation ticket).</li><li>Offline map tiles (ADR-0005 offline scope still read-only).</li></ul>`;
 
+$$('[data-a2]').forEach(b=>b.onclick=()=>A[b.dataset.a2]());
 render();initMap();
 
 </script>
