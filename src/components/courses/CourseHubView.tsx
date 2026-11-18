@@ -24,7 +24,9 @@ export function CourseHubView({ subjectCourse }: { subjectCourse: string }) {
   const { auth, authArgs } = useViewerClient();
   const studentScope = auth.status === "demo" ? auth.demoShortCode + ":" + auth.demoPersonaHandle
     : auth.status === "student" ? auth.studentId : auth.status;
-  const [termCode, setTermCode] = useState<"202608" | "202701">("202608");
+  const [selectedTerm, setSelectedTerm] = useState<string>();
+  const banner = useViewerQuery(api.courses.listBannerTerms, {});
+  const termCode = selectedTerm ?? banner?.activeTerm;
   const [activeTab, setActiveTab] = useState<"stream" | "syllabus" | "search">(
     "stream"
   );
@@ -34,20 +36,20 @@ export function CourseHubView({ subjectCourse }: { subjectCourse: string }) {
   const [crossPost, setCrossPost] = useState(false);
   const [loadingSyllabus, setLoadingSyllabus] = useState(false);
 
-  const detail = useViewerQuery(api.courses.getCourseHubDetail, {
+  const detail = useViewerQuery(api.courses.getCourseHubDetail, termCode ? {
     subjectCourse,
     termCode,
     sectionFilter,
-  });
+  } : "skip");
 
   const searchResults = useViewerQuery(
     api.courses.searchCatalog,
-    activeTab === "search" ? { termCode, queryText: searchInput } : "skip"
+    activeTab === "search" && termCode ? { termCode, queryText: searchInput } : "skip"
   );
 
   const syllabus = useViewerQuery(
     api.courses.getCourseSyllabus,
-    activeTab === "syllabus"
+    activeTab === "syllabus" && termCode
       ? {
           subjectCourse,
           termCode,
@@ -105,16 +107,24 @@ export function CourseHubView({ subjectCourse }: { subjectCourse: string }) {
                 {detail?.hub.subjectCourse ?? subjectCourse}
               </span>
               <select
-                value={termCode}
-                onChange={(e) =>
-                  setTermCode(e.target.value as "202608" | "202701")
-                }
+                aria-label="Banner term"
+                value={termCode ?? ""}
+                disabled={!banner}
+                onChange={(e) => setSelectedTerm(e.currentTarget.value)}
                 className="rounded-lg border border-[#E4E7EE] bg-[#F4F6FA] px-2.5 py-1 text-xs font-bold text-[#111317]"
               >
-                <option value="202608">Fall 2026 (202608)</option>
-                <option value="202701">Spring 2027 (202701)</option>
+                {!banner && <option value="">Loading terms…</option>}
+                {banner?.terms.map((term) => (
+                  <option key={term.code} value={term.code}>{term.label} ({term.code})</option>
+                ))}
               </select>
             </div>
+            {banner?.terms.filter(({ code }) => code === termCode).map((term) => (
+              <p key={term.code} className="mt-1 text-xs text-[#5E6675]">
+                Verified Banner subset · {term.sections} sections
+                {term.lastSuccessAt && " · Refreshed " + new Date(term.lastSuccessAt).toLocaleDateString("en-US", { timeZone: "America/New_York" })}
+              </p>
+            ))}
             <h1 className="mt-1.5 text-lg font-black text-[#111317]">
               {detail?.hub.title ?? "KSU Course Hub"}
             </h1>
@@ -143,7 +153,7 @@ export function CourseHubView({ subjectCourse }: { subjectCourse: string }) {
           </div>
         </div>
 
-        <PrivateScheduleEditor key={studentScope + ":" + termCode} termCode={termCode} />
+        {termCode && <PrivateScheduleEditor key={studentScope + ":" + termCode} termCode={termCode} />}
 
         {/* Section Picker / Enrollment Controls */}
         {detail && (

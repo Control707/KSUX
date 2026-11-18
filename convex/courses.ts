@@ -1,5 +1,9 @@
+import bannerSeed from "../data/ksu-seed/banner-verified.json";
+import courseFixtures from "../data/ksu-seed/courses.json";
+import { activeBannerTerm, bannerCoursePattern, bannerCourseUrl, bannerSection, bannerSectionSignature, bannerTermKey, bannerTermKeyPrefix, bannerTermPattern, MAX_BANNER_SECTIONS, parseBannerCoursePage, termLabel, validateBannerSections } from "./lib/bannerCatalog";
+import { computePayloadHash, evaluateFailureStatePatch, isSuddenDropOrEmpty } from "./lib/syncGuard";
 import { ConvexError, v } from "convex/values";
-import { action, internalMutation, MutationCtx, QueryCtx } from "./_generated/server";
+import { action, internalAction, internalMutation, MutationCtx, QueryCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import {
   filterVisibleContent,
@@ -131,13 +135,179 @@ export async function ensureLazyCommunityGroupChat(
   return chat._id;
 }
 
+const checkedInBannerTerms = [...new Set(bannerSeed.map(({ termCode }) => termCode))];
+
+async function getBannerTerms(ctx: QueryCtx) {
+  const syncRows = await ctx.db.query("feedSyncState").withIndex("by_source", (query) =>
+    query.gte("sourceKey", bannerTermKeyPrefix).lt("sourceKey", bannerTermKeyPrefix + "\uffff")
+  ).order("desc").take(12);
+  const metadata = new Map(syncRows.filter((row) => row.lastSuccessAt !== undefined && row.lastPayloadHash)
+    .map((row) => [row.sourceKey.slice(bannerTermKeyPrefix.length), row]));
+  const codes = [...new Set([...checkedInBannerTerms, ...metadata.keys()])].sort().reverse();
+  return {
+    activeTerm: activeBannerTerm(codes) ?? checkedInBannerTerms[0]!,
+    terms: codes.map((code) => ({
+      code, label: termLabel(code),
+      sections: metadata.get(code)?.activeRecordCount ?? bannerSeed.filter((row) => row.termCode === code).length,
+      lastSuccessAt: metadata.get(code)?.lastSuccessAt ?? null,
+    })),
+  };
+}
+
+export const listBannerTerms = viewerQuery({ args: {}, handler: getBannerTerms });
+
+export const applyBannerTerm = internalMutation({
+  args: { termCode: v.string(), courses: v.array(v.string()), rows: v.array(bannerSection), leaseUntil: v.optional(v.number()) },
+  handler: async (ctx, { termCode, courses, rows, leaseUntil }) => {
+    if (!bannerTermPattern.test(termCode) || !courses.length || courses.length > 8
+      || courses.some((course) => !bannerCoursePattern.test(course))) {
+      throw new ConvexError("Invalid Banner refresh scope");
+    }
+    const sections = validateBannerSections(rows);
+    const requested = new Set(courses);
+    const covered = new Set(sections.map(({ subjectCourse }) => subjectCourse));
+    if (covered.size !== requested.size || [...covered].some((course) => !requested.has(course))) {
+      throw new ConvexError("Incomplete Banner course coverage. The catalog was retained.");
+    }
+    const hash = await computePayloadHash(sections);
+    const now = Date.now();
+    const sourceKey = bannerTermKey(termCode);
+    const state = await ctx.db.query("feedSyncState").withIndex("by_source", (query) =>
+      query.eq("sourceKey", sourceKey)).unique();
+
+    if (leaseUntil !== undefined && (state?.refreshInFlightUntil !== leaseUntil || leaseUntil <= now)) {
+      throw new ConvexError("Banner refresh lease expired. The catalog was retained.");
+    }
+    const bannerScope = [...requested].sort().join(",");
+    if (state?.bannerScope === bannerScope && isSuddenDropOrEmpty(state.activeRecordCount, sections.length)) {
+      throw new ConvexError("Unexpected drop in Banner coverage. The catalog was retained.");
+    }
+
+    let changedSections = 0;
+    if (state?.lastPayloadHash !== hash) {
+      for (const subjectCourse of [...covered]) {
+        const entries = sections.filter((row) => row.subjectCourse === subjectCourse);
+        const [subjectCode, number] = subjectCourse.split(" ");
+        const hub = await ctx.db.query("courseHubs").withIndex("by_subject_course", (query) =>
+          query.eq("subjectCourse", subjectCourse)).unique();
+        const title = entries[0]!.title;
+        const fields = {
+          subjectCourse, subjectCode: subjectCode!, courseNumber: number!,
+          title, searchText: [subjectCourse, subjectCode! + number!, title].join(" "),
+          campuses: [...new Set([...(hub?.catalogSource && hub.catalogSource !== "fixture" ? hub.campuses : []), ...entries.map(({ campus }) => campus)])],
+          activeTerms: [...new Set([...(hub?.catalogSource && hub.catalogSource !== "fixture" ? hub.activeTerms : []), termCode])].sort(),
+          catalogSource: "banner_live" as const,
+        };
+        const hubId = hub?._id ?? await ctx.db.insert("courseHubs", { ...fields, prodEnrollmentCount: 0 });
+        if (hub) {
+          const fixture = courseFixtures.courseHubs.find((row) => row.subjectCourse === subjectCourse);
+          const fixtureCount = fixture && (hub.catalogSource === "fixture" || !hub.catalogSource)
+            && hub.searchText === fixture.searchText ? fixture.prodEnrollmentCount : 0;
+          await ctx.db.patch(hubId, { ...fields, isRetiredFixture: undefined,
+            prodEnrollmentCount: Math.max(0, hub.prodEnrollmentCount - fixtureCount) });
+        }
+        // Promoting a fixture Hub must not bless its other, unverified sections.
+        // Keep IDs for existing schedules, but remove these rows from discovery.
+        if (hub?.catalogSource === "fixture" || hub?.isRetiredFixture) {
+          const fixtureSections = await ctx.db.query("courseSections")
+            .withIndex("by_hub_term", (query) => query.eq("courseHubId", hubId)).take(301);
+          if (fixtureSections.length > 300) throw new ConvexError("Fixture cleanup exceeds the bounded Banner scope.");
+          for (const fixture of fixtureSections) {
+            if (fixture.isFixture && !fixture.bannerRefreshed && !fixture.isRetiredFixture) {
+              await ctx.db.patch(fixture._id, { isRetiredFixture: true });
+            }
+          }
+        }
+        for (const { subjectCourse: _course, title: _title, ...section } of entries) {
+          const existing = await ctx.db.query("courseSections").withIndex("by_term_crn", (query) =>
+            query.eq("termCode", termCode).eq("crn", section.crn)).unique();
+          if (existing && !existing.isFixture && !existing.isRetiredFixture && existing.courseHubId !== hubId) {
+            throw new ConvexError("Banner CRN belongs to another Course Hub. The catalog was retained.");
+          }
+          const fields = { ...section, termCode, courseHubId: hubId, bannerRefreshed: true };
+          if (!existing) {
+            await ctx.db.insert("courseSections", fields);
+            changedSections++;
+          } else if (existing.isFixture || existing.isRetiredFixture || !existing.bannerRefreshed
+            || existing.courseHubId !== hubId || bannerSectionSignature(section) !== bannerSectionSignature(existing)) {
+            await ctx.db.patch(existing._id, { ...fields, isFixture: undefined, isRetiredFixture: undefined });
+            changedSections++;
+          }
+        }
+      }
+    }
+    const metadata = { bannerScope, lastSuccessAt: now, lastAttemptAt: now, lastOutcome: "accepted" as const,
+      lastAcceptedCount: sections.length, consecutiveFailures: 0, activeRecordCount: sections.length, lastPayloadHash: hash,
+      backoffUntil: undefined, refreshInFlightUntil: undefined, lastError: undefined };
+    if (state) await ctx.db.patch(state._id, metadata);
+    else await ctx.db.insert("feedSyncState", { sourceKey, ...metadata });
+    return { termCode, sections: sections.length, changedSections };
+  },
+});
+
+export const beginBannerRefresh = internalMutation({
+  args: { termCode: v.string() },
+  handler: async (ctx, { termCode }) => {
+    const now = Date.now();
+    const sourceKey = bannerTermKey(termCode);
+    const state = await ctx.db.query("feedSyncState").withIndex("by_source", (q) => q.eq("sourceKey", sourceKey)).unique();
+    if (state?.backoffUntil && state.backoffUntil > now) throw new ConvexError("Banner refresh is in backoff. Try again later.");
+    if (state?.refreshInFlightUntil && state.refreshInFlightUntil > now) throw new ConvexError("A Banner refresh is already in progress.");
+    // Eight requests with an 8s timeout and seven pacing delays fit in two minutes.
+    const leaseUntil = now + 120_000;
+    if (state) await ctx.db.patch(state._id, { lastAttemptAt: now, refreshInFlightUntil: leaseUntil });
+    else await ctx.db.insert("feedSyncState", { sourceKey, lastAttemptAt: now,
+      refreshInFlightUntil: leaseUntil, consecutiveFailures: 0, activeRecordCount: 0 });
+    return leaseUntil;
+  },
+});
+
+export const failBannerRefresh = internalMutation({
+  args: { termCode: v.string(), leaseUntil: v.number(), message: v.string() },
+  handler: async (ctx, { termCode, leaseUntil, message }) => {
+    const state = await ctx.db.query("feedSyncState")
+      .withIndex("by_source", (q) => q.eq("sourceKey", bannerTermKey(termCode))).unique();
+    if (state?.refreshInFlightUntil === leaseUntil) {
+      await ctx.db.patch(state._id, evaluateFailureStatePatch(state, Date.now(), message));
+    }
+  },
+});
+
+export const refreshBannerTerm = internalAction({
+  args: { termCode: v.string(), courses: v.array(v.string()) },
+  handler: async (ctx, { termCode, courses }): Promise<{ termCode: string; sections: number; changedSections: number }> => {
+    const scope = [...new Set(courses.map(normalizeSubjectCourse))].sort();
+    if (!scope.length || scope.length > 8) throw new ConvexError("Refresh one to eight published courses per term.");
+    // Validate the entire scope before contacting any upstream or claiming a lease.
+    const urls = scope.map((course) => bannerCourseUrl(termCode, course));
+    const leaseUntil = await ctx.runMutation(internal.courses.beginBannerRefresh, { termCode });
+    try {
+      const rows = [];
+      for (const [index, course] of scope.entries()) {
+        const response = await fetch(urls[index]!, {
+          redirect: "error", signal: AbortSignal.timeout(8000), headers: { Accept: "text/html" },
+        });
+        if (!response.ok) throw new ConvexError("Public Banner request failed for " + course);
+        rows.push(...parseBannerCoursePage(await response.text(), termCode, course));
+        if (rows.length > MAX_BANNER_SECTIONS) throw new ConvexError("Banner scope exceeds 300 sections.");
+        if (index < scope.length - 1) await new Promise((resolve) => setTimeout(resolve, 1250));
+      }
+      return await ctx.runMutation(internal.courses.applyBannerTerm, { termCode, courses: scope, rows, leaseUntil });
+    } catch (error) {
+      await ctx.runMutation(internal.courses.failBannerRefresh, {
+        termCode, leaseUntil, message: error instanceof Error ? error.message : "Public Banner refresh failed",
+      });
+      throw error;
+    }
+  },
+});
 export const searchCatalog = viewerQuery({
   args: {
     termCode: v.optional(v.string()),
     queryText: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const termCode = args.termCode ?? "202608";
+    const termCode = args.termCode ?? (await getBannerTerms(ctx)).activeTerm;
     const qText = args.queryText?.trim() ?? "";
 
     // Instant 5-digit CRN O(1) lookup via courseSections.by_term_crn
@@ -207,7 +377,7 @@ export const getCourseHubDetail = viewerQuery({
   handler: async (ctx, args) => {
     const now = Date.now();
     const { viewer } = ctx;
-    const termCode = args.termCode ?? "202608";
+    const termCode = args.termCode ?? (await getBannerTerms(ctx)).activeTerm;
     const normalized = normalizeSubjectCourse(args.subjectCourse);
 
     const hub = await ctx.db
@@ -395,7 +565,7 @@ export const enrollInCourseHub = viewerMutation({
   handler: async (ctx, args) => {
     const now = Date.now();
     const { viewer } = ctx;
-    const termCode = args.termCode ?? "202608";
+    const termCode = args.termCode ?? (await getBannerTerms(ctx)).activeTerm;
 
     let matchedSection: Doc<"courseSections"> | null = null;
     if (args.sectionId) {
@@ -669,7 +839,7 @@ export const importScheduleFromIcs = viewerMutation({
   handler: async (ctx, args) => {
     const now = Date.now();
     const { viewer } = ctx;
-    const termCode = args.termCode ?? "202608";
+    const termCode = args.termCode ?? (await getBannerTerms(ctx)).activeTerm;
     const term = await readScheduleTerm(ctx, viewer.workspaceKey, viewer.actorStudent._id, termCode);
     const parsed = await parseScheduleMatches(ctx, args.rawIcs, termCode);
     const selections = new Map(args.selections?.map(({ index, sectionId }) => [index, sectionId]));
@@ -783,7 +953,7 @@ export const getCourseSyllabus = viewerQuery({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    const termCode = args.termCode ?? "202608";
+    const termCode = args.termCode ?? (await getBannerTerms(ctx)).activeTerm;
     const normalized = normalizeSubjectCourse(args.subjectCourse);
 
     // 1. Exact (term, subjectCourse, CRN) lookup
@@ -958,13 +1128,13 @@ export const fetchAndCacheSyllabus = action({
   },
   handler: async (ctx, args) => {
     // Verify viewerContext before invoking external Simple Syllabus fetch
-    await ctx.runQuery(api.shell.shellSummary, {
+    const { activeTerm } = await ctx.runQuery(api.courses.listBannerTerms, {
       sessionToken: args.sessionToken,
       demoShortCode: args.demoShortCode,
       demoPersonaHandle: args.demoPersonaHandle,
     });
 
-    const termCode = args.termCode ?? "202608";
+    const termCode = args.termCode ?? activeTerm;
     const normalized = normalizeSubjectCourse(args.subjectCourse);
 
     // Return cached entry immediately if already present
