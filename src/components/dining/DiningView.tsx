@@ -116,6 +116,7 @@ export function DiningView() {
         {(data?.venues ?? []).map((venue) => {
           const stations =
             menuDay === "today" ? venue.todayStations : venue.tomorrowStations;
+          const hasMenu = menuDay === "today" ? venue.hasTodayMenu : venue.hasTomorrowMenu;
           const activeChips = selectedChipsBySlug[venue.slug] ?? [];
 
           return (
@@ -155,10 +156,19 @@ export function DiningView() {
                 </span>
               </div>
 
-              {venue.menuIsFixture && <p className="mt-3 text-xs font-semibold">Sample menu for Judge Demo Mode</p>}
+              <p className="mt-2 text-xs text-[#5E6675]">
+                {venue.hoursAreFixture ? "Sample hours for Judge Demo Mode"
+                  : venue.hoursFreshness?.label ? "KSU Dining hours · " + venue.hoursFreshness.label
+                  : venue.hoursFreshness ? "Hours from KSU Dining" : "KSU Dining hours unavailable"}
+                {" · "}
+                {venue.menuIsFixture ? "Sample menu for Judge Demo Mode"
+                  : !hasMenu ? "Nutrislice menu unavailable for this date"
+                  : venue.menuFreshness?.label ? "Nutrislice menu · " + venue.menuFreshness.label
+                  : "Menu from Nutrislice"}
+              </p>
               {stations.length === 0 && (
                 <p className="mt-3 text-xs text-[#5E6675]">
-                  No matching menu items for this day.{" "}
+                  {hasMenu || venue.menuIsFixture ? "No matching menu items for this day." : "Check the official menu for availability."}{" "}
                   <a href="https://ksu.nutrislice.com/menu/" target="_blank" rel="noreferrer" className="underline">Check Nutrislice</a>
                 </p>
               )}
