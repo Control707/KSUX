@@ -1,0 +1,21 @@
+---
+status: proposed
+---
+
+# Clout is an append-only, corroboration-only, cosmetic ledger with zero for safety content
+
+**Clout** is earned only for **corroborated** low-stakes logistics: a Parking Report, Line Check or Study Room vibe matched by a different Student within a short window, a confirmed Spot Opening, or a completed Marketplace handoff. It is recorded in an **append-only ledger** (`cloutEvents`). Quarantine *holds* an event, so it is hidden and not counted. Only a Moderator removal or a suspension *reverses* it, and clearing the report *restores* it. Nothing is ever edited in place. **Safety content (Incidents, Moderation Reports, the Emergency Panel) earns zero and is never counted or shown.** Clout is purely cosmetic: no perks, levels, badges, streaks, privileges, ranking boosts or redeemable value. Other Students' Clout appears only on a **weekly, per-Campus Leaderboard** (Top 25 by handle plus your own exact rank, opt-out). It never appears on cards or profiles, and it never triggers push.
+
+The research found no evidence that points improve report quality, and adjacent evidence suggests they cause harm. Paying for safety reports would reward false or sensational Incidents. Paying for uncorroborated reports would reward spam. Showing points next to content would turn them into a trust signal, and "trust" is deliberately not a domain term. An append-only ledger makes holds, reversals and caps auditable without mutable counters.
+
+## Considered Options
+
+- **Points per report without corroboration:** rejected because it pays for fabricated reports.
+- **Clout for safety reports, or Clout shown as reputation on content:** rejected. It incentivises false Incidents and implies verification.
+- **Mutable per-Student counters:** rejected. Reversals and caps can't be audited or replayed.
+- **Streaks, levels, all-time or combined-campus boards:** rejected. They drive compulsive and gamed behaviour.
+- **Location checks, device fingerprinting, ML fraud scoring:** rejected on privacy and $0 cost grounds.
+
+## Consequences
+
+`submitWalkInVibe` needs a cooldown before Study vibes can earn. Caps (the daily cap, per-target and per-pair limits) are derived from the ledger at read time, with no counter tables. Point values, windows and caps live in the spec and may be tuned without a new ADR. The zero-for-safety rule and the cosmetic-only rule may not.
