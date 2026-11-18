@@ -130,6 +130,10 @@ _Avoid_: Dispute, complaint, ticket
 The full-screen choice of calling 911, calling KSU Police, or texting KSU Police, shown before every Incident and every Campus Safety Moderation Report.
 _Avoid_: SOS button, panic button
 
+**Safety Card**:
+The fixed, non-AI answer Scrappy gives to any safety question, pointing to the Emergency Panel, Safety and official sources instead of describing campus safety.
+_Avoid_: safety summary, safety answer
+
 ### Recognition
 
 **Clout**:
