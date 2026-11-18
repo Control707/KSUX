@@ -14,7 +14,7 @@ export default function EmergencyPage() {
   const demo = useDemoTab();
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
-      <main id="main-content" tabIndex={-1} className="mx-auto max-w-xl space-y-[var(--sp-4)] p-[var(--sp-4)] outline-none">
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-xl [overflow-wrap:anywhere] space-y-[var(--sp-4)] p-[var(--sp-4)] outline-none">
         <Link href="/" className="inline-flex min-h-[var(--target)] items-center font-bold underline">
           Back to KSUX
         </Link>

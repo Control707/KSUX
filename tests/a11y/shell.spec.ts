@@ -144,6 +144,9 @@ test.describe("shell keyboard and announcements", () => {
       await expectNoHorizontalOverflow(page, `${route} 320px`);
       await page.addStyleTag({ content: "html{font-size:200% !important}" });
       await expectNoHorizontalOverflow(page, `${route} 200% text`);
+      // Wide glyphs stand in for platform font differences (CI runs on Linux).
+      await page.addStyleTag({ content: "*{font-family:Verdana,'DejaVu Sans',sans-serif !important;letter-spacing:.02em}" });
+      await expectNoHorizontalOverflow(page, `${route} 200% text, wide font`);
     }
   });
 });

@@ -6,7 +6,7 @@ import { useViewerQuery } from "@/lib/viewerClient";
 import { EmergencyPanel } from "@/components/safety/EmergencyPanel";
 import { useSafetyMode } from "@/components/safety/useSafetyMode";
 
-const linkClass = "inline-flex min-h-[var(--target)] items-center font-bold underline";
+const linkClass = "inline-flex min-h-[var(--target)] max-w-full items-center font-bold underline";
 
 export default function SafetyPage() {
   const gate = useViewerQuery(api.moderation.getIncidentLaunchStatus, {});

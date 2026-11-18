@@ -22,7 +22,7 @@ export default function SafetyLayout({ children }: { children: React.ReactNode }
           </Link>
         </nav>
       </header>
-      <main id={MAIN_CONTENT_ID} tabIndex={-1} className="mx-auto max-w-3xl space-y-[var(--sp-4)] p-[var(--sp-4)] outline-none">
+      <main id={MAIN_CONTENT_ID} tabIndex={-1} className="mx-auto max-w-3xl [overflow-wrap:anywhere] space-y-[var(--sp-4)] p-[var(--sp-4)] outline-none">
         {children}
       </main>
     </div>
