@@ -603,6 +603,8 @@ export default defineSchema({
 
   feedSyncState: defineTable({
     sourceKey: v.string(),
+    lastOutcome: v.optional(v.union(v.literal("accepted"), v.literal("partial"), v.literal("failed"))),
+    lastAcceptedCount: v.optional(v.number()),
     lastSuccessAt: v.optional(v.number()),
     lastAttemptAt: v.optional(v.number()),
     consecutiveFailures: v.number(),

@@ -463,8 +463,11 @@ export function StudyView() {
                   </div>
                   <div className="text-[11px] text-[#5E6675]">
                     {rm.campus} · Cap {rm.capacity} ·{" "}
-                    <strong>{rm.openHalfHourSlotsCount ?? 0}</strong> open 30m
-                    slots ({data?.targetDateET})
+                    {rm.openHalfHourSlotsCount === null ? "LibCal availability unavailable" : (
+                      <><strong>{rm.openHalfHourSlotsCount}</strong> open 30m slots ({data?.targetDateET})</>
+                    )}
+                    {rm.isFixtureSnapshot ? " · Judge Demo availability"
+                      : rm.availabilityFreshness ? " · LibCal · " + (rm.availabilityFreshness.label ?? "Synced") : ""}
                   </div>
                 </div>
                 {rm.bookingUrl && (
