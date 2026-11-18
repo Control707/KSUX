@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Incidents are a separate, never-promoted entity; Alerts are official-only

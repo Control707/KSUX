@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Clout is an append-only, corroboration-only, cosmetic ledger with zero for safety content

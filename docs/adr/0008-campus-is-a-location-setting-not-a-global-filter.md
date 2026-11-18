@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 supersedes: SPEC §3 global 3-way Campus switcher (Map #1 shell verdict)
 ---
 

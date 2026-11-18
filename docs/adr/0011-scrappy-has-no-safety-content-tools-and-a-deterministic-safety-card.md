@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 amends: ADR-0004 (adds a safety-content exclusion; existing clauses unchanged)
 ---
 
