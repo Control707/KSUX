@@ -185,7 +185,13 @@ pnpm test:e2e
 pnpm test:e2e commuter-fallbacks.spec.ts
 ```
 
-Add the dedicated accessibility job alongside the v2 shell in [#72](https://github.com/Control707/KSUX/issues/72), using the route, theme, and viewport matrix agreed in [#54](https://github.com/Control707/KSUX/issues/54). Add an independent keyboard map case when the shared map controls land.
+The `a11y` job runs the Layer 4 accessibility specs in `tests/a11y/` (axe plus custom assertions across light/dark and 390/1440, including the keyboard map case). Run it locally with:
+
+```bash
+pnpm test:e2e --project=a11y
+```
+
+The manual assistive-technology pass, its results log and the remaining screen migrations live in [docs/accessibility](accessibility/README.md).
 
 ### Hosted release smoke checks
 

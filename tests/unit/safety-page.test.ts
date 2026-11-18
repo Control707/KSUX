@@ -3,17 +3,19 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, expect, it, vi } from "vitest";
 import SafetyPage from "../../src/app/safety/page";
+import SafetyLayout from "../../src/app/safety/layout";
 import type { ActiveAuthState } from "../../src/lib/viewerClient";
 
 const viewer = vi.hoisted(() => ({
   auth: { status: "booting" } as ActiveAuthState,
   gate: undefined as { postingEnabled: boolean } | undefined,
 }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/safety" }));
 vi.mock("@/lib/viewerClient", () => ({
   useViewerClient: () => ({ auth: viewer.auth }),
   useViewerQuery: () => viewer.gate,
 }));
-const render = () => renderToStaticMarkup(createElement(SafetyPage));
+const render = () => renderToStaticMarkup(createElement(SafetyLayout, null, createElement(SafetyPage)));
 beforeEach(() => { viewer.auth = { status: "booting" }; viewer.gate = undefined; });
 
 it("never exposes real phone handoffs in an offline Judge Demo session", () => {
@@ -37,4 +39,13 @@ it("keeps emergency resources public without requiring a sign-in or gate result"
   expect(html).toContain('href="sms:7703563866"');
   expect(html).toContain("KSUX can’t confirm the call or a police response.");
   expect(html).toContain('href="/"');
+  expect(html).toContain("Is anyone in danger right now?");
+  expect(html).toContain('href="https://campus.kennesaw.edu/offices-services/livesafe/"');
+});
+
+it("shows the Emergency Panel while the session is still booting", () => {
+  const html = render();
+  expect(html).toContain('href="tel:911"');
+  expect(html).toContain('id="main-content"');
+  expect(html).toContain("Skip to main content");
 });

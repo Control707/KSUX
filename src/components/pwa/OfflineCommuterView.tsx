@@ -62,7 +62,14 @@ export function OfflineCommuterView({ scope }: { scope: CommuterScope | null }) 
           </ul>
         )}
       </section>
-      <CampusGeoMap campusFilter={snapshot?.campusFilter ?? "All KSU"} showShuttleRoutes />
+      <CampusGeoMap campusFilter={snapshot?.campusFilter ?? "All KSU"} showShuttleRoutes showParkingLots={false} mode="static" />
+      <p className="text-sm">
+        In an emergency, the{" "}
+        <a href="/emergency" className="inline-flex min-h-[2.75rem] items-center font-bold underline">
+          Emergency Panel
+        </a>{" "}
+        works offline.
+      </p>
       <button className="rounded-xl bg-[#111317] px-4 py-2 text-sm font-bold text-[#FDBB30]" type="button" onClick={() => window.location.reload()}>
         Check connection
       </button>

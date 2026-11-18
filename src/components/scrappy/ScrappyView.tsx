@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   FileEdit,
   Plus,
@@ -19,11 +19,13 @@ import { CitationPill } from "@/components/shared/CampusEntityCard";
 
 export function ScrappyView() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { auth, setPendingDraftCard } = useViewerClient();
 
   const [selectedThreadId, setSelectedThreadId] =
     useState<Id<"scrappyThreads"> | "new" | null>(null);
-  const [prompt, setPrompt] = useState("");
+  // The Quick Sheet's Ask field hands its question over as ?q=.
+  const [prompt, setPrompt] = useState(() => searchParams.get("q")?.slice(0, 1000) ?? "");
   const [streamingText, setStreamingText] = useState("");
   const [streamingCitations, setStreamingCitations] = useState<any[]>([]);
   const [streamingDraft, setStreamingDraft] = useState<any | null>(null);

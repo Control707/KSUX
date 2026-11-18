@@ -186,12 +186,30 @@ describe("Offline commuter service worker workflows", () => {
   it("never caches Safety HTML or RSC responses, including descendants and query strings", async () => {
     const worker = workerHarness();
     await Promise.all(worker.dispatch("install").lifetime);
-    for (const path of ["/safety", "/safety?demo=1", "/safety/incidents/123", "/safety/alerts/123?_rsc=abc"]) {
-      for (const mode of ["navigate", "same-origin"] as const) {
-        expect(worker.dispatchFetch(path, { mode }).response).toBeUndefined();
-      }
+    const paths = ["/safety", "/safety?demo=1", "/safety/incidents/123", "/safety/alerts/123?_rsc=abc"];
+    for (const path of paths) {
+      expect(worker.dispatchFetch(path, { mode: "same-origin" }).response).toBeUndefined();
     }
     expect(worker.network).not.toHaveBeenCalled();
+
+    worker.network.mockImplementation(async (request) => new Response(`Fresh ${request.url}`));
+    for (const path of paths) {
+      const page = await worker.dispatchFetch(path, { mode: "navigate" }).response;
+      expect(await page?.text()).toBe(`Fresh ${origin}${path}`);
+    }
+    const shell = await worker.cacheStorage.open("ksux-v3-shell");
+    for (const path of paths) expect(await shell.match(path)).toBeUndefined();
+  });
+
+  it("shows the precached Emergency Panel when a Safety page is opened offline", async () => {
+    const worker = workerHarness();
+    await Promise.all(worker.dispatch("install").lifetime);
+    worker.network.mockRejectedValue(new Error("Offline"));
+
+    const safety = await worker.dispatchFetch("/safety", { mode: "navigate" }).response;
+    expect(await safety?.text()).toBe("Precached /emergency");
+    const panel = await worker.dispatchFetch("/emergency", { mode: "navigate" }).response;
+    expect(await panel?.text()).toBe("Precached /emergency");
   });
 
   it("only skips waiting after receiving an explicit update message", async () => {
