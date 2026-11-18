@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ViewerClientProvider } from "@/lib/viewerClient";
+import { AnnouncerProvider } from "@/components/a11y/Announcer";
+import { DEMO_CALL_INTERCEPT_SCRIPT } from "@/components/safety/EmergencyPanel";
 
 export const metadata: Metadata = {
   title: "KSUX — Kennesaw State Campus Companion",
@@ -15,7 +17,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#111317",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FBF7EF" },
+    { media: "(prefers-color-scheme: dark)", color: "#17140F" },
+  ],
   width: "device-width",
   initialScale: 1,
 };
@@ -27,8 +32,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        {/* Judge Demo Mode never dials, even before hydration or offline. */}
+        <script dangerouslySetInnerHTML={{ __html: DEMO_CALL_INTERCEPT_SCRIPT }} />
+      </head>
       <body>
-        <ViewerClientProvider>{children}</ViewerClientProvider>
+        <AnnouncerProvider>
+          <ViewerClientProvider>{children}</ViewerClientProvider>
+        </AnnouncerProvider>
       </body>
     </html>
   );

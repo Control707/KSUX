@@ -6,7 +6,6 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 const nextCli = createRequire(import.meta.url).resolve("next/dist/bin/next");
 
 export default defineConfig({
-  testDir: "./tests/e2e",
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
@@ -20,6 +19,13 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      testDir: "./tests/e2e",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      // Layer 4 (SPEC-v2 Testing Decisions): axe + custom accessibility assertions.
+      name: "a11y",
+      testDir: "./tests/a11y",
       use: { ...devices["Desktop Chrome"] },
     },
   ],

@@ -1,38 +1,333 @@
 @import "tailwindcss";
 
-:root {
-  --ksu-gold: #FDBB30;
-  --ksu-gold-deep: #D99B00;
-  --ksu-gold-soft: #FFF6DC;
+/*
+ * Direction C (Campus Brief) design tokens — SPEC-v2 §2.
+ * Text pairs are ≥4.5:1 and UI marks / focus pairs are ≥3:1 in both sets.
+ * Legacy v1 tokens (--ksu-*) remain until every screen migrates (Phase 1A).
+ */
+:root,
+.theme-light {
+  --fs-xs: 0.8125rem;
+  --fs-sm: 0.875rem;
+  --fs-body: 1.0625rem;
+  --fs-lg: 1.125rem;
+  --fs-xl: 1.375rem;
+  --fs-2xl: 1.75rem;
+  --fs-3xl: 2.25rem;
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --target: 2.75rem;
+  --r-sm: 12px;
+  --r-md: 18px;
+  --r-lg: 24px;
+  --r-card: 28px;
+  --r-pill: 999px;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: ui-serif, "Iowan Old Style", "Charter", Georgia, serif;
+  --dur-1: 120ms;
+  --dur-2: 320ms;
+  --dur-fade: 150ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --sheet-move: 100%;
+  --focus-w: 3px;
+
+  --bg: #fbf7ef;
+  --surface: #ffffff;
+  --surface-2: #f3ecdd;
+  --ink: #1f1a14;
+  --muted: #5c5245;
+  --line: #e2d8c6;
+  --line-strong: #8a7e6b;
+  --accent: #fdbb30;
+  --on-accent: #1f1a14;
+  --accent-ink: #7a4e00;
+  --accent-soft: #fbebc4;
+  --header: #fbf7ef;
+  --demo: #ffb020;
+  --focus: #0b57d0;
+  --ok-fg: #14592f;
+  --ok-bg: #dcf2e3;
+  --warn-fg: #6b4700;
+  --warn-bg: #fcefd2;
+  --bad-fg: #8f1d1d;
+  --bad-bg: #fbe2e2;
+  --ken-fg: #7a4e00;
+  --ken-bg: #fbebc4;
+  --mar-fg: #1e3a8a;
+  --mar-bg: #dbeafe;
+  --open-fg: #00517f;
+  --open-bg: #e2f0f9;
+  --filling-fg: #6b4700;
+  --filling-bg: #fcefd2;
+  --nearly-fg: #8a2e00;
+  --nearly-bg: #fbe1d3;
+  --full-fg: #6e1f5c;
+  --full-bg: #f6e1ee;
+  --open-mark: #0072b2;
+  --filling-mark: #b07a00;
+  --nearly-mark: #d55e00;
+  --full-mark: #a23b84;
+  --shadow: 0 2px 6px rgba(60, 40, 10, 0.06), 0 12px 32px rgba(60, 40, 10, 0.08);
+  --map-land: #efe8d8;
+  --map-road: #ffffff;
+  --map-bldg: #d9cdb6;
+  color-scheme: light;
+
+  /* Legacy v1 tokens (unmigrated screens). */
+  --ksu-gold: #fdbb30;
+  --ksu-gold-deep: #d99b00;
+  --ksu-gold-soft: #fff6dc;
   --ksu-black: #111317;
-  --ksu-ink: #1B1F27;
-  --ksu-muted: #5E6675;
-  --ksu-line: #E4E7EE;
-  --ksu-surface: #FFFFFF;
-  --ksu-bg: #F4F6FA;
-  --ok: #15803D;
-  --ok-bg: #DCFCE7;
-  --warn: #B45309;
-  --warn-bg: #FEF3C7;
-  --danger: #B91C1C;
-  --danger-bg: #FEE2E2;
-  --marietta-accent: #1E3A8A;
-  --marietta-soft: #DBEAFE;
+  --ksu-ink: #1b1f27;
+  --ksu-muted: #5e6675;
+  --ksu-line: #e4e7ee;
+  --ksu-surface: #ffffff;
+  --ksu-bg: #f4f6fa;
+  --ok: #15803d;
+  --warn: #b45309;
+  --danger: #b91c1c;
+  --danger-bg: #fee2e2;
+  --marietta-accent: #1e3a8a;
+  --marietta-soft: #dbeafe;
+
+  /* Sticky chrome heights for scroll-padding (WCAG 2.4.11). */
+  --chrome-top: 4rem;
+  --chrome-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17140f;
+    --surface: #211d17;
+    --surface-2: #2c271f;
+    --ink: #f6efe3;
+    --muted: #bfb3a0;
+    --line: #3a342a;
+    --line-strong: #8c806c;
+    --accent: #fdbb30;
+    --on-accent: #1f1a14;
+    --accent-ink: #fdcb5c;
+    --accent-soft: #3a2f14;
+    --header: #17140f;
+    --focus: #8ab4f8;
+    --ok-fg: #8fe0a9;
+    --ok-bg: #12301c;
+    --warn-fg: #f6c667;
+    --warn-bg: #34270c;
+    --bad-fg: #ffa8a8;
+    --bad-bg: #3d1515;
+    --ken-fg: #fdcb5c;
+    --ken-bg: #3a2f14;
+    --mar-fg: #a9c4ff;
+    --mar-bg: #16234a;
+    --open-fg: #8ccbf2;
+    --open-bg: #0f2a3d;
+    --filling-fg: #f6c667;
+    --filling-bg: #34270c;
+    --nearly-fg: #ffa27a;
+    --nearly-bg: #3d1d0f;
+    --full-fg: #f2a6d9;
+    --full-bg: #3a1530;
+    --open-mark: #56b4e9;
+    --filling-mark: #e69f00;
+    --nearly-mark: #ff7a33;
+    --full-mark: #e07fc0;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --map-land: #252019;
+    --map-road: #3a342a;
+    --map-bldg: #3f372b;
+    color-scheme: dark;
+  }
+}
+
+/* Legacy screens keep the light paper set until Phase 1A migrates them. */
+.theme-light {
+  color-scheme: light;
+  color: var(--ink);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-focus: var(--focus);
+  --color-ok-fg: var(--ok-fg);
+  --color-ok-bg: var(--ok-bg);
+  --color-warn-fg: var(--warn-fg);
+  --color-warn-bg: var(--warn-bg);
+  --color-bad-fg: var(--bad-fg);
+  --color-bad-bg: var(--bad-bg);
+  --color-ken-fg: var(--ken-fg);
+  --color-ken-bg: var(--ken-bg);
+  --color-mar-fg: var(--mar-fg);
+  --color-mar-bg: var(--mar-bg);
+  --text-xs: var(--fs-xs);
+  --text-sm: var(--fs-sm);
+  --text-body: var(--fs-body);
+  --text-lg: var(--fs-lg);
+  --text-xl: var(--fs-xl);
+  --text-2xl: var(--fs-2xl);
+  --text-3xl: var(--fs-3xl);
+  --radius-sm-c: var(--r-sm);
+  --radius-md-c: var(--r-md);
+  --radius-lg-c: var(--r-lg);
+  --radius-card: var(--r-card);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --spacing-target: var(--target);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  scroll-padding-top: var(--chrome-top);
+  scroll-padding-bottom: var(--chrome-bottom);
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
-  background-color: var(--ksu-bg);
-  color: var(--ksu-ink);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto,
-    sans-serif;
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Long words (and 200% text on 320 px) wrap instead of scrolling sideways (1.4.10). */
+h1,
+h2,
+h3 {
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+/* One visible focus ring everywhere (≥3:1 against both surfaces). */
+:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* A route heading receives programmatic focus; keep it visible but quiet. */
+[data-route-heading]:focus {
+  outline: none;
+}
+[data-route-heading]:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.min-target {
+  min-height: var(--target);
+  min-width: var(--target);
+}
+
+/* Visible-on-focus skip link. */
+.skip-link {
+  position: absolute;
+  left: var(--sp-3);
+  top: -100vh;
+  z-index: 100;
+  display: inline-flex;
+  min-height: var(--target);
+  align-items: center;
+  border-radius: var(--r-sm);
+  background: var(--ink);
+  color: var(--bg);
+  padding: 0 var(--sp-4);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+.skip-link:focus {
+  top: var(--sp-3);
+}
+
+/* Status fill patterns: a status is never colour alone (SPEC-v2 §2). */
+.status-pattern-open {
+  background-color: var(--open-bg);
+}
+.status-pattern-filling {
+  background: repeating-linear-gradient(135deg, var(--filling-mark) 0 2px, var(--filling-bg) 2px 7px);
+}
+.status-pattern-nearly {
+  background: repeating-linear-gradient(135deg, var(--nearly-mark) 0 3px, var(--nearly-bg) 3px 6px);
+}
+.status-pattern-full {
+  background-color: var(--full-mark);
+}
+.status-pattern-none {
+  background: var(--surface-2);
+  border-style: dashed !important;
+}
+
+/* Dialog and sheet motion. Reduced motion means fades only. */
+@keyframes ksux-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ksux-sheet-in {
+  from {
+    transform: translateY(var(--sheet-move));
+  }
+  to {
+    transform: none;
+  }
+}
+.ksux-backdrop {
+  animation: ksux-fade-in var(--dur-fade) linear;
+}
+.ksux-sheet {
+  animation: ksux-sheet-in var(--dur-2) var(--ease);
+}
+.ksux-dialog {
+  animation: ksux-fade-in var(--dur-fade) linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-property: opacity, color, background-color, border-color !important;
+  }
+  .ksux-sheet {
+    animation: ksux-fade-in var(--dur-fade) linear;
+  }
+}
+
+/* Large-text mode (≥150% text on a phone): bar labels become names only. */
+html[data-large-text] .lt-hide-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+html[data-large-text] .lt-grid-1 {
+  grid-template-columns: minmax(0, 1fr) !important;
 }
 
 .no-scrollbar::-webkit-scrollbar {

@@ -1,7 +1,9 @@
-const SW_VERSION = "ksux-v2";
+const SW_VERSION = "ksux-v3";
 const SHELL_CACHE = `${SW_VERSION}-shell`;
 const STATIC_CACHE = `${SW_VERSION}-static`;
 const GEOJSON_CACHE = `${SW_VERSION}-geojson`;
+
+const EMERGENCY_PAGE = "/emergency";
 
 const PRECACHE_GEOJSON_AND_SHELL = [
   "/",
@@ -17,7 +19,8 @@ const PRECACHE_GEOJSON_AND_SHELL = [
 self.addEventListener("install", (event) => {
   event.waitUntil(
     Promise.all([
-      caches.open(SHELL_CACHE).then((cache) => cache.addAll(["/"])),
+      // The Emergency Panel page needs no sign-in, GPS or network (SPEC-v2 §5).
+      caches.open(SHELL_CACHE).then((cache) => cache.addAll(["/", EMERGENCY_PAGE])),
       caches
         .open(GEOJSON_CACHE)
         .then((cache) => cache.addAll(PRECACHE_GEOJSON_AND_SHELL.slice(1))),
@@ -49,11 +52,16 @@ self.addEventListener("message", (event) => {
   }
 });
 
+function isSafetyPath(url) {
+  return url.pathname === "/safety" || url.pathname.startsWith("/safety/");
+}
+
 function isStrictPassthroughRequest(request, url) {
   if (request.method !== "GET") return true;
   if (url.pathname.startsWith("/api/")) return true;
-  // Safety is network-only, for document navigations and App Router/RSC fetches alike.
-  if (url.pathname === "/safety" || url.pathname.startsWith("/safety/")) return true;
+  // Safety is network-only for App Router/RSC fetches; navigations are handled
+  // separately so an offline Student still reaches the Emergency Panel.
+  if (isSafetyPath(url) && request.mode !== "navigate") return true;
   if (
     url.hostname.includes("convex.cloud") ||
     url.hostname.includes("convex.site") ||
@@ -101,6 +109,22 @@ async function networkFirstHtmlWith3sTimeout(request) {
   }
 }
 
+// Safety pages go straight to the network and are never cached. Offline, the
+// precached Emergency Panel page is shown instead of a browser error.
+async function networkOnlySafetyNavigation(request) {
+  try {
+    return await fetch(request);
+  } catch {
+    const cache = await caches.open(SHELL_CACHE);
+    const panel = await cache.match(EMERGENCY_PAGE);
+    if (panel) return panel;
+    return new Response(
+      "Offline. In an emergency call 911. KSU Police: 470-578-6666 (call) or 770-356-3866 (text).",
+      { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } }
+    );
+  }
+}
+
 async function cacheFirstHashedBundle(request) {
   const cache = await caches.open(STATIC_CACHE);
   // File names under /_next/static are content-hashed, so the query string
@@ -142,6 +166,11 @@ self.addEventListener("fetch", (event) => {
 
   // Strict passthrough on APIs, UploadThing, Passio GO live feeds, and Convex HTTP/WS
   if (isStrictPassthroughRequest(event.request, url)) {
+    return;
+  }
+
+  if (event.request.mode === "navigate" && isSafetyPath(url)) {
+    event.respondWith(networkOnlySafetyNavigation(event.request));
     return;
   }
 
