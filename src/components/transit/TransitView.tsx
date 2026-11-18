@@ -137,7 +137,7 @@ export function TransitView() {
         )}
       </div>
 
-      {/* Service Alerts */}
+      {/* Passio Shuttle Notices (not official Alerts) */}
       {(overview?.serviceAlerts ?? []).map((al) => (
         <div
           key={al.alertId}

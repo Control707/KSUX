@@ -66,7 +66,7 @@ export function ClubsDirectoryView() {
               KSU Clubs &amp; Campus Departments
             </h1>
             <p className="text-xs text-[#5E6675]">
-              <a href="https://owllife.kennesaw.edu/" className="font-bold text-[#1E3A8A] underline">
+              <a href="https://owllife.kennesaw.edu/" target="_blank" rel="noopener noreferrer" className="font-bold text-[#1E3A8A] underline">
                 Open the official Owl Life directory
               </a>{" · "}
               <Link href="/events" className="font-bold text-[#1E3A8A] underline">

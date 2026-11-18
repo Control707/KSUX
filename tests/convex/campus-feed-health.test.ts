@@ -36,6 +36,17 @@ it("reports successful empty, partial, stale, and recovered streams only to main
     expect((await health()).localist_events).toMatchObject({ result: "empty", acceptedCount: 0 });
     expect((await health()).engage_events).toMatchObject({ result: "failed", freshness: "unavailable", acceptedCount: null });
 
+    const events = internal.sync.eventsSync.applySyncedEventsInternal;
+    await t.mutation(events, { now: now + 1, status: "failed_or_aborted", sourceObservations: [
+      { sourceKey: "engage_events", outcome: "accepted", count: 40 },
+    ] });
+    await t.mutation(events, { now: now + 2, status: "failed_or_aborted", sourceObservations: [
+      { sourceKey: "engage_events", outcome: "accepted", count: 3 },
+    ] });
+    expect((await health()).engage_events).toMatchObject({
+      result: "partial", acceptedCount: 40, lastSuccessAt: now + 1, lastAttemptAt: now + 2,
+    });
+
     await expect(t.query(api.moderation.getCampusFeedHealth, { sessionToken: student.sessionToken }))
       .rejects.toThrow(/maintainer access/);
     const demo = await t.mutation(api.demo.session.provisionOrAttachDemoSession, { preferredPersona: "maya_cs" });

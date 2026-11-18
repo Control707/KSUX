@@ -194,8 +194,8 @@ export const getClubDirectoryCoverage = viewerQuery({
     const rows = await Promise.all(campuses.map((campus) => ctx.db.query("clubs")
       .withIndex("by_workspace_campus", (q) =>
         q.eq("workspaceKey", "ksu").eq("visibilityStatus", "visible").eq("campus", campus))
-      .filter((q) => q.neq(q.field("isFixture"), true)).first()));
-    return rows.some(Boolean) ? "partial" as const : "unavailable" as const;
+      .take(25)));
+    return rows.flat().some((club) => !club.isFixture) ? "partial" as const : "unavailable" as const;
   },
 });
 

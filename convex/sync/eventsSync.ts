@@ -436,11 +436,14 @@ export const applySyncedEventsInternal = internalMutation({
     for (const observation of args.sourceObservations ?? []) {
       const previous = await ctx.db.query("feedSyncState")
         .withIndex("by_source", (q) => q.eq("sourceKey", observation.sourceKey)).unique();
-      const accepted = observation.outcome === "accepted";
+      const previousCount = previous?.activeRecordCount ?? 0;
+      // Same 0-row / >80% drop guard as the combined upsert: keep the last-good count.
+      const suddenDrop = previousCount > 0 && isSuddenDropOrEmpty(previousCount, observation.count ?? 0);
+      const accepted = observation.outcome === "accepted" && !suddenDrop;
       const fields = {
         lastAttemptAt: args.now,
         lastSuccessAt: accepted ? args.now : previous?.lastSuccessAt,
-        lastOutcome: observation.outcome,
+        lastOutcome: suddenDrop ? "partial" as const : observation.outcome,
         consecutiveFailures: accepted ? 0 : (previous?.consecutiveFailures ?? 0) + 1,
         activeRecordCount: accepted ? observation.count ?? 0 : previous?.activeRecordCount ?? 0,
         lastAcceptedCount: accepted ? observation.count ?? 0 : previous?.lastAcceptedCount,
