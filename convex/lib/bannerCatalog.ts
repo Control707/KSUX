@@ -20,6 +20,15 @@ export const bannerSection = v.object({
 });
 export type BannerSection = Infer<typeof bannerSection>;
 
+// Compare values, not object insertion order (Convex canonicalizes stored keys).
+export function bannerSectionSignature(row: Pick<BannerSection,
+  "crn" | "sectionNumber" | "campus" | "deliveryMode" | "instructorName" | "meetings">) {
+  return JSON.stringify([
+    row.crn, row.sectionNumber, row.campus, row.deliveryMode, row.instructorName,
+    row.meetings.map((m) => [m.days, m.startMinutes, m.endMinutes, m.timeLabel, m.buildingName, m.roomNumber]),
+  ]);
+}
+
 export function termLabel(code: string) {
   const season = ({ "01": "Spring", "05": "Summer", "08": "Fall" } as Record<string, string>)[code.slice(4)];
   return season ? season + " " + code.slice(0, 4) : code;
@@ -68,6 +77,8 @@ export function validateBannerSections(rows: BannerSection[]) {
 export function parseBannerCoursePage(html: string, term: string, course: string): BannerSection[] {
   if (html.length > 1_000_000 || !/<\/html\s*>/i.test(html)) throw new Error("Incomplete Banner response");
   const headings = [...html.matchAll(/<th\b[^>]*>\s*<a\b[^>]*href=["'][^"']*p_disp_detail_sched\?term_in=(\d{6})(?:&amp;|&)crn_in=(\d{5})["'][^>]*>([\s\S]*?)<\/a>\s*<\/th>/gi)];
+  const sectionLinks = [...html.matchAll(/<a\b[^>]*href=["'][^"']*p_disp_detail_sched\b/gi)];
+  if (sectionLinks.length !== headings.length) throw new Error("Incomplete Banner section headings");
   if (!headings.length) throw new Error("No published Banner sections found for " + course + " / " + term);
   const rows: BannerSection[] = [];
   for (const [index, match] of headings.entries()) {
@@ -107,11 +118,13 @@ export function parseBannerCoursePage(html: string, term: string, course: string
       const name = cleanHtml(instructor![1]!).replace(/\s*\(\s*[PS]\s*\)\s*$/, "");
       if (name && !name.includes("@")) instructors.add(name);
       const timeLabel = cleanHtml(time![1]!.split(/<br\s*\/?>/i)[0]!);
-      if (!timeLabel || /^(TBA|ARR|Arranged)$/i.test(timeLabel)) continue;
+      if (!timeLabel) throw new Error("Missing Banner meeting time");
+      if (/^(TBA|ARR|Arranged)$/i.test(timeLabel)) continue;
       const times = /^(\d{1,2}):(\d{2})\s*(am|pm)\s*[-–]\s*(\d{1,2}):(\d{2})\s*(am|pm)$/i.exec(timeLabel);
       if (!times) throw new Error("Unrecognized Banner meeting time");
       const dayMarkup = meetingTable.slice(where!.index + where![0].length, time!.index);
       const marked = [...dayMarkup.matchAll(/<td\b[^>]*>\s*(?:&nbsp;|X)\s*<\/td>/gi)];
+      if (marked.length !== 7) throw new Error("Incomplete Banner meeting days");
       const days = [..."UMTWRFS"].filter((_, day) => /<td\b[^>]*>\s*X\s*<\/td>/i.test(marked[day]?.[0] ?? ""));
       const [buildingName, room] = where![1]!.split(/<br\s*\/?>/i).map(cleanHtml);
       meetings.push({

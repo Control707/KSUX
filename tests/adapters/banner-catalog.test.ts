@@ -25,6 +25,20 @@ it("parses published nested meeting data without retaining email or inventing ti
   expect(() => parseBannerCoursePage(published, "202701", "CS 3305")).toThrow(/another term/);
 });
 
+it("rejects a partial page when a section heading cannot be parsed", () => {
+  const malformedSection = '<tr><th><a href="/prodban/bwckschd.p_disp_detail_sched?term_in=202608&amp;crn_in=83191">CS 3305/02 - Data Structures</a> extra markup</th></tr>';
+  expect(() => parseBannerCoursePage(published.replace("</body>", malformedSection + "</body>"), "202608", "CS 3305")).toThrow(/Incomplete Banner section/);
+});
+
+it("rejects missing meeting times rather than clearing a known schedule", () => {
+  expect(() => parseBannerCoursePage(published.replace("11:10 am - 12:30 pm", ""), "202608", "CS 3305")).toThrow(/Missing Banner meeting time/);
+  expect(parseBannerCoursePage(published.replace("11:10 am - 12:30 pm", "TBA"), "202608", "CS 3305")[0]?.meetings).toEqual([]);
+});
+
+it("rejects incomplete weekday markup instead of shifting a meeting to another day", () => {
+  expect(() => parseBannerCoursePage(published.replace("<td>&nbsp;</td>", "<td></td>"), "202608", "CS 3305")).toThrow(/Incomplete Banner meeting days/);
+});
+
 it("selects a new published term at the Eastern month boundary", () => {
   const codes = ["202701", "202608"];
   expect(activeBannerTerm(codes, Date.UTC(2027, 0, 1, 4, 59))).toBe("202608");
