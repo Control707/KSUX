@@ -22,6 +22,7 @@ test("falls back to synced transit when the direct feed stops updating", async (
   });
 
   await page.goto("/transit?demo=1");
+  await page.waitForURL(/[?&]persona=maya_cs/);
   const transit = page.getByTestId("transit-view");
   await expect(transit.getByText("Direct Passio GPS")).toBeVisible({ timeout: 25_000 });
 
@@ -37,6 +38,7 @@ test("falls back to synced transit when the direct feed stops updating", async (
 
 test("reloads a saved schedule and static campus map offline", async ({ page, context }) => {
   await page.goto("/?demo=1");
+  await page.waitForURL(/[?&]persona=maya_cs/);
   await expect(page.getByTestId("bento-schedule-tile")).toContainText("CS 3305");
   await expect.poll(() => page.evaluate(() => {
     const shortCode = sessionStorage.getItem("ksux_demo_short_code");
