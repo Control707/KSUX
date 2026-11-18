@@ -216,7 +216,7 @@ export const listFeedRingsAndTrends = viewerQuery({
     const now = Date.now();
     const { viewer } = ctx;
     const campusFilter =
-      args.campusOverride ?? viewer.actorStudent.activeCampusFilter;
+      args.campusOverride ?? "All KSU";
     const todayKey = dayKeyET(now);
     const yesterdayKey = dayKeyET(now - TWENTY_FOUR_HOURS_MS);
     const trendScope = campusFilter === "All KSU" ? "All" : campusFilter;
@@ -316,7 +316,7 @@ export const listCampusOrTrendingFeed = viewerQuery({
     const now = Date.now();
     const { viewer } = ctx;
     const campusFilter =
-      args.campusOverride ?? viewer.actorStudent.activeCampusFilter;
+      args.campusOverride ?? "All KSU";
     const numItems = Math.min(args.paginationOpts.numItems || 25, 25);
     const boundedOpts = { ...args.paginationOpts, numItems };
 
@@ -650,12 +650,7 @@ export const createPost = viewerMutation({
     let effectiveCourseHubId = args.courseHubId;
     let effectiveClubId = args.clubId;
     let effectiveCampus: "Kennesaw" | "Marietta" =
-      args.campus ??
-      (viewer.actorStudent.activeCampusFilter === "Marietta"
-        ? "Marietta"
-        : viewer.actorStudent.activeCampusFilter === "Kennesaw"
-          ? "Kennesaw"
-          : viewer.actorStudent.homeCampus);
+      args.campus ?? viewer.actorStudent.homeCampus;
 
     if (args.replyToPostId) {
       const parent = await ctx.db.get(args.replyToPostId);

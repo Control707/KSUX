@@ -86,7 +86,7 @@ export const listClubs = viewerQuery({
   handler: async (ctx, args) => {
     const { viewer } = ctx;
     const campusFilter =
-      args.campusOverride ?? viewer.actorStudent.activeCampusFilter;
+      args.campusOverride ?? "All KSU";
     const limit = Math.min(args.limit ?? 25, 25);
     const qText = args.queryText?.trim();
 
@@ -185,11 +185,10 @@ export const listClubs = viewerQuery({
 });
 
 export const getClubDirectoryCoverage = viewerQuery({
-  args: {},
-  handler: async (ctx) => {
-    const { actorStudent, mode } = ctx.viewer;
-    if (mode === "demo") return "demo" as const;
-    const campusFilter = actorStudent.activeCampusFilter;
+  args: { campusOverride: v.optional(campusFilterValidator) },
+  handler: async (ctx, { campusOverride }) => {
+    if (ctx.viewer.mode === "demo") return "demo" as const;
+    const campusFilter = campusOverride ?? "All KSU";
     const campuses = campusFilter === "All KSU" ? ["Kennesaw", "Marietta"] as const : [campusFilter];
     const rows = await Promise.all(campuses.map((campus) => ctx.db.query("clubs")
       .withIndex("by_workspace_campus", (q) =>

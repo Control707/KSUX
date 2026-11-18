@@ -47,6 +47,7 @@ export function MarketplaceView() {
   const [pricingModeFilter, setPricingModeFilter] = useState<string>("");
   const [queryText, setQueryText] = useState("");
   const [onlyMine, setOnlyMine] = useState(false);
+  const [browseCampus, setBrowseCampus] = useState<"All KSU" | "Kennesaw" | "Marietta">("All KSU");
 
   const [createOpen, setCreateOpen] = useState(
     searchParams.get("create") === "1"
@@ -93,6 +94,7 @@ export function MarketplaceView() {
   }, [pendingDraftCard, setPendingDraftCard]);
 
   const listings = useViewerQuery(api.marketplace.listListings, {
+    campusOverride: browseCampus,
     category: (category || undefined) as any,
     pricingMode: (pricingModeFilter || undefined) as any,
     queryText: queryText || undefined,
@@ -203,6 +205,20 @@ export function MarketplaceView() {
               className="w-full bg-transparent text-xs font-semibold text-[#111317] focus:outline-none"
             />
           </div>
+
+          <select
+            aria-label="Filter Listings by Campus"
+            value={browseCampus}
+            onChange={(event) => {
+              const selected = event.currentTarget.value;
+              setBrowseCampus(selected === "Kennesaw" || selected === "Marietta" ? selected : "All KSU");
+            }}
+            className="rounded-xl border border-[#E4E7EE] bg-[#F9FAFC] px-3 py-2 text-xs font-bold text-[#111317]"
+          >
+            <option value="All KSU">All KSU</option>
+            <option value="Kennesaw">Kennesaw</option>
+            <option value="Marietta">Marietta</option>
+          </select>
 
           <select
             value={category}

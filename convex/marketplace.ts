@@ -105,7 +105,7 @@ export const listListings = viewerQuery({
     const now = Date.now();
     const { viewer } = ctx;
     const campusFilter =
-      args.campusOverride ?? viewer.actorStudent.activeCampusFilter;
+      args.campusOverride ?? "All KSU";
     const limit = Math.min(args.limit ?? 25, 25);
     const qText = args.queryText?.trim();
 
@@ -121,68 +121,40 @@ export const listListings = viewerQuery({
         )
         .order("desc")
         .take(limit);
-    } else if (qText) {
-      rawDocs = await ctx.db
-        .query("listings")
-        .withSearchIndex("search_listings", (q) => {
-          let sq = q
-            .search("searchText", qText)
-            .eq("workspaceKey", viewer.workspaceKey)
-            .eq("isBrowseable", true);
-          if (campusFilter !== "All KSU") {
-            sq = sq.eq("campus", campusFilter);
-          }
-          if (args.category) {
-            sq = sq.eq("category", args.category);
-          }
-          return sq;
-        })
-        .take(limit);
-    } else if (campusFilter === "All KSU" && args.category) {
-      const category = args.category;
-      rawDocs = await ctx.db
-        .query("listings")
-        .withIndex("by_all_category", (q) =>
-          q.eq("workspaceKey", viewer.workspaceKey).eq("isBrowseable", true)
-            .eq("category", category),
-        )
-        .order("desc")
-        .take(limit);
-    } else if (campusFilter === "All KSU") {
-      rawDocs = await ctx.db
-        .query("listings")
-        .withIndex("by_all_browse", (q) =>
-          q.eq("workspaceKey", viewer.workspaceKey).eq("isBrowseable", true)
-        )
-        .order("desc")
-        .take(limit);
-    } else if (args.category) {
-      rawDocs = await ctx.db
-        .query("listings")
-        .withIndex("by_campus_category", (q) =>
-          q
-            .eq("workspaceKey", viewer.workspaceKey)
-            .eq("isBrowseable", true)
-            .eq("campus", campusFilter)
-            .eq("category", args.category!)
-        )
-        .order("desc")
-        .take(limit);
     } else {
-      rawDocs = await ctx.db
-        .query("listings")
-        .withIndex("by_campus_browse", (q) =>
-          q
-            .eq("workspaceKey", viewer.workspaceKey)
-            .eq("isBrowseable", true)
-            .eq("campus", campusFilter)
-        )
-        .order("desc")
-        .take(limit);
+      // Bound each Campus independently so a busy other Campus cannot crowd
+      // home-Campus Listings out before we apply the home-first ordering.
+      const home = viewer.actorStudent.homeCampus;
+      const campuses = campusFilter === "All KSU"
+        ? [home, home === "Kennesaw" ? "Marietta" as const : "Kennesaw" as const]
+        : [campusFilter];
+      const batches = await Promise.all(campuses.map(async (campus) => {
+        if (qText) {
+          return ctx.db.query("listings").withSearchIndex("search_listings", (q) => {
+            let sq = q.search("searchText", qText)
+              .eq("workspaceKey", viewer.workspaceKey)
+              .eq("isBrowseable", true).eq("campus", campus);
+            if (args.category) sq = sq.eq("category", args.category);
+            return sq;
+          }).take(limit);
+        }
+        if (args.category) {
+          return ctx.db.query("listings").withIndex("by_campus_category", (q) =>
+            q.eq("workspaceKey", viewer.workspaceKey).eq("isBrowseable", true)
+              .eq("campus", campus).eq("category", args.category!),
+          ).order("desc").take(limit);
+        }
+        return ctx.db.query("listings").withIndex("by_campus_browse", (q) =>
+          q.eq("workspaceKey", viewer.workspaceKey).eq("isBrowseable", true)
+            .eq("campus", campus),
+        ).order("desc").take(limit);
+      }));
+      rawDocs = batches.flat();
     }
 
     const visibleDocs = args.onlyMine
-      ? rawDocs.filter((l) => l.visibilityStatus !== "removed")
+      ? rawDocs.filter((l) => l.visibilityStatus !== "removed"
+        && (campusFilter === "All KSU" || l.campus === campusFilter))
       : filterVisibleContent(rawDocs, viewer, {
           targetType: "listing",
           getAuthorId: (l) => l.sellerId,
@@ -194,8 +166,13 @@ export const listListings = viewerQuery({
           return true;
         });
 
+    if (!args.onlyMine && campusFilter === "All KSU") {
+      const home = viewer.actorStudent.homeCampus;
+      visibleDocs.sort((a, b) => Number(b.campus === home) - Number(a.campus === home));
+    }
+
     const listingCards = await Promise.all(
-      visibleDocs.map(async (listing) => {
+      visibleDocs.slice(0, limit).map(async (listing) => {
         const [sellerDoc, mediaDocs, bookmarkRow, existingDealChat] =
           await Promise.all([
             ctx.db.get(listing.sellerId),

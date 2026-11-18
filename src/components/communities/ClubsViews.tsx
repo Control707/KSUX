@@ -21,6 +21,7 @@ export function ClubsDirectoryView() {
     "" | "registered_ksu" | "campus_department" | "community"
   >("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [browseCampus, setBrowseCampus] = useState<"All KSU" | "Kennesaw" | "Marietta">("All KSU");
   const [name, setName] = useState("");
   const [campus, setCampus] = useState<"Kennesaw" | "Marietta">("Kennesaw");
   const [summaryText, setSummaryText] = useState("");
@@ -28,11 +29,12 @@ export function ClubsDirectoryView() {
   const [error, setError] = useState<string | null>(null);
 
   const clubs = useViewerQuery(api.communities.listClubs, {
+    campusOverride: browseCampus,
     queryText: queryText || undefined,
     clubKindFilter: kindFilter || undefined,
   });
 
-  const coverage = useViewerQuery(api.communities.getClubDirectoryCoverage, {});
+  const coverage = useViewerQuery(api.communities.getClubDirectoryCoverage, { campusOverride: browseCampus });
   const toggleJoin = useViewerMutation(api.communities.toggleJoinClub);
   const createCommunityClub = useViewerMutation(
     api.communities.createCommunityClub
@@ -103,6 +105,20 @@ export function ClubsDirectoryView() {
               className="w-full bg-transparent text-xs font-semibold text-[#111317] focus:outline-none"
             />
           </div>
+
+          <select
+            aria-label="Filter Clubs by Campus"
+            value={browseCampus}
+            onChange={(event) => {
+              const selected = event.currentTarget.value;
+              setBrowseCampus(selected === "Kennesaw" || selected === "Marietta" ? selected : "All KSU");
+            }}
+            className="rounded-xl border border-[#E4E7EE] bg-[#F9FAFC] px-3 py-2 text-xs font-bold text-[#111317]"
+          >
+            <option value="All KSU">All KSU</option>
+            <option value="Kennesaw">Kennesaw</option>
+            <option value="Marietta">Marietta</option>
+          </select>
 
           <select
             value={kindFilter}
