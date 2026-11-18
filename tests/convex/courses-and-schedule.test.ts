@@ -207,5 +207,5 @@ describe("Seam 1 — Course Hubs, Banner 9 CRN, Stateless .ics, Schedule Privacy
     expect(fallbackSyllabus.matchedSectionLabel).toContain(
       "Showing syllabus from Section 01"
     );
-  });
+  }, 30_000); // 501 sequential mutations: slow on shared CI runners
 });
