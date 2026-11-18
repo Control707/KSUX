@@ -1,0 +1,1093 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PROTOTYPE · KSUX v2 · Incident report flow</title>
+<!--
+  THROWAWAY PROTOTYPE. Branch prototype/v2-incident-flow, never merged.
+  Ticket: "Prototype incident report flow on mobile" (Map: KSUX v2, #35).
+  Plan: three structurally different report flows, switchable via ?variant=A|B|C and the floating bar
+  (← / → keys also cycle when focus is not in a field):
+    A  Step by step  - one question per full screen, Back/Next, progress text.
+    B  One page      - a single scrolling form with numbered sections, then a separate preview.
+    C  Card builder  - the Incident card is live at the top and fills in as you answer an accordion below;
+                       no separate preview step.
+  Shared and NOT varied (already decided): the full-screen emergency panel before every report (#49),
+  "Community report · not verified" provenance, no Clout/likes on incidents, manual area picker.
+  Host: an Incidents screen (list + schematic map) in the Direction C shell (#46). Where Incidents sits in
+  the nav is undecided; it is shown here as its own screen with a Campus switcher (assumption to react to).
+  Run: open this file in a browser. Everything is in memory; reload resets. No phone number is ever dialled
+  and no message is ever sent, in Demo Mode or not.
+-->
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html{font-size:100%;-webkit-text-size-adjust:100%}
+body{margin:0;background:#26282d;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.stage{height:calc(100dvh - 64px);display:flex;align-items:center;justify-content:center;padding:12px}
+.stage[data-frame="fluid"]{padding:0}
+.stage[data-frame="fluid"] .app{width:100%;height:100%}
+.stage[data-frame="phone"] .app{width:390px;height:min(844px,100%);border-radius:30px;box-shadow:0 0 0 10px #0d0e10,0 24px 60px rgba(0,0,0,.55)}
+
+/* ================= TOKENS (Direction C) ================= */
+.app{
+  --fs-xs:.8125rem; --fs-sm:.875rem; --fs-body:1.0625rem; --fs-lg:1.125rem; --fs-xl:1.375rem; --fs-2xl:1.75rem; --fs-3xl:2.25rem;
+  --sp-1:.25rem; --sp-2:.5rem; --sp-3:.75rem; --sp-4:1rem; --sp-5:1.5rem; --sp-6:2rem;
+  --target:2.75rem; --r-sm:12px; --r-md:18px; --r-lg:24px; --r-card:28px; --r-pill:999px;
+  --font-body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --font-display:ui-serif,"Iowan Old Style","Charter",Georgia,serif;
+  --dur-1:120ms; --dur-2:320ms; --dur-fade:150ms; --ease:cubic-bezier(.2,.8,.2,1); --sheet-move:100%; --focus-w:3px;
+  --bg:#FBF7EF; --surface:#FFFFFF; --surface-2:#F3ECDD; --ink:#1F1A14; --muted:#5C5245; --line:#E2D8C6; --line-strong:#8A7E6B;
+  --accent:#FDBB30; --on-accent:#1F1A14; --accent-ink:#7A4E00; --accent-soft:#FBEBC4;
+  --header:#FBF7EF; --demo:#FFB020; --focus:#0B57D0;
+  --ok-fg:#14592F; --ok-bg:#DCF2E3; --warn-fg:#6B4700; --warn-bg:#FCEFD2; --bad-fg:#8F1D1D; --bad-bg:#FBE2E2;
+  --ken-fg:#7A4E00; --ken-bg:#FBEBC4; --mar-fg:#1E3A8A; --mar-bg:#DBEAFE;
+  --open-fg:#00517F; --open-bg:#E2F0F9; --filling-fg:#6B4700; --filling-bg:#FCEFD2; --nearly-fg:#8A2E00; --nearly-bg:#FBE1D3; --full-fg:#6E1F5C; --full-bg:#F6E1EE;
+  --open-mark:#0072B2; --filling-mark:#B07A00; --nearly-mark:#D55E00; --full-mark:#A23B84;
+  --shadow:0 2px 6px rgba(60,40,10,.06),0 12px 32px rgba(60,40,10,.08);
+  --map-land:#EFE8D8; --map-road:#FFFFFF; --map-bldg:#D9CDB6;
+}
+.app[data-theme="dark"]{
+  --bg:#17140F; --surface:#211D17; --surface-2:#2C271F; --ink:#F6EFE3; --muted:#BFB3A0; --line:#3A342A; --line-strong:#8C806C;
+  --accent:#FDBB30; --on-accent:#1F1A14; --accent-ink:#FDCB5C; --accent-soft:#3A2F14;
+  --header:#17140F; --focus:#8AB4F8;
+  --ok-fg:#8FE0A9; --ok-bg:#12301C; --warn-fg:#F6C667; --warn-bg:#34270C; --bad-fg:#FFA8A8; --bad-bg:#3D1515;
+  --ken-fg:#FDCB5C; --ken-bg:#3A2F14; --mar-fg:#A9C4FF; --mar-bg:#16234A;
+  --open-fg:#8CCBF2; --open-bg:#0F2A3D; --filling-fg:#F6C667; --filling-bg:#34270C; --nearly-fg:#FFA27A; --nearly-bg:#3D1D0F; --full-fg:#F2A6D9; --full-bg:#3A1530;
+  --open-mark:#56B4E9; --filling-mark:#E69F00; --nearly-mark:#FF7A33; --full-mark:#E07FC0;
+  --shadow:0 1px 2px rgba(0,0,0,.4); --map-land:#252019; --map-road:#3A342A; --map-bldg:#3F372B;
+}
+.app[data-motion="reduce"]{--dur-1:0ms;--dur-2:0ms;--sheet-move:0%}
+@media (prefers-reduced-motion:reduce){.app[data-motion="system"]{--dur-1:0ms;--dur-2:0ms;--sheet-move:0%}}
+
+/* ================= BASE ================= */
+.app{position:relative;overflow:hidden;container:app/inline-size;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:var(--fs-body);line-height:1.5;color-scheme:light}
+.app[data-theme="dark"]{color-scheme:dark}
+#shellRoot{height:100%}
+.sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.app :focus-visible{outline:var(--focus-w) solid var(--focus);outline-offset:2px}
+.app [tabindex="-1"]:focus{outline:none}
+h1,h2,h3,h4,p,figure{margin:0}
+a{color:inherit}
+button,input,select,textarea{font:inherit;color:inherit}
+.skip{position:absolute;left:var(--sp-2);top:-5rem;z-index:80;background:var(--ink);color:var(--bg);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-sm);font-weight:700}
+.skip:focus{top:var(--sp-2)}
+.muted{color:var(--muted)} .meta{font-size:var(--fs-xs);color:var(--muted)} .num{font-variant-numeric:tabular-nums}
+.disp{font-family:var(--font-display)}
+svg.i{flex:none;display:block}
+.stack{display:grid;gap:var(--sp-3);grid-template-columns:minmax(0,1fr)} .stack-lg{display:grid;gap:var(--sp-5);grid-template-columns:minmax(0,1fr)}
+.app h1,.app h2,.app h3,.app p,.app b,.app a,.app span{overflow-wrap:anywhere;word-break:normal}
+.row{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
+.spread{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);flex-wrap:wrap}
+
+/* buttons */
+.btn{min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-pill);border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:var(--sp-2);text-decoration:none;font-size:var(--fs-sm);line-height:1.2;text-align:center}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:transparent}
+.btn.dark{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--bad-fg);border-color:currentColor;background:transparent}
+.btn.block{width:100%}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.link{min-height:var(--target);display:inline-flex;align-items:center;gap:var(--sp-1);color:var(--accent-ink);font-weight:750;text-decoration:underline;text-underline-offset:3px;background:none;border:0;padding:0;cursor:pointer;font-size:var(--fs-sm)}
+.icon-btn{min-width:var(--target);min-height:var(--target);display:inline-grid;place-items:center;border:0;background:transparent;border-radius:var(--r-pill);cursor:pointer;color:var(--muted);padding:0}
+.icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+.icon-btn.solid{background:var(--surface-2);color:var(--ink)}
+.icon-btn[aria-pressed="true"]{color:var(--ink)}
+.seg{display:flex;gap:var(--sp-1);flex-wrap:wrap}
+.seg button,.pill{min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-pill);border:1.5px solid var(--line);background:var(--surface);font-weight:700;font-size:var(--fs-sm);cursor:pointer;display:inline-flex;align-items:center;gap:var(--sp-1);white-space:nowrap}
+.seg button[aria-pressed="true"],.pill[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.hscroll{display:flex;gap:var(--sp-2);overflow-x:auto;scrollbar-width:none;padding-bottom:var(--sp-1)}
+.hscroll>*{flex:none}
+
+/* chips & badges */
+.chip{max-width:100%;display:inline-flex;align-items:center;gap:.3em;font-size:var(--fs-xs);font-weight:750;padding:.15rem .6rem .15rem .45rem;border-radius:var(--r-pill);white-space:nowrap;line-height:1.5;background:var(--surface-2);color:var(--ink)}
+.chip.k{background:var(--ken-bg);color:var(--ken-fg)} .chip.m{background:var(--mar-bg);color:var(--mar-fg)}
+.chip.ok{background:var(--ok-bg);color:var(--ok-fg)} .chip.warn{background:var(--warn-bg);color:var(--warn-fg)} .chip.bad{background:var(--bad-bg);color:var(--bad-fg)}
+.chip.open{color:var(--open-fg);background:var(--open-bg)} .chip.filling{color:var(--filling-fg);background:var(--filling-bg)} .chip.nearly{color:var(--nearly-fg);background:var(--nearly-bg)} .chip.full{color:var(--full-fg);background:var(--full-bg)}
+.chip.outline{background:transparent;border:1.5px solid var(--line)}
+a.chip{text-decoration:none;min-height:1.75rem}
+.bar{height:.5rem;border-radius:var(--r-pill);background:var(--surface-2);overflow:hidden}
+.fill{display:block;height:100%;border-radius:inherit}
+.fill.open{background:var(--open-mark)}
+.fill.filling{background:repeating-linear-gradient(90deg,var(--filling-mark) 0 7px,transparent 7px 9px)}
+.fill.nearly{background:repeating-linear-gradient(45deg,var(--nearly-mark) 0 5px,color-mix(in srgb,var(--nearly-mark) 45%,transparent) 5px 8px)}
+.fill.full{background:repeating-linear-gradient(135deg,var(--full-mark) 0 3px,color-mix(in srgb,var(--full-mark) 60%,transparent) 3px 5px)}
+.mark-open{color:var(--open-mark)} .mark-filling{color:var(--filling-mark)} .mark-nearly{color:var(--nearly-mark)} .mark-full{color:var(--full-mark)}
+.count{min-width:1.35rem;height:1.35rem;padding:0 .35rem;border-radius:var(--r-pill);background:var(--ink);color:var(--bg);font-size:.75rem;font-weight:800;display:inline-grid;place-items:center;line-height:1}
+.avatar{flex:none;width:2.5rem;height:2.5rem;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:var(--fs-sm);background:var(--surface-2);color:var(--ink);border:2px solid var(--line)}
+.avatar.lg{width:5rem;height:5rem;font-size:var(--fs-xl)}
+.avatar.owl{background:var(--accent);color:var(--on-accent);border-color:transparent}
+
+/* cards */
+.card{background:var(--surface);border-radius:var(--r-card);padding:var(--sp-4);box-shadow:var(--shadow);display:grid;gap:var(--sp-2);min-width:0;grid-template-columns:minmax(0,1fr)}
+.card.pad{padding:var(--sp-5)}
+.card.flat{box-shadow:none;border:1.5px solid var(--line)}
+.kicker{display:flex;align-items:center;gap:var(--sp-2);font-size:var(--fs-xs);font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--accent-ink)}
+.card h3,.story-h{font-family:var(--font-display);font-size:var(--fs-xl);line-height:1.2;font-weight:700}
+.note{padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--surface-2);font-size:var(--fs-sm)}
+.note.ok{background:var(--ok-bg);color:var(--ok-fg)} .note.warn{background:var(--warn-bg);color:var(--warn-fg)} .note.bad{background:var(--bad-bg);color:var(--bad-fg)}
+.callout{border:2px solid var(--bad-fg);border-radius:var(--r-md);padding:var(--sp-3) var(--sp-4);font-size:var(--fs-sm);display:grid;gap:var(--sp-1)}
+.callout b{color:var(--bad-fg)}
+.list{list-style:none;margin:0;padding:0;display:grid}
+.list>li{padding:var(--sp-3) 0;border-top:1px solid var(--line)}
+.list>li:first-child{border-top:0}
+.empty{text-align:center;padding:var(--sp-5);color:var(--muted);font-size:var(--fs-sm)}
+
+/* forms */
+.field{display:grid;gap:var(--sp-1)}
+.field>label,.lbl{font-size:var(--fs-sm);font-weight:700}
+.input,.select,.textarea{width:100%;min-height:var(--target);padding:var(--sp-2) var(--sp-3);border:1.5px solid var(--line-strong);border-radius:var(--r-sm);background:var(--surface);font-size:var(--fs-body)}
+.textarea{min-height:6rem;resize:vertical;line-height:1.45}
+.select{appearance:none;padding-right:2.25rem;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 1.1rem) 50%,calc(100% - .75rem) 50%;background-size:.35rem .35rem;background-repeat:no-repeat}
+.input:focus-visible,.select:focus-visible,.textarea:focus-visible{outline:var(--focus-w) solid var(--focus);outline-offset:1px}
+.hint{font-size:var(--fs-xs);color:var(--muted)}
+.err{font-size:var(--fs-sm);color:var(--bad-fg);font-weight:700}
+.check{display:flex;gap:var(--sp-2);align-items:flex-start;min-height:var(--target);padding-top:var(--sp-2);font-size:var(--fs-sm);cursor:pointer}
+.check input{width:1.4rem;height:1.4rem;margin:0;flex:none;accent-color:var(--ink)}
+fieldset{border:0;margin:0;padding:0;min-width:0}
+legend{font-size:var(--fs-sm);font-weight:700;padding:0;margin-bottom:var(--sp-1)}
+.radio-list{display:grid;gap:var(--sp-2)}
+.radio{display:flex;gap:var(--sp-3);align-items:flex-start;padding:var(--sp-3);border:1.5px solid var(--line);border-radius:var(--r-sm);cursor:pointer}
+.radio:has(input:checked){border-color:var(--ink);background:var(--surface-2)}
+.radio input{width:1.3rem;height:1.3rem;margin:.15rem 0 0;flex:none;accent-color:var(--ink)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3)}
+@container app (max-width:22em){.grid2{grid-template-columns:1fr}}
+
+/* photo picker + gallery */
+.thumbs{display:flex;gap:var(--sp-2);flex-wrap:wrap}
+.thumb{position:relative;width:5rem;height:5rem;border-radius:var(--r-sm);overflow:hidden;background:var(--surface-2)}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb .icon-btn{position:absolute;top:2px;right:2px;min-width:2.25rem;min-height:2.25rem;background:rgba(0,0,0,.65);color:#fff}
+.add-photo{width:5rem;height:5rem;border:2px dashed var(--line-strong);border-radius:var(--r-sm);display:grid;place-items:center;align-content:center;gap:2px;font-size:var(--fs-xs);font-weight:750;cursor:pointer;color:var(--muted);text-align:center}
+.add-photo:focus-within{outline:var(--focus-w) solid var(--focus);outline-offset:2px}
+.add-photo input{position:absolute;opacity:0;width:1px;height:1px}
+.media{display:grid;gap:var(--sp-2);grid-template-columns:repeat(2,minmax(0,1fr));border-radius:var(--r-md);overflow:hidden}
+.media.one{grid-template-columns:1fr}
+.media img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;border-radius:var(--r-sm)}
+.gallery{position:relative;border-radius:var(--r-md);overflow:hidden;background:var(--surface-2)}
+.gallery img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+.gallery .nav-g{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.6);color:#fff}
+.gallery .prev{left:var(--sp-2)} .gallery .next{right:var(--sp-2)}
+.gallery .pos{position:absolute;bottom:var(--sp-2);right:var(--sp-2);background:rgba(0,0,0,.7);color:#fff;font-size:var(--fs-xs);font-weight:800;padding:.1rem .6rem;border-radius:var(--r-pill)}
+.gthumbs{display:flex;gap:var(--sp-2);margin-top:var(--sp-2)}
+.gthumbs button{padding:0;border:3px solid transparent;border-radius:var(--r-sm);overflow:hidden;width:3.5rem;height:3.5rem;cursor:pointer;background:none}
+.gthumbs button[aria-current="true"]{border-color:var(--ink)}
+.gthumbs img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* ================= SHELL ================= */
+.shell{display:grid;height:100%;min-height:0;grid-template-rows:auto 1fr;grid-template-columns:100%;grid-template-areas:"header" "main"}
+.hdr{grid-area:header;position:relative;z-index:6;background:color-mix(in srgb,var(--header) 94%,transparent);backdrop-filter:blur(10px);padding:var(--sp-2) var(--sp-4);border-bottom:1px solid transparent}
+.hdr.scrolled{border-bottom-color:var(--line)}
+.hdr-row{display:flex;align-items:center;gap:var(--sp-2);min-height:var(--target)}
+.brand{font-family:var(--font-display);font-weight:800;font-size:var(--fs-xl);font-style:italic;display:inline-flex;align-items:center;gap:var(--sp-2);text-decoration:none;color:var(--ink);min-height:var(--target)}
+.brand .dot{width:.6rem;height:.6rem;border-radius:50%;background:var(--accent)}
+.hdr-title{font-weight:800;font-size:var(--fs-lg);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hdr .grow{flex:1}
+.campus-chips{display:flex;gap:var(--sp-2);overflow-x:auto;scrollbar-width:none;padding:var(--sp-2) 0 var(--sp-1)}
+.campus-chips button{flex:none;min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-pill);border:1.5px solid var(--line);background:var(--surface);font-weight:700;font-size:var(--fs-sm);cursor:pointer;display:inline-flex;align-items:center;gap:var(--sp-1)}
+.campus-chips button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.campus-chips .lbl{align-self:center;flex:none;padding-right:var(--sp-1)}
+.demo{position:relative}
+.demo-pill{min-height:var(--target);display:inline-flex;align-items:center;gap:.3rem;padding:0 var(--sp-3);border-radius:var(--r-pill);background:transparent;color:var(--ink);border:2px solid var(--demo);font-weight:800;font-size:var(--fs-xs);cursor:pointer;white-space:nowrap}
+.demo-pill .zap{color:var(--accent-ink)}
+.menu{position:absolute;right:0;top:calc(100% + 6px);z-index:30;width:min(19rem,86vw);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-md);padding:var(--sp-2);box-shadow:0 12px 32px rgba(0,0,0,.25);max-height:70vh;overflow:auto}
+.menu hr{border:0;border-top:1px solid var(--line);margin:var(--sp-2) 0}
+.menu-h{font-size:var(--fs-xs);font-weight:800;color:var(--muted);padding:var(--sp-1) var(--sp-2);text-transform:uppercase;letter-spacing:.06em}
+.mi{display:flex;flex-direction:column;align-items:flex-start;width:100%;min-height:var(--target);padding:var(--sp-2);border:0;background:none;border-radius:var(--r-sm);cursor:pointer;text-align:left;font-size:var(--fs-sm);font-weight:700;color:var(--ink);text-decoration:none}
+.mi:hover{background:var(--surface-2)}
+.mi .muted{font-weight:500;font-size:var(--fs-xs)}
+.mi[aria-checked="true"]::after{content:"✓ Active";font-size:var(--fs-xs);color:var(--accent-ink);font-weight:800}
+.mi.danger{color:var(--bad-fg)}
+.main{grid-area:main;overflow:auto;min-height:0;overscroll-behavior:contain;padding-bottom:7rem;scroll-padding-block:6rem 8rem}
+.main.no-dock{padding-bottom:0}
+.page{padding:var(--sp-3) var(--sp-4) var(--sp-5);display:grid;gap:var(--sp-5);max-width:46rem;margin:0 auto;grid-template-columns:minmax(0,1fr)}
+.page-h h1{font-family:var(--font-display);font-size:var(--fs-2xl);line-height:1.15;font-weight:700}
+.page-h p{color:var(--muted);font-size:var(--fs-sm);margin-top:var(--sp-1)}
+.page-h .scope{display:inline-flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-xs);font-weight:700;color:var(--muted);margin-top:var(--sp-1)}
+.sec-row{display:flex;align-items:baseline;justify-content:space-between;gap:var(--sp-2);margin-bottom:var(--sp-2);flex-wrap:wrap}
+.sec-row h2{font-family:var(--font-display);font-size:var(--fs-xl)}
+
+/* dock (mobile bottom nav) */
+.dock{position:absolute;left:var(--sp-3);right:var(--sp-3);bottom:max(var(--sp-3),env(safe-area-inset-bottom));z-index:7;display:grid;grid-template-columns:1fr 1fr 1.7fr 1fr 1fr;align-items:center;gap:var(--sp-1);padding:var(--sp-1);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-pill);box-shadow:0 10px 30px rgba(40,25,5,.18)}
+.dock-i{position:relative;min-height:3.25rem;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);text-decoration:none;font-size:.75rem;font-weight:700;border-radius:var(--r-pill);line-height:1.1}
+.dock-i[aria-current="page"]{background:var(--surface-2);color:var(--ink);font-weight:850}
+.dock-i .count{position:absolute;top:.1rem;left:calc(50% + .3rem)}
+.dock-q{min-height:3.25rem;display:flex;align-items:center;justify-content:center;gap:var(--sp-1);border-radius:var(--r-pill);border:0;background:var(--accent);color:var(--on-accent);font-weight:850;font-size:var(--fs-sm);cursor:pointer;padding:0 var(--sp-2);line-height:1.1}
+.rail,.pulse{display:none}
+@container app (min-width:1024px){
+  .shell{grid-template-columns:16rem minmax(0,1fr) 21rem;grid-template-areas:"rail header pulse" "rail main pulse"}
+  .dock{display:none!important}
+  .main{padding-bottom:var(--sp-6)}
+  .rail{display:flex;flex-direction:column;grid-area:rail;min-height:0;overflow:auto;background:var(--bg);padding:var(--sp-4) var(--sp-3);gap:2px;border-right:1px solid var(--line)}
+  .rail .brand{padding:0 var(--sp-3) var(--sp-3);font-size:var(--fs-2xl)}
+  .rail a{display:flex;align-items:center;gap:var(--sp-3);min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-pill);color:var(--muted);text-decoration:none;font-weight:700}
+  .rail a[aria-current="page"]{background:var(--ink);color:var(--bg)}
+  .rail a .count{margin-left:auto}
+  .rail .rail-h{font-size:var(--fs-xs);font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:var(--sp-4) var(--sp-4) var(--sp-1)}
+  .rail .btn{margin-top:var(--sp-4);min-height:3.25rem}
+  .pulse{display:block;grid-area:pulse;overflow:auto;min-height:0;padding:var(--sp-4);border-left:1px solid var(--line);background:var(--surface)}
+  .hdr .brand-m{display:none}
+}
+.pulse h2{font-family:var(--font-display);font-size:var(--fs-xl)}
+.pulse h3{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:var(--sp-4) 0 var(--sp-1)}
+.plist{list-style:none;margin:0;padding:0}
+.plist li{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--sp-2);font-size:var(--fs-sm);padding:var(--sp-2) 0;border-bottom:1px solid var(--line)}
+
+/* dialog / sheet primitive */
+.backdrop{position:absolute;inset:0;z-index:40;background:rgba(0,0,0,.45);animation:fade var(--dur-fade) ease-out}
+.dialog{grid-template-columns:minmax(0,1fr);position:absolute;z-index:41;left:0;right:0;bottom:0;max-height:92%;overflow:auto;background:var(--surface);color:var(--ink);border-radius:var(--r-card) var(--r-card) 0 0;padding:var(--sp-3) var(--sp-5) var(--sp-6);animation:sheetIn var(--dur-2) var(--ease),fade var(--dur-fade) ease-out;display:grid;gap:var(--sp-4);align-content:start}
+.dialog.full{top:0;max-height:none;border-radius:0}
+@keyframes sheetIn{from{transform:translateY(var(--sheet-move))}to{transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@container app (min-width:1024px){.dialog,.dialog.full{left:50%;right:auto;bottom:auto;top:8%;width:38rem;max-height:84%;transform:translateX(-50%);border-radius:var(--r-card);animation:fade var(--dur-fade) ease-out}}
+.handle{width:2.5rem;height:.3rem;border-radius:var(--r-pill);background:var(--line);margin:0 auto}
+.dlg-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3)}
+.dlg-head h2{font-family:var(--font-display);font-size:var(--fs-xl);line-height:1.2}
+.dlg-actions{display:flex;gap:var(--sp-2);justify-content:flex-end;flex-wrap:wrap}
+.ask-field{display:flex;align-items:center;gap:var(--sp-2);min-height:3.5rem;padding:0 var(--sp-2) 0 var(--sp-4);border:2px solid var(--line-strong);border-radius:var(--r-pill);background:var(--bg)}
+.ask-field input{flex:1;border:0;background:none;min-height:var(--target);font-size:var(--fs-body);min-width:0}
+.ask-field input:focus{outline:none}
+.ask-field:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.sec-h{font-size:var(--fs-xs);font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3)}
+.tiles button{display:grid;gap:var(--sp-1);text-align:left;min-height:5.5rem;padding:var(--sp-4);border-radius:var(--r-md);border:0;background:var(--surface-2);cursor:pointer;align-content:start;color:var(--ink)}
+.tiles b{font-family:var(--font-display);font-size:var(--fs-lg)}
+.tiles span{font-size:var(--fs-xs);color:var(--muted)}
+.capchips{display:flex;flex-wrap:wrap;gap:var(--sp-2);list-style:none;margin:0;padding:0}
+.capchips a{min-height:var(--target);display:inline-flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-4);border-radius:var(--r-pill);border:1.5px solid var(--line);text-decoration:none;color:var(--ink);font-weight:700;font-size:var(--fs-sm)}
+
+/* toasts */
+.toasts{position:absolute;left:50%;transform:translateX(-50%);bottom:6.5rem;z-index:60;width:max-content;max-width:92%;display:grid;gap:var(--sp-2);pointer-events:none}
+.toast{background:var(--ink);color:var(--bg);font-weight:700;font-size:var(--fs-sm);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);box-shadow:0 8px 24px rgba(0,0,0,.3);animation:fade var(--dur-fade)}
+.msg-toast{position:absolute;left:var(--sp-3);right:var(--sp-3);top:var(--sp-3);z-index:61;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow);padding:var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4);display:flex;align-items:center;gap:var(--sp-2);animation:fade var(--dur-fade)}
+.msg-toast a{flex:1;text-decoration:none;font-size:var(--fs-sm);min-height:var(--target);display:grid;align-content:center}
+@container app (min-width:1024px){.toasts{bottom:var(--sp-5)}.msg-toast{left:auto;width:24rem}}
+.offline-bar{background:var(--warn-bg);color:var(--warn-fg);font-weight:750;font-size:var(--fs-sm);padding:var(--sp-2) var(--sp-4);display:flex;gap:var(--sp-2);align-items:center}
+
+/* ================= SCREENS ================= */
+/* Now */
+.dateline{font-size:var(--fs-sm);color:var(--muted);font-weight:650}
+.hello{font-family:var(--font-display);font-size:var(--fs-3xl);line-height:1.1;font-weight:700;letter-spacing:-.015em}
+.lede blockquote{margin:0;font-family:var(--font-display);font-size:var(--fs-xl);line-height:1.35}
+.lede blockquote::before{content:"“";color:var(--accent-ink);font-size:1.6em;line-height:0;vertical-align:-.35em;margin-right:.05em}
+.src{font-size:var(--fs-xs);color:var(--muted);display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap}
+.carousel{display:flex;gap:var(--sp-3);overflow-x:auto;scroll-snap-type:x mandatory;padding:var(--sp-1) var(--sp-4) var(--sp-3);margin:0 calc(-1 * var(--sp-4));list-style:none;scroll-padding-inline:var(--sp-4);scrollbar-width:none}
+.carousel:focus-visible{outline-offset:-3px}
+.carousel>li{flex:0 0 min(15rem,78%);scroll-snap-align:start}
+.carousel .card{height:100%}
+.pct{font-family:var(--font-display);font-size:3rem;line-height:1;font-weight:700}
+.deadlines{display:flex;gap:var(--sp-2);flex-wrap:wrap}
+.tonight{list-style:none;margin:0;padding:0}
+.tonight li{display:grid;grid-template-columns:5rem minmax(0,1fr);gap:var(--sp-3);padding:var(--sp-3) 0;border-top:1px solid var(--line)}
+.tonight .t{font-weight:800;font-size:var(--fs-sm)}
+.tonight .link,.list .link{display:inline;min-height:0;line-height:1.6;padding-block:.6rem;}
+@container app (max-width:22em){.tonight li{grid-template-columns:minmax(0,1fr)}}
+.install{display:flex;gap:var(--sp-3);align-items:flex-start;position:relative}
+.install>.icon-btn{position:absolute;top:var(--sp-2);right:var(--sp-2)}
+.install>.stack{padding-right:var(--target)}
+
+/* feed */
+.rings{display:flex;gap:var(--sp-3);overflow-x:auto;scrollbar-width:none;padding:var(--sp-1) var(--sp-4) var(--sp-2);margin:0 calc(-1 * var(--sp-4));list-style:none}
+.rings li{flex:none}
+.ring{display:flex;flex-direction:column;align-items:center;gap:var(--sp-1);border:0;background:none;cursor:pointer;padding:0;min-width:4rem;color:var(--ink);font-size:var(--fs-xs);font-weight:700;text-decoration:none}
+.ring .r{width:3.5rem;height:3.5rem;border-radius:50%;display:grid;place-items:center;font-weight:850;font-size:.75rem;overflow-wrap:normal!important;line-height:1.1;text-align:center;border:3px solid var(--line);background:var(--surface)}
+.ring[aria-pressed="true"] .r{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.ring.club .r{border-style:dashed}
+.composer-start{flex-wrap:wrap;display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-card);background:var(--surface);box-shadow:var(--shadow);border:0;width:100%;cursor:pointer;text-align:left;color:var(--muted);font-size:var(--fs-body);min-height:4rem}
+.post{background:var(--surface);border-radius:var(--r-card);padding:var(--sp-4);box-shadow:var(--shadow);display:grid;gap:var(--sp-3);grid-template-columns:minmax(0,1fr)}
+.post-h{display:flex;gap:var(--sp-3);align-items:flex-start}
+.post-h .who{flex:1;min-width:0;display:grid;gap:2px}
+.post-h .who a{font-weight:800;text-decoration:none}
+.post-h .who a:hover{text-decoration:underline}
+.post-body{white-space:pre-wrap;overflow-wrap:anywhere}
+.post-body .tag{color:var(--accent-ink);font-weight:750}
+.embed{display:grid;gap:2px;padding:var(--sp-3) var(--sp-4);border:1.5px solid var(--line);border-radius:var(--r-md);text-decoration:none}
+.embed .t{font-weight:800}
+.quote{border-left:4px solid var(--line-strong);padding:var(--sp-1) var(--sp-3);font-size:var(--fs-sm)}
+.actions{display:flex;flex-wrap:wrap;justify-content:space-between;border-top:1px solid var(--line);padding-top:var(--sp-1);margin:0 calc(-1 * var(--sp-2))}
+.act{min-height:var(--target);min-width:var(--target);display:inline-flex;align-items:center;justify-content:center;gap:var(--sp-1);border:0;background:none;border-radius:var(--r-pill);cursor:pointer;color:var(--muted);font-weight:700;font-size:var(--fs-sm);padding:0 var(--sp-2)}
+.act:hover{background:var(--surface-2);color:var(--ink)}
+.act[aria-pressed="true"]{color:var(--ink)}
+.cite{display:inline-flex;align-items:center;gap:var(--sp-1);min-height:2rem;padding:0 var(--sp-3);border-radius:var(--r-pill);background:var(--accent-soft);color:var(--ink);font-size:var(--fs-xs);font-weight:750;text-decoration:none}
+.reply{display:grid;gap:var(--sp-1);padding:var(--sp-3);border-radius:var(--r-md);background:var(--surface-2)}
+.reply.owl{background:var(--accent-soft)}
+
+/* marketplace */
+.listings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3)}
+@container app (min-width:700px){.listings{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@container app (max-width:20em){.listings{grid-template-columns:1fr}}
+.listing{background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;position:relative}
+.listing .ph{position:relative;aspect-ratio:1;background:var(--surface-2)}
+.listing .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.listing .ph .n{position:absolute;bottom:var(--sp-2);left:var(--sp-2);background:rgba(0,0,0,.7);color:#fff;font-size:.75rem;font-weight:800;padding:.05rem .5rem;border-radius:var(--r-pill);display:inline-flex;gap:3px;align-items:center}
+.listing .save{position:absolute;top:var(--sp-1);right:var(--sp-1);background:rgba(255,255,255,.92);color:#1F1A14;z-index:2}
+.listing .save[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+.listing .body{padding:var(--sp-3);display:grid;gap:2px;flex:1}
+.listing .price{font-weight:900;font-size:var(--fs-lg)}
+.listing .ttl{font-weight:700;font-size:var(--fs-sm);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.listing a.cover{position:absolute;inset:0;z-index:1;border-radius:var(--r-md)}
+.listing a.cover:focus-visible{outline-offset:-3px}
+.status-tag{position:absolute;top:var(--sp-2);left:var(--sp-2);z-index:2}
+
+/* chats */
+.chat-row{display:flex;gap:var(--sp-3);align-items:center;padding:var(--sp-2) 0}
+.chat-row a{flex:1;min-width:0;display:grid;gap:2px;text-decoration:none;min-height:3.5rem;align-content:center}
+.chat-row .t{font-weight:800;display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap}
+.chat-row .p{font-size:var(--fs-sm);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-row.unread .p{color:var(--ink);font-weight:650}
+.thread{display:flex;flex-direction:column;height:100%;min-height:0}
+.thread-scroll{flex:1;overflow:auto;padding:var(--sp-3) var(--sp-4);display:grid;gap:var(--sp-3);align-content:start}
+.bubble-wrap{display:grid;gap:2px;max-width:85%}
+.bubble-wrap.me{justify-self:end}
+.bubble{padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--surface);box-shadow:var(--shadow);overflow-wrap:anywhere}
+.me .bubble{background:var(--ink);color:var(--bg)}
+.sys .bubble{background:var(--accent-soft);box-shadow:none;border:1.5px solid var(--accent)}
+.bubble img{max-width:100%;border-radius:var(--r-sm);margin-top:var(--sp-1);display:block}
+.bubble .rq{font-size:var(--fs-xs);border-left:3px solid currentColor;padding-left:var(--sp-2);opacity:.85;margin-bottom:var(--sp-1)}
+.reacts{display:flex;gap:var(--sp-1);flex-wrap:wrap}
+.reacts button{min-height:2rem;padding:0 var(--sp-2);border-radius:var(--r-pill);border:1.5px solid var(--line);background:var(--surface);cursor:pointer;font-size:var(--fs-xs);font-weight:750}
+.reacts button[aria-pressed="true"]{border-color:var(--ink);background:var(--surface-2)}
+.msg-tools{display:flex;gap:var(--sp-1);flex-wrap:wrap}
+.composer-bar{border-top:1px solid var(--line);padding:var(--sp-2) var(--sp-3) max(var(--sp-3),env(safe-area-inset-bottom));display:grid;gap:var(--sp-2);background:var(--bg)}
+.composer-bar form{display:flex;gap:var(--sp-2);align-items:flex-end}
+.composer-bar .input{border-radius:var(--r-lg)}
+.handoff{background:var(--surface);border-bottom:1px solid var(--line);padding:var(--sp-3) var(--sp-4);display:grid;gap:var(--sp-2)}
+.handoff details summary{cursor:pointer;min-height:var(--target);display:flex;align-items:center;gap:var(--sp-2);font-weight:800;list-style:none}
+.handoff details summary::-webkit-details-marker{display:none}
+
+/* parking map */
+.map{position:relative;border-radius:var(--r-md);overflow:hidden;background:var(--map-land);border:1.5px solid var(--line)}
+.map svg.mapsvg{display:block;width:100%;height:auto;transition:transform var(--dur-2) var(--ease);transform-origin:center}
+.map .ctrls{position:absolute;right:var(--sp-2);top:var(--sp-2);display:grid;gap:2px;background:var(--surface);border-radius:var(--r-sm);box-shadow:var(--shadow);overflow:hidden}
+.map .ctrls .icon-btn{border-radius:0;color:var(--ink)}
+.map .attr{position:absolute;right:0;bottom:0;background:color-mix(in srgb,var(--surface) 90%,transparent);font-size:.75rem;padding:2px var(--sp-2);border-top-left-radius:var(--r-sm)}
+.map .legend{position:absolute;left:var(--sp-2);bottom:var(--sp-2);background:var(--surface);border-radius:var(--r-sm);padding:var(--sp-1) var(--sp-2);font-size:.75rem;display:flex;gap:var(--sp-2);flex-wrap:wrap;max-width:70%}
+.map .legend span{display:inline-flex;align-items:center;gap:2px;font-weight:700}
+.lot{background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);padding:var(--sp-3) var(--sp-4);display:grid;gap:var(--sp-2);border:2px solid transparent}
+.lot.sel{border-color:var(--ink)}
+.lot-head{display:flex;gap:var(--sp-3);align-items:center}
+.lot-head button.expand{flex:1;min-width:0;text-align:left;background:none;border:0;padding:0;cursor:pointer;display:grid;gap:2px;min-height:var(--target)}
+.lot-head .nm{font-weight:800}
+.slots{display:grid;grid-template-columns:repeat(28,1fr);gap:2px;margin-top:var(--sp-1)}
+.slots span{height:1.1rem;border-radius:3px;background:var(--surface-2);border:1px solid var(--line)}
+.slots span.f{background:var(--ok-fg);border-color:var(--ok-fg)}
+.route-tile{flex:none;width:3rem;height:3rem;border-radius:var(--r-sm);display:grid;place-items:center;font-weight:900;font-size:var(--fs-sm);color:#1F1A14}
+.stations{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:var(--sp-2)}
+.station{border:1.5px solid var(--line);border-radius:var(--r-sm);padding:var(--sp-2) var(--sp-3);font-size:var(--fs-sm)}
+.station ul{margin:var(--sp-1) 0 0;padding-left:1.1rem}
+.tabs{display:flex;gap:var(--sp-1);border-bottom:1.5px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs button{min-height:var(--target);padding:0 var(--sp-3);border:0;background:none;font-weight:700;font-size:var(--fs-sm);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1.5px;white-space:nowrap;color:var(--muted)}
+.tabs button[aria-selected="true"]{border-bottom-color:var(--ink);color:var(--ink)}
+.profile-top{display:flex;gap:var(--sp-4);align-items:center}
+.stats{display:flex;gap:var(--sp-5)}
+.stats b{display:block;font-size:var(--fs-xl);font-family:var(--font-display)}
+
+/* welcome */
+.welcome{min-height:100%;display:grid;align-content:center;gap:var(--sp-5);padding:var(--sp-6) var(--sp-5);max-width:30rem;margin:0 auto}
+.welcome h1{font-family:var(--font-display);font-size:var(--fs-3xl);line-height:1.1}
+.otp{font-family:ui-monospace,Menlo,monospace;font-size:var(--fs-2xl);letter-spacing:.4em;text-align:center}
+
+/* LARGE TEXT MODE (>=150% text on a phone) */
+@container app (max-width:18em){
+  .demo-pill>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .dock{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .dock .lbl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .dock-i,.dock-q{min-height:3.75rem}
+  .listings{grid-template-columns:1fr}
+  .tiles{grid-template-columns:1fr}
+  .install{display:grid}
+  .install>.stack{padding-right:0}
+  .profile-top{flex-wrap:wrap}
+  .stats{flex-wrap:wrap;gap:var(--sp-3)}
+}
+
+/* ================= PROTOTYPE CHROME (not under evaluation; px on purpose) ================= */
+.proto-bar{position:fixed;left:50%;bottom:8px;transform:translateX(-50%);z-index:1000;display:flex;align-items:center;gap:6px;padding:6px 8px;background:#fff;color:#111;border-radius:999px;box-shadow:0 0 0 2px #ff2d92,0 10px 30px rgba(0,0,0,.45);font:600 12px/1 system-ui,sans-serif;white-space:nowrap;max-width:calc(100vw - 16px);overflow-x:auto}
+.proto-bar button,.proto-bar select,.proto-bar a{font:inherit;height:32px;border:1px solid #ccc;border-radius:999px;background:#f4f4f4;padding:0 10px;cursor:pointer;color:#111;display:inline-flex;align-items:center;text-decoration:none}
+.proto-bar .tag{background:#ff2d92;color:#fff;border-radius:999px;padding:4px 8px;font-weight:900;letter-spacing:.05em}
+.proto-bar input[type=range]{width:80px}
+.proto-bar label{display:flex;align-items:center;gap:4px}
+.tokens{position:fixed;top:0;right:0;bottom:64px;width:min(440px,100vw);z-index:999;background:#fff;color:#111;overflow:auto;box-shadow:-10px 0 30px rgba(0,0,0,.4);font:13px/1.45 system-ui,sans-serif;padding:14px 16px 24px}
+.tokens h2{font-size:15px;margin:16px 0 6px} .tokens table{width:100%;border-collapse:collapse;font-size:12px}
+.tokens td{padding:4px;border-bottom:1px solid #eee;vertical-align:middle}
+.tokens .sw{display:inline-block;width:16px;height:16px;border-radius:4px;border:1px solid rgba(0,0,0,.2);vertical-align:-3px;margin-right:4px}
+.tokens .pass{color:#0a6b2d;font-weight:800}.tokens .fail{color:#b00020;font-weight:800}.tokens .info{color:#555}
+.tokens .x{float:right;height:32px;padding:0 12px;border-radius:999px;border:1px solid #ccc;background:#f4f4f4;cursor:pointer}
+.tokens ul{padding-left:18px;margin:4px 0} .tokens code{background:#f1f1f1;padding:0 3px;border-radius:3px}
+
+
+/* ================= INCIDENT PROTOTYPE ADDITIONS ================= */
+.cat-chip{display:inline-flex;align-items:center;gap:.4rem;font-size:var(--fs-xs);font-weight:800;padding:.15rem .65rem .15rem .4rem;border-radius:var(--r-pill);background:var(--surface-2);color:var(--ink)}
+.prov{font-size:var(--fs-xs);color:var(--muted);font-weight:650;display:flex;flex-wrap:wrap;gap:.25rem .5rem}
+.prov b{color:var(--ink);font-weight:800}
+.demo-tag{display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:900;padding:.05rem .55rem;border-radius:var(--r-pill);border:2px dashed var(--demo);color:var(--ink)}
+.inc{background:var(--surface);border-radius:var(--r-card);padding:var(--sp-4);box-shadow:var(--shadow);display:grid;gap:var(--sp-2);grid-template-columns:minmax(0,1fr);border:3px solid transparent}
+.inc[aria-current="true"]{border-color:var(--focus)}
+.inc h3{font-family:var(--font-display);font-size:var(--fs-xl);line-height:1.2}
+.inc .seen{font-size:var(--fs-sm);font-weight:700}
+.upd{border-left:4px solid var(--line-strong);padding:var(--sp-1) var(--sp-3);font-size:var(--fs-sm);display:grid;gap:2px}
+.upd.mod{border-left-color:var(--accent)}
+.upd .u-h{font-size:var(--fs-xs);font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.photo-ph{display:grid;place-items:center;text-align:center;gap:var(--sp-1);aspect-ratio:16/9;border-radius:var(--r-md);background:repeating-linear-gradient(45deg,var(--surface-2) 0 10px,var(--bg) 10px 20px);border:2px dashed var(--line-strong);font-size:var(--fs-sm);font-weight:700;color:var(--muted);padding:var(--sp-3)}
+.blurred{filter:blur(14px)}
+.pv{position:relative;border-radius:var(--r-md);overflow:hidden;max-width:16rem}
+.pv img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}
+
+/* emergency panel */
+.emer{background:transparent;display:grid;gap:var(--sp-4);align-content:start}
+.emer h1{font-family:var(--font-display);font-size:var(--fs-2xl);line-height:1.15}
+.call{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:var(--sp-3);width:100%;min-height:4.5rem;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);border:0;cursor:pointer;text-align:left;font-weight:800;font-size:var(--fs-lg);text-decoration:none}
+.call small{display:block;font-size:var(--fs-sm);font-weight:650}
+.call.c911{background:#8F1D1D;color:#fff}
+.call.cpd{background:var(--ink);color:var(--bg)}
+.call.ctext{background:var(--surface);color:var(--ink);border:2px solid var(--line-strong);min-height:3.75rem}
+.app[data-theme="dark"] .call.c911{background:#C62828}
+.qual{font-size:var(--fs-sm);color:var(--muted);margin-top:calc(-1 * var(--sp-2))}
+.notem{border-top:1px solid var(--line);padding-top:var(--sp-4);display:grid;gap:var(--sp-2)}
+
+/* flow chrome */
+.flow{display:flex;flex-direction:column;padding:0;gap:0;scroll-padding-block:4.5rem 8rem}
+.flow-hdr{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2) var(--sp-3);background:var(--surface);border-bottom:1px solid var(--line)}
+.flow-hdr .t{flex:1;font-weight:800;font-size:var(--fs-sm);min-width:0}
+.flow-body{padding:var(--sp-4) var(--sp-5) var(--sp-6);display:grid;gap:var(--sp-4);grid-template-columns:minmax(0,1fr)}
+.flow-body h1{font-family:var(--font-display);font-size:var(--fs-2xl);line-height:1.15}
+.flow-foot{position:sticky;bottom:0;z-index:3;padding:var(--sp-3) var(--sp-5) max(var(--sp-3),env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--line);display:grid;gap:var(--sp-2)}
+.flow-foot .row{justify-content:space-between}
+.stepline{font-size:var(--fs-sm);font-weight:750;color:var(--muted)}
+.prog{display:flex;gap:4px}
+.prog span{flex:1;height:.3rem;border-radius:var(--r-pill);background:var(--line)}
+.prog span.on{background:var(--ink)}
+.fine{font-size:var(--fs-sm);font-weight:700;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--warn-bg);color:var(--warn-fg)}
+.err-sum{border:2px solid var(--bad-fg);border-radius:var(--r-md);padding:var(--sp-3) var(--sp-4);display:grid;gap:var(--sp-1)}
+.err-sum h2{font-size:var(--fs-body);color:var(--bad-fg)}
+.err-sum a{color:var(--bad-fg);font-weight:750}
+.counter{font-size:var(--fs-xs);color:var(--muted);text-align:right}
+.area-list{max-height:16rem;overflow:auto;border:1.5px solid var(--line);border-radius:var(--r-sm);padding:var(--sp-2)}
+.area-list .radio{border:0;padding:var(--sp-2)}
+.area-list .radio:has(input:checked){background:var(--surface-2)}
+.kind{font-size:var(--fs-xs);color:var(--muted);font-weight:650}
+.sec-num{display:inline-grid;place-items:center;width:1.6rem;height:1.6rem;border-radius:50%;background:var(--ink);color:var(--bg);font-size:var(--fs-xs);font-weight:900;margin-right:var(--sp-2)}
+.formsec{display:grid;gap:var(--sp-3);padding-top:var(--sp-4);border-top:1px solid var(--line)}
+.formsec h2{font-size:var(--fs-lg);font-weight:850;display:flex;align-items:center}
+/* builder (C) */
+.live-wrap{position:sticky;top:0;z-index:2;background:var(--surface);padding:var(--sp-3) 0 var(--sp-2);border-bottom:1px solid var(--line)}
+.live-wrap .inc{box-shadow:none;border:2px dashed var(--line-strong);padding:var(--sp-3)}
+.live-wrap .inc h3{font-size:var(--fs-lg)}
+.ghost-txt{color:var(--muted);font-style:italic}
+.acc{display:grid;gap:var(--sp-2)}
+.acc-item{border:1.5px solid var(--line);border-radius:var(--r-md);overflow:hidden}
+.acc-item.open{border-color:var(--ink)}
+.acc-btn{width:100%;min-height:3.5rem;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:var(--sp-3);padding:var(--sp-2) var(--sp-4);border:0;background:var(--surface);cursor:pointer;text-align:left;color:var(--ink)}
+.acc-btn .q{font-weight:800}
+.acc-btn .a{font-size:var(--fs-sm);color:var(--muted);grid-column:2}
+.acc-btn .st{font-size:var(--fs-xs);font-weight:900;padding:.1rem .5rem;border-radius:var(--r-pill);background:var(--surface-2)}
+.acc-btn .st.done{background:var(--ok-bg);color:var(--ok-fg)}
+.acc-panel{padding:var(--sp-2) var(--sp-4) var(--sp-4);display:grid;gap:var(--sp-3)}
+.chips-pick{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+/* map */
+.imap{position:relative;border-radius:var(--r-card);overflow:hidden;background:var(--map-land);border:1.5px solid var(--line)}
+.imap svg.base{display:block;width:100%;height:15rem}
+.imap .ctrls{position:absolute;top:var(--sp-2);right:var(--sp-2);display:grid;gap:var(--sp-1)}
+.imap .ctrls .icon-btn{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.imap .pin{position:absolute;transform:translate(-50%,-100%);min-width:var(--target);min-height:var(--target);display:grid;place-items:center;border:0;background:none;cursor:pointer;padding:0}
+.imap .pin .pb{display:flex;align-items:center;gap:3px;padding:.15rem .45rem .15rem .3rem;border-radius:var(--r-pill);background:var(--surface);border:2.5px solid var(--ink);font-size:var(--fs-xs);font-weight:900;color:var(--ink);box-shadow:var(--shadow)}
+.imap .pin.old .pb{border-style:dashed;border-color:var(--line-strong)}
+.imap .pin[aria-pressed="true"] .pb{outline:3px solid var(--focus);outline-offset:2px}
+.imap .attr{position:absolute;left:var(--sp-2);bottom:var(--sp-2);font-size:.75rem;background:color-mix(in srgb,var(--surface) 85%,transparent);padding:.1rem .45rem;border-radius:var(--r-sm)}
+.imap.pick .pin .pb{border-color:var(--line-strong)}
+.imap.pick .pin[aria-pressed="true"] .pb{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.legend{display:flex;flex-wrap:wrap;gap:var(--sp-1) var(--sp-3);font-size:var(--fs-xs);font-weight:700}
+.legend span{display:inline-flex;align-items:center;gap:.3rem}
+.skipmap{font-size:var(--fs-sm)}
+.intro{border:2px solid var(--ink)}
+.intro ul{margin:0;padding-left:1.2rem;display:grid;gap:var(--sp-1);font-size:var(--fs-sm)}
+.older summary{min-height:var(--target);display:flex;align-items:center;font-weight:800;cursor:pointer}
+.done-ic{width:3.5rem;height:3.5rem;border-radius:50%;display:grid;place-items:center;background:var(--ok-bg);color:var(--ok-fg)}
+/* prototype-only state panel */
+.statepanel{position:fixed;right:8px;bottom:60px;z-index:999;width:min(26rem,calc(100vw - 16px));max-height:60vh;overflow:auto;background:#111;color:#e6e6e6;font:12px/1.45 ui-monospace,Menlo,monospace;border-radius:12px;padding:10px 12px;box-shadow:0 0 0 2px #ff2d92}
+.statepanel h2{font:800 12px system-ui;color:#ff8ac4;margin:6px 0 4px;text-transform:uppercase;letter-spacing:.06em}
+.statepanel pre{margin:0;white-space:pre-wrap;word-break:break-word}
+.dialog.settled,.backdrop.settled{animation:none}
+.proto-bar .vlabel{min-width:12rem;justify-content:center;font-weight:800}
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="app" id="app" data-theme="light" data-motion="system">
+    <div id="shellRoot"></div>
+    <div id="dialogRoot"></div>
+    <div class="toasts" id="toasts" aria-hidden="true"></div>
+    <div class="sr" id="live" role="status" aria-live="polite"></div>
+  </div>
+</div>
+<div class="proto-bar" role="toolbar" aria-label="Prototype controls (not part of the design)">
+  <span class="tag">PROTOTYPE</span>
+  <button id="vPrev" aria-label="Previous variant">←</button>
+  <span class="vlabel" id="vLabel"></span>
+  <button id="vNext" aria-label="Next variant">→</button>
+  <label>Theme <select id="ctlTheme"><option value="light">light</option><option value="dark">dark</option></select></label>
+  <label>Motion <select id="ctlMotion"><option value="system">OS setting</option><option value="reduce">reduce</option></select></label>
+  <label>Text <input type="range" id="ctlText" min="100" max="200" step="25" value="100"><output id="textOut">100%</output></label>
+  <label><input type="checkbox" id="ctlDemo" checked> Demo Mode</label>
+  <label>Frame <select id="ctlFrame"><option value="phone">phone 390</option><option value="fluid">fluid</option></select></label>
+  <button id="ctlState" aria-expanded="false">State</button>
+  <button id="ctlReset">Reset</button>
+</div>
+<aside class="statepanel" id="statePanel" hidden aria-label="Prototype state"></aside>
+
+<script>
+/* ================= ICONS ================= */
+const P={
+ x:'<path d="M18 6 6 18M6 6l12 12"/>', left:'<path d="m15 18-6-6 6-6"/>', right:'<path d="m9 18 6-6-6-6"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>', minus:'<path d="M5 12h14"/>',
+ phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>',
+ msg:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+ shield:'<path d="M20 13c0 5-3.5 7.5-7.7 9a1 1 0 0 1-.7 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1.2 1.2 0 0 1 1.6 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/>',
+ check:'<path d="M20 6 9 17l-5-5"/>', locate:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/>',
+ image:'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
+ flag:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/>',
+ ext:'<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+ recenter:'<circle cx="12" cy="12" r="2"/><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/>',
+ home:'<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', rss:'<path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>',
+ chat:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>', user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+ owl:'<path d="M5 9c0-3.5 3-6 7-6s7 2.5 7 6v6a7 7 0 0 1-14 0Z"/><circle cx="9" cy="10.5" r="2"/><circle cx="15" cy="10.5" r="2"/>',
+};
+const ic=(n,s=20)=>`<svg class="i" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]}</svg>`;
+
+/* category shapes: shape is the primary channel, colour is redundant */
+const SHAPES={
+ tri:'<path d="M12 3 22 20H2z"/>', dia:'<path d="M12 2 22 12 12 22 2 12z"/>', sq:'<rect x="4" y="4" width="16" height="16"/>',
+ circ:'<circle cx="12" cy="12" r="9"/>', cross:'<path d="M9 2h6v7h7v6h-7v7H9v-7H2V9h7z"/>', hex:'<path d="M7 3h10l5 9-5 9H7l-5-9z"/>',
+ bar:'<rect x="2" y="8" width="20" height="8"/>', ring:'<circle cx="12" cy="12" r="8" fill="none" stroke-width="3.5"/>',
+};
+const shape=(c,s=16)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true" fill="${c.color}" stroke="${c.color}" style="flex:none">${SHAPES[c.shape]}</svg>`;
+
+/* ================= DATA ================= */
+const CATS=[
+ {id:'fire',label:'Fire, smoke or alarm',hint:'Flames, smoke, a fire alarm going off',shape:'tri',color:'#D55E00'},
+ {id:'hazard',label:'Hazard',hint:'Spill, flooding, downed line, broken glass, ice',shape:'dia',color:'#E69F00'},
+ {id:'traffic',label:'Crash or road blocked',hint:'Vehicle crash, closed lane or road',shape:'sq',color:'#0072B2'},
+ {id:'theft',label:'Theft or break-in',hint:'Something was stolen or broken into (after it happened)',shape:'circ',color:'#CC79A7'},
+ {id:'damage',label:'Vandalism or damage',hint:'Broken windows, graffiti, damaged property',shape:'cross',color:'#009E73'},
+ {id:'outage',label:'Power, water or building outage',hint:'Lights out, no water, elevator down, doors locked',shape:'hex',color:'#56B4E9'},
+ {id:'closed',label:'Area closed',hint:'Taped off, blocked entrance, evacuated building',shape:'bar',color:'#6E6253'},
+ {id:'other',label:'Something else',hint:'Anything that affects getting around campus safely',shape:'ring',color:'#6E6253'},
+];
+const DIVERTS=[
+ {id:'medical',label:'Someone needs medical help'},
+ {id:'titleix',label:'Sexual misconduct, dating violence or stalking'},
+ {id:'person',label:'A person seems suspicious'},
+];
+const AREAS=[
+ {id:'csc',c:'Kennesaw',name:'Carmichael Student Center',kind:'Building',x:52,y:47},
+ {id:'bur',c:'Kennesaw',name:'Burruss Building',kind:'Building',x:38,y:38},
+ {id:'lib',c:'Kennesaw',name:'Sturgis Library',kind:'Building',x:47,y:27},
+ {id:'ssb',c:'Kennesaw',name:'Social Sciences Building',kind:'Building',x:62,y:31},
+ {id:'kh',c:'Kennesaw',name:'Kennesaw Hall',kind:'Building',x:31,y:55},
+ {id:'phs',c:'Kennesaw',name:'Prillaman Health Sciences',kind:'Building',x:68,y:58},
+ {id:'srac',c:'Kennesaw',name:'Siegel Rec Center (SRAC)',kind:'Building',x:22,y:22},
+ {id:'com',c:'Kennesaw',name:'The Commons',kind:'Dining',x:76,y:21},
+ {id:'grn',c:'Kennesaw',name:'Campus Green',kind:'Outdoor area',x:50,y:62},
+ {id:'cpd',c:'Kennesaw',name:'Central Parking Deck',kind:'Parking',x:57,y:78},
+ {id:'epd',c:'Kennesaw',name:'East Parking Deck',kind:'Parking',x:84,y:44},
+ {id:'wpd',c:'Kennesaw',name:'West Parking Deck',kind:'Parking',x:14,y:66},
+ {id:'cvc',c:'Kennesaw',name:'Convocation Center',kind:'Building',x:85,y:78},
+ {id:'arc',c:'Kennesaw',name:'Austin Residence Complex',kind:'Housing · complex only',x:10,y:38},
+ {id:'loop',c:'Kennesaw',name:'Campus Loop Rd',kind:'Road',x:34,y:86},
+ {id:'atr',c:'Marietta',name:'Atrium Building (J)',kind:'Building',x:45,y:40},
+ {id:'acad',c:'Marietta',name:'Academic Building (H)',kind:'Building',x:60,y:55},
+ {id:'arch',c:'Marietta',name:'Architecture (N)',kind:'Building',x:30,y:30},
+ {id:'adm',c:'Marietta',name:'Administration Building (B)',kind:'Building',x:70,y:28},
+ {id:'mcom',c:'Marietta',name:'Marietta Commons',kind:'Housing · complex only',x:22,y:68},
+];
+const WHENS=[{id:'now',label:'Just now',min:2},{id:'15',label:'About 15 min ago',min:15},{id:'60',label:'About an hour ago',min:60},{id:'today',label:'Earlier today',min:null}];
+const ME='kaya.o';
+const NOW=Date.now(); const M=60000;
+const cat=id=>CATS.find(c=>c.id===id); const area=id=>AREAS.find(a=>a.id===id);
+const fmtT=t=>new Date(t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+const ago=t=>{const m=Math.round((NOW-t)/M);if(m<2)return'just now';if(m<60)return`${m} min ago`;const h=Math.round(m/60);return`${h} h ago`;};
+const esc=s=>String(s??'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+
+function seed(){return [
+ {id:'i1',cat:'fire',area:'bur',detail:'2nd floor stairwell',seenAt:NOW-22*M,postedAt:NOW-18*M,updatedAt:NOW-6*M,author:'jules.m',hidden:false,
+  text:'Fire alarm going off and people are leaving through the front doors. Smelled something burning near the stairs.',
+  updates:[{t:NOW-6*M,kind:'author',text:'Alarm stopped and people are going back in. I don\'t know why it went off.'}],photo:false},
+ {id:'i2',cat:'hazard',area:'epd',detail:'Level 3 ramp',seenAt:NOW-65*M,postedAt:NOW-60*M,updatedAt:NOW-60*M,author:'dev.r',hidden:false,
+  text:'Big oil spill across the ramp going up to level 3. Really slippery, my car slid a bit.',updates:[],photo:true},
+ {id:'i3',cat:'traffic',area:'loop',detail:'near the Convocation Center',seenAt:NOW-130*M,postedAt:NOW-125*M,updatedAt:NOW-90*M,author:null,hidden:true,
+  text:'Two-car crash blocking the right lane. Traffic backed up toward the deck.',
+  updates:[{t:NOW-90*M,kind:'mod',text:'KSU Parking & Transportation posted a detour notice. Link: (official notice placeholder)'}],photo:false},
+ {id:'i4',cat:'theft',area:'lib',detail:'bike racks by the side entrance',seenAt:NOW-6*60*M,postedAt:NOW-5*60*M,updatedAt:NOW-5*60*M,author:null,hidden:true,
+  text:'My bike was stolen from the rack between 2 and 4. The lock was cut. Lock yours to the inner racks.',updates:[],photo:false},
+ {id:'i5',cat:'outage',area:'atr',detail:'',seenAt:NOW-40*M,postedAt:NOW-38*M,updatedAt:NOW-38*M,author:'sam.t',hidden:false,
+  text:'Power is out on the whole first floor. Elevators aren\'t working.',updates:[],photo:false},
+ {id:'i6',cat:'closed',area:'grn',detail:'',seenAt:NOW-27*60*M,postedAt:NOW-27*60*M,updatedAt:NOW-27*60*M,author:'pri.k',hidden:false,
+  text:'Part of the green is taped off near the fountain.',updates:[],photo:false},
+];}
+
+/* ================= STATE ================= */
+const qs=new URLSearchParams(location.search);
+const VARIANTS=[{k:'A',name:'Step by step'},{k:'B',name:'One page'},{k:'C',name:'Card builder'}];
+const S={
+ variant:(VARIANTS.find(v=>v.k===qs.get('variant'))||VARIANTS[0]).k,
+ theme:'light',motion:'system',text:100,frame:'phone',demo:true,state:false,
+ campus:'Kennesaw',introDismissed:false,selected:null,incidents:seed(),
+ flow:null,dialog:null,lastAnnounce:'',
+};
+function blankDraft(){return {cat:null,campus:null,area:null,detail:'',when:null,whenTime:'',text:'',photo:null,blur:false,identity:null};}
+
+/* ================= HELPERS ================= */
+const $=s=>document.querySelector(s);
+function announce(msg){S.lastAnnounce=msg;const l=$('#live');l.textContent='';setTimeout(()=>{l.textContent=msg;},30);}
+function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;$('#toasts').append(t);announce(msg);setTimeout(()=>t.remove(),4200);}
+let focusSel=null;
+function focusAfter(sel){focusSel=sel;}
+
+/* write-time checks (prototype heuristics only) */
+function checkText(t){
+ const issues=[];
+ const idPats=[[/@\w{2,}/,'an @handle'],[/\b(room|rm|apt|suite|unit)\s*#?\s*\d+/i,'a room number'],[/\b(named|name is|called)\s+[A-Z][a-z]+/,'a name'],[/\b\d{3}[-. ]\d{3}[-. ]\d{4}\b/,'a phone number'],[/\b[A-Z]{3}[- ]?\d{4}\b/,'a licence plate']];
+ for(const [re,label] of idPats) if(re.test(t)) issues.push({type:'id',label});
+ const claim=t.match(/\b(all clear|resolved|verified|confirmed|police (?:are|is) (?:on scene|here|handling it)|it'?s safe now)\b/i);
+ if(claim) issues.push({type:'claim',label:claim[0]});
+ return issues;
+}
+function validate(d,fields){
+ const e={};
+ if(fields.includes('cat')&&!d.cat) e.cat='Choose what happened.';
+ if(fields.includes('where')){ if(!d.campus) e.campus='Choose a campus.'; else if(!d.area) e.area='Choose a building or area.'; if(/\b(room|rm|apt|suite|unit)\s*#?\s*\d+/i.test(d.detail)) e.detail='Leave out room or unit numbers.'; }
+ if(fields.includes('when')){ if(!d.when) e.when='Choose when you saw it.'; else if(d.when==='today'&&!d.whenTime) e.when='Add roughly what time.'; }
+ if(fields.includes('what')){
+  if(d.text.trim().length<10) e.text='Describe what you saw in at least 10 characters.';
+  else { const iss=checkText(d.text); const id=iss.filter(i=>i.type==='id'), cl=iss.find(i=>i.type==='claim');
+   if(id.length) e.text=`Remove details that could identify a person (found ${id.map(i=>i.label).join(', ')}).`;
+   else if(cl) e.text=`Community posts can't say “${cl.label}”. Say what you saw instead.`; }
+ }
+ if(fields.includes('identity')&&!d.identity) e.identity='Choose how your name shows.';
+ return e;
+}
+const FIELD_ID={cat:'f-cat',campus:'f-campus',area:'f-area-search',detail:'f-detail',when:'f-when',text:'f-text',identity:'f-identity'};
+
+/* ================= SHARED RENDER PIECES ================= */
+function catChip(c){return `<span class="cat-chip">${shape(c)}${esc(c.label)}</span>`;}
+function nameOf(i){return i.hidden?'Student · name hidden':'@'+i.author;}
+function provLine(i){
+ return `<p class="prov">${S.demo?'<span class="demo-tag">Demo · not real</span>':''}<b>Community report · not verified</b><span>Posted ${fmtT(i.postedAt)}</span>${i.updatedAt!==i.postedAt?`<span>Updated ${fmtT(i.updatedAt)}</span>`:''}<span>by ${esc(nameOf(i))}</span></p>`;
+}
+function incCard(i,{preview=false,full=false}={}){
+ const c=cat(i.cat)||{label:'(what happened)',shape:'ring',color:'#999'}; const a=area(i.area);
+ const old=NOW-i.postedAt>24*60*M;
+ const title=a?esc(a.name)+(i.detail?` <span class="muted" style="font-family:var(--font-body);font-size:var(--fs-sm);font-weight:650">· ${esc(i.detail)}</span>`:''):'<span class="ghost-txt">Where</span>';
+ const seen=i.seenAt?`Seen ${ago(i.seenAt)}`:'<span class="ghost-txt">When</span>';
+ const photo=i.photo?(i.photoPending||preview?`<div class="photo-ph">${ic('image')}<span>Photo waiting for moderator review.<br>Students can't see it yet.</span></div>`:`<div class="photo-ph">${ic('image')}<span>Photo (approved by a moderator)</span></div>`):'';
+ const ups=(i.updates||[]).map(u=>`<div class="upd ${u.kind==='mod'?'mod':''}"><span class="u-h">${u.kind==='mod'?'Moderator note':'Author update'} · ${fmtT(u.t)}</span><span>${esc(u.text)}</span></div>`).join('');
+ return `<article class="inc" ${S.selected===i.id&&!preview?'aria-current="true"':''} aria-labelledby="h-${i.id}">
+  <div class="spread">${i.cat?catChip(c):'<span class="cat-chip ghost-txt">What happened</span>'}${a?`<span class="chip ${a.c==='Kennesaw'?'k':'m'}">${a.c}</span>`:''}</div>
+  <h3 id="h-${i.id}">${title}</h3>
+  <p class="seen">${seen}</p>
+  <p class="post-body">${i.text?esc(i.text):'<span class="ghost-txt">What you saw</span>'}</p>
+  ${photo}${ups}
+  ${provLine(i)}
+  ${old?'<p class="meta">Removed from the map after 24 h. That is its age, not a resolution.</p>':''}
+  ${preview?'':`<div class="row"><button class="btn ghost" data-act="detail" data-id="${i.id}">Details${full?'':`<span class="sr"> for ${esc(c.label)} at ${a?esc(a.name):''}</span>`}</button><button class="btn ghost" data-act="report" data-id="${i.id}">${ic('flag',16)}Report to KSUX moderators</button></div>`}
+ </article>`;
+}
+
+function areaDots(campus,{pick=false,sel=null,list=null}={}){
+ const items=list||AREAS.filter(a=>a.c===campus);
+ return items.map(it=>{
+  const a=it.areaObj||it; const inc=it.inc;
+  if(pick) return `<button class="pin" style="left:${a.x}%;top:${a.y}%" data-act="pickArea" data-id="${a.id}" aria-pressed="${sel===a.id}" aria-label="${esc(a.name)}"><span class="pb">${sel===a.id?ic('check',12):''}${esc(a.name.split(' ')[0])}</span></button>`;
+  const c=cat(inc.cat); const old=NOW-inc.updatedAt>2*60*M;
+  return `<button class="pin ${old?'old':''}" style="left:${a.x}%;top:${a.y}%" data-act="pin" data-id="${inc.id}" aria-pressed="${S.selected===inc.id}" aria-label="${esc(c.label)} at ${esc(a.name)}, seen ${ago(inc.seenAt)}"><span class="pb">${shape(c,14)}${esc(a.name.split(' ')[0])}</span></button>`;
+ }).join('');
+}
+function mapBase(){return `<svg class="base" viewBox="0 0 100 60" preserveAspectRatio="none" aria-hidden="true"><rect width="100" height="60" fill="var(--map-land)"/><path d="M0 52 Q30 46 50 50 T100 44" stroke="var(--map-road)" stroke-width="3" fill="none"/><path d="M20 0 Q26 30 18 60" stroke="var(--map-road)" stroke-width="2.4" fill="none"/><path d="M70 0 Q64 24 80 60" stroke="var(--map-road)" stroke-width="2.4" fill="none"/><g fill="var(--map-bldg)"><rect x="34" y="18" width="10" height="7"/><rect x="45" y="12" width="8" height="6"/><rect x="58" y="15" width="9" height="6"/><rect x="48" y="25" width="9" height="6"/><rect x="28" y="30" width="8" height="6"/><rect x="64" y="32" width="8" height="6"/><rect x="80" y="23" width="9" height="7"/><rect x="10" y="20" width="8" height="8"/></g><ellipse cx="50" cy="37" rx="9" ry="4" fill="color-mix(in srgb,#3a8a4a 25%,var(--map-land))"/></svg>`;}
+
+/* ================= INCIDENTS SCREEN ================= */
+function renderIncidents(){
+ const live=S.incidents.filter(i=>NOW-i.postedAt<=24*60*M&&area(i.area)?.c===S.campus).sort((a,b)=>(b.id===S.selected)-(a.id===S.selected)||b.updatedAt-a.updatedAt);
+ const older=S.incidents.filter(i=>NOW-i.postedAt>24*60*M&&area(i.area)?.c===S.campus);
+ const pins=live.map(i=>({areaObj:area(i.area),inc:i}));
+ return `
+ <a class="skip" href="#main" data-act="skipMain">Skip to content</a>
+ <div class="shell">
+  <header class="hdr"><div class="hdr-row"><span class="brand">KSUX<span class="dot"></span></span><span class="grow"></span>${S.demo?'<span class="demo-pill">Demo</span>':''}</div>
+   <div class="campus-chips" role="group" aria-label="Campus"><span class="lbl meta">Campus</span>${['Kennesaw','Marietta'].map(c=>`<button data-act="campus" data-c="${c}" aria-pressed="${S.campus===c}">${c}</button>`).join('')}</div>
+  </header>
+  <main class="main" id="main" tabindex="-1">
+   <div class="page">
+    <div class="page-h"><h1 id="pageH" tabindex="-1">Incidents</h1><p>Community reports from the last 24 hours on ${S.campus} campus. Not verified by KSUX or KSU.</p></div>
+    ${S.introDismissed?'':`<section class="card intro pad" aria-labelledby="introH"><div class="kicker">${ic('shield',16)}Before you use Incidents</div><h2 id="introH" class="story-h">What KSUX Incidents is, and isn't</h2>
+      <ul><li><b>Not 911 and not the police.</b> Posting here doesn't contact anyone.</li><li><b>Not watched 24/7.</b> Moderators are student volunteers.</li><li><b>Not official KSU.</b> Official notices are labelled with their source.</li><li><b>Not verified.</b> Every Incident is one Student's report.</li><li>Clout has nothing to do with safety posts.</li></ul>
+      <div class="row"><button class="btn dark" data-act="dismissIntro">Got it</button><a class="link" href="#" data-act="noop">About KSUX Safety</a></div></section>`}
+    <button class="btn primary block" data-act="startFlow" style="min-height:3.25rem">${ic('plus')}Report something you saw</button>
+    <section aria-labelledby="mapH" class="stack">
+     <div class="sec-row"><h2 id="mapH">On the map</h2><a class="link skipmap" href="#listH" data-act="skipMap">Skip map</a></div>
+     <figure class="imap" style="margin:0">${mapBase()}${areaDots(S.campus,{list:pins})}
+      <div class="ctrls"><button class="icon-btn" aria-label="Zoom in" data-act="noop">${ic('plus')}</button><button class="icon-btn" aria-label="Zoom out" data-act="noop">${ic('minus')}</button><button class="icon-btn" aria-label="Recenter" data-act="noop">${ic('recenter')}</button></div>
+      <figcaption class="attr">© OpenStreetMap contributors · OpenFreeMap <span class="sr">(prototype schematic)</span></figcaption></figure>
+     <div class="legend" aria-label="Map key">${CATS.filter(c=>live.some(i=>i.cat===c.id)).map(c=>`<span>${shape(c,14)}${esc(c.label)}</span>`).join('')}<span><span style="display:inline-block;width:1.4rem;height:.9rem;border:2.5px solid var(--ink);border-radius:999px"></span>updated &lt; 2 h</span><span><span style="display:inline-block;width:1.4rem;height:.9rem;border:2.5px dashed var(--line-strong);border-radius:999px"></span>older</span></div>
+    </section>
+    <section aria-labelledby="listH" class="stack">
+     <div class="sec-row"><h2 id="listH" tabindex="-1">Latest first · ${live.length}</h2></div>
+     ${live.length?live.map(i=>incCard(i)).join(''):'<p class="empty">No community reports on this campus in the last 24 hours. That doesn\'t mean nothing happened.</p>'}
+     ${older.length?`<details class="older"><summary>Older than 24 h (${older.length}) · off the map</summary><div class="stack">${older.map(i=>incCard(i)).join('')}</div></details>`:''}
+    </section>
+   </div>
+  </main>
+  <nav class="dock" aria-label="Main"><a class="dock-i" href="#" data-act="noop">${ic('home')}Now</a><a class="dock-i" href="#" data-act="noop">${ic('rss')}Feed</a><button class="dock-q" data-act="noop">${ic('owl')}Ask Scrappy</button><a class="dock-i" href="#" data-act="noop">${ic('chat')}Chats</a><a class="dock-i" href="#" data-act="noop">${ic('user')}Me</a></nav>
+ </div>`;
+}
+
+/* ================= EMERGENCY PANEL (shared, every time) ================= */
+function renderEmergency(fromReport){
+ return `<div class="flow-hdr"><button class="icon-btn" data-act="closeFlow" aria-label="Cancel report">${ic('x')}</button><span class="t">${fromReport?'Report to KSUX moderators':'Report an incident'}</span></div>
+ <div class="flow-body emer">
+  <h1 id="flowH" tabindex="-1">Is anyone in danger right now?</h1>
+  <p>${fromReport?'This reports the post to KSUX volunteer moderators. It does not contact police.':'If so, contact help first. KSUX can\'t send help and doesn\'t contact police.'}</p>
+  <button class="call c911" data-act="call" data-n="911">${ic('phone',28)}<span>Call 911<small>Fire, medical, crime in progress</small></span></button>
+  <button class="call cpd" data-act="call" data-n="470-578-6666">${ic('phone',28)}<span>Call KSU Police<small>470-578-6666 · answered 24/7</small></span></button>
+  <button class="call ctext" data-act="call" data-n="sms 770-356-3866">${ic('msg',24)}<span>Text KSU Police<small>770-356-3866</small></span></button>
+  <p class="qual">For people who are deaf, hard of hearing or have a speech disability, or when a voice call is dangerous or impossible.</p>
+  <p class="meta">Prefer to report privately to KSU Police? Use the <a href="#" data-act="noop">KSU LiveSafe app ${ic('ext',12)}</a> (outside KSUX).</p>
+  <div class="notem">
+   ${fromReport?`<button class="btn dark block" data-act="sendModReport">No one is in danger · send to moderators</button>`:`<button class="btn dark block" data-act="notEmergency" style="min-height:3.25rem">Not an emergency · post to the community</button>`}
+  </div>
+ </div>`;
+}
+
+/* ================= FIELD BLOCKS (reused by all variants) ================= */
+const errP=(e,k)=>e[k]?`<p class="err" id="${FIELD_ID[k]}-err">${esc(e[k])}</p>`:'';
+const desc=(e,k,hint)=>[hint,e[k]?`${FIELD_ID[k]}-err`:''].filter(Boolean).join(' ');
+function fCat(d,e,{asChips=false}={}){
+ if(asChips) return `<div class="chips-pick" role="radiogroup" aria-label="What happened">${CATS.map(c=>`<button class="pill" role="radio" aria-checked="${d.cat===c.id}" data-act="setCat" data-id="${c.id}">${shape(c,14)}${esc(c.label)}</button>`).join('')}</div>
+  <p class="meta">Not listed: ${DIVERTS.map(v=>`<button class="link" data-act="setCat" data-id="${v.id}">${esc(v.label)}</button>`).join(' · ')}</p>${errP(e,'cat')}`;
+ return `<fieldset id="f-cat" tabindex="-1" aria-describedby="${desc(e,'cat')}"><legend class="sr">What happened?</legend><div class="radio-list">
+  ${CATS.map(c=>`<label class="radio"><input type="radio" name="cat" value="${c.id}" data-f="cat" ${d.cat===c.id?'checked':''}><span>${shape(c,18)}</span><span><b>${esc(c.label)}</b><br><span class="hint">${esc(c.hint)}</span></span></label>`).join('')}
+ </div></fieldset>${errP(e,'cat')}
+ <div class="note"><b>Something else?</b><div class="stack" style="margin-top:var(--sp-2)">${DIVERTS.map(v=>`<button class="btn ghost block" style="justify-content:flex-start" data-act="setCat" data-id="${v.id}">${esc(v.label)}</button>`).join('')}</div></div>`;
+}
+function fWhere(d,e){
+ const list=AREAS.filter(a=>a.c===d.campus);
+ const q=(S.flow.areaQ||'').toLowerCase();
+ const shown=list.filter(a=>!q||a.name.toLowerCase().includes(q)||a.kind.toLowerCase().includes(q));
+ const near=S.flow.nearby;
+ return `<fieldset id="f-campus" tabindex="-1"><legend>Campus</legend><div class="seg" role="group">${['Kennesaw','Marietta'].map(c=>`<button data-act="setCampus" data-c="${c}" aria-pressed="${d.campus===c}">${c}</button>`).join('')}</div></fieldset>${errP(e,'campus')}
+ ${d.campus?`<div class="field"><label for="f-area-search">Building or area</label><input class="input" id="f-area-search" type="search" placeholder="Search, e.g. library, deck" value="${esc(S.flow.areaQ||'')}" data-f="areaQ" aria-describedby="${desc(e,'area','area-hint')}" aria-controls="area-list"><p class="hint" id="area-hint">${shown.length} places. Pick from the list or tap the map.</p></div>
+  <button class="btn ghost" data-act="nearby">${ic('locate',18)}${near?'Showing nearest first':'Suggest places near me'}</button>
+  <p class="hint">${near?'Used your location once to sort this list. It wasn\'t saved or posted.':'Optional. Uses your location once to sort this list. It isn\'t saved or posted.'}</p>
+  <div class="area-list" id="area-list" role="radiogroup" aria-label="Building or area">${(near?[...shown].sort((a,b)=>(near.indexOf(a.id)+99)%99-(near.indexOf(b.id)+99)%99):shown).map(a=>`<label class="radio"><input type="radio" name="area" value="${a.id}" data-f="area" ${d.area===a.id?'checked':''}><span><b>${esc(a.name)}</b>${near&&near.includes(a.id)?' <span class="chip ok">near you</span>':''}<br><span class="kind">${esc(a.kind)}</span></span></label>`).join('')||'<p class="empty">No match. Try a nearby building.</p>'}</div>
+  ${errP(e,'area')}
+  <details><summary class="link">Pick on the map instead</summary><figure class="imap pick" style="margin:var(--sp-2) 0 0">${mapBase()}${areaDots(d.campus,{pick:true,sel:d.area})}<figcaption class="attr">© OpenStreetMap contributors · OpenFreeMap</figcaption></figure></details>
+  <div class="field"><label for="f-detail">Where exactly? <span class="muted">(optional)</span></label><input class="input" id="f-detail" maxlength="60" value="${esc(d.detail)}" data-f="detail" aria-describedby="${desc(e,'detail','detail-hint')}"><p class="hint" id="detail-hint">Like “2nd floor stairwell” or “bike racks”. No room or unit numbers.</p>${errP(e,'detail')}</div>`:''}`;
+}
+function fWhen(d,e){
+ return `<fieldset id="f-when" tabindex="-1" aria-describedby="${desc(e,'when','when-hint')}"><legend class="sr">When did you see it?</legend><p class="hint" id="when-hint">When you saw it, not when you're posting.</p><div class="radio-list" style="margin-top:var(--sp-2)">
+ ${WHENS.map(w=>`<label class="radio"><input type="radio" name="when" value="${w.id}" data-f="when" ${d.when===w.id?'checked':''}><span>${w.label}</span></label>`).join('')}</div></fieldset>
+ ${d.when==='today'?`<div class="field"><label for="f-wt">About what time?</label><input class="input" id="f-wt" type="time" value="${esc(d.whenTime)}" data-f="whenTime"></div>`:''}${errP(e,'when')}`;
+}
+function fWhat(d,e){
+ const iss=checkText(d.text);
+ return `<div class="field"><label for="f-text">What did you see?</label>
+ <textarea class="textarea" id="f-text" maxlength="280" data-f="text" aria-describedby="${desc(e,'text','text-hint')}">${esc(d.text)}</textarea>
+ <p class="hint" id="text-hint">Only what you saw or heard yourself. Don't name or describe people, and don't say it's over or safe.</p>
+ <p class="counter" aria-live="off">${d.text.length}/280</p>
+ ${iss.length&&!e.text?`<p class="note warn" role="note">Check before posting: ${iss.map(i=>i.type==='id'?esc(i.label):'“'+esc(i.label)+'”').join(', ')}</p>`:''}
+ ${errP(e,'text')}</div>`;
+}
+function fPhoto(d){
+ return `<p class="hint">Optional. A moderator reviews photos before other Students can see them. Location data is removed from the file.</p>
+ ${d.photo?`<div class="pv"><img src="${d.photo}" alt="Your photo" class="${d.blur?'blurred':''}"></div>
+   <label class="check"><input type="checkbox" data-f="blur" ${d.blur?'checked':''}> Blur the whole photo (use if it shows faces or plates)</label>
+   <button class="btn danger" data-act="removePhoto">Remove photo</button>`
+ :`<label class="add-photo" style="width:100%;height:auto;min-height:5rem;position:relative">${ic('image')}<span>Add a photo</span><input type="file" accept="image/*" data-f="photo"></label>`}
+ <p class="note">Don't include faces, plates or anything that identifies a person.</p>`;
+}
+function fIdentity(d,e){
+ return `<fieldset id="f-identity" tabindex="-1" aria-describedby="${desc(e,'identity')}"><legend class="sr">How should your name show?</legend><div class="radio-list">
+ <label class="radio"><input type="radio" name="identity" value="handle" data-f="identity" ${d.identity==='handle'?'checked':''}><span><b>Show my handle</b> (@${ME})</span></label>
+ <label class="radio"><input type="radio" name="identity" value="hidden" data-f="identity" ${d.identity==='hidden'?'checked':''}><span><b>Hide my handle from other Students</b><br><span class="hint">Shows as “Student · name hidden”.</span></span></label></div></fieldset>${errP(e,'identity')}
+ <p class="note">Either way, KSUX moderators can see who posted, and KSUX may have to share account details if the law requires it. This isn't anonymous reporting to police. For that, use KSU LiveSafe.</p>`;
+}
+function draftAsIncident(d){
+ const w=WHENS.find(x=>x.id===d.when);
+ let seenAt=null; if(w&&w.min) seenAt=NOW-w.min*M; else if(d.when==='today'&&d.whenTime){const [h,m]=d.whenTime.split(':');const t=new Date();t.setHours(+h,+m,0,0);seenAt=t.getTime();}
+ return {id:'draft',cat:d.cat,area:d.area,detail:d.detail,seenAt,postedAt:NOW,updatedAt:NOW,author:ME,hidden:d.identity==='hidden',text:d.text,updates:[],photo:!!d.photo,photoPending:true};
+}
+const FINE='Posting does not contact police. KSUX moderators are volunteers and may not see this for hours.';
+
+/* ================= VARIANT A: step by step ================= */
+const A_STEPS=[
+ {k:'cat',h:'What happened?',fields:['cat'],body:fCat},
+ {k:'where',h:'Where was it?',fields:['where'],body:fWhere},
+ {k:'when',h:'When did you see it?',fields:['when'],body:fWhen},
+ {k:'what',h:'What did you see?',fields:['what'],body:fWhat,label:true},
+ {k:'photo',h:'Add a photo?',fields:[],body:fPhoto},
+ {k:'identity',h:'How should your name show?',fields:['identity'],body:fIdentity},
+ {k:'preview',h:'Check your post',fields:[],body:d=>`<p>This is exactly what other Students will see.</p>${incCard(draftAsIncident(d),{preview:true})}<p class="fine">${FINE}</p>`},
+];
+function renderA(){
+ const f=S.flow, i=f.stepIdx, st=A_STEPS[i], n=A_STEPS.length;
+ return `<div class="flow-hdr"><button class="icon-btn" data-act="${i?'back':'toEmer'}" aria-label="Back">${ic('left')}</button><span class="t">Report an incident</span><button class="icon-btn" data-act="closeFlow" aria-label="Cancel report">${ic('x')}</button></div>
+ <div class="flow-body">
+  <div class="prog" aria-hidden="true">${A_STEPS.map((_,j)=>`<span class="${j<=i?'on':''}"></span>`).join('')}</div>
+  <p class="stepline">Step ${i+1} of ${n}</p>
+  <h1 id="flowH" tabindex="-1">${st.k==='what'?'<label for="f-text">'+st.h+'</label>':st.h}</h1>
+  ${st.body(f.d,f.err||{})}
+ </div>
+ <div class="flow-foot"><div class="row">
+  ${st.k==='photo'&&!f.d.photo?`<button class="btn ghost" data-act="next">Skip</button>`:'<span></span>'}
+  ${st.k==='preview'?`<button class="btn primary" data-act="submit">Post to the community</button>`:`<button class="btn dark" data-act="next">${st.k==='identity'?'Preview':'Next'}</button>`}
+ </div></div>`;
+}
+
+/* ================= VARIANT B: one page ================= */
+function renderB(){
+ const f=S.flow, d=f.d, e=f.err||{};
+ if(f.sub==='preview') return `<div class="flow-hdr"><button class="icon-btn" data-act="bEdit" aria-label="Back to edit">${ic('left')}</button><span class="t">Check your post</span><button class="icon-btn" data-act="closeFlow" aria-label="Cancel report">${ic('x')}</button></div>
+  <div class="flow-body"><h1 id="flowH" tabindex="-1">Check your post</h1><p>This is exactly what other Students will see.</p>${incCard(draftAsIncident(d),{preview:true})}<button class="link" data-act="bEdit">Edit</button></div>
+  <div class="flow-foot"><p class="fine">${FINE}</p><button class="btn primary block" data-act="submit">Post to the community</button></div>`;
+ const errs=Object.entries(e);
+ const sec=(n,id,h,body)=>`<section class="formsec" aria-labelledby="${id}"><h2 id="${id}"><span class="sec-num" aria-hidden="true">${n}</span>${h}</h2>${body}</section>`;
+ return `<div class="flow-hdr"><button class="icon-btn" data-act="toEmer" aria-label="Back">${ic('left')}</button><span class="t">Report an incident</span><button class="icon-btn" data-act="closeFlow" aria-label="Cancel report">${ic('x')}</button></div>
+ <div class="flow-body">
+  <h1 id="flowH" tabindex="-1">Tell other Students what you saw</h1>
+  <p class="fine">${FINE}</p>
+  ${errs.length?`<div class="err-sum" id="errSum" tabindex="-1" role="group" aria-labelledby="errSumH"><h2 id="errSumH">Fix ${errs.length} thing${errs.length>1?'s':''} before previewing</h2><ul>${errs.map(([k,m])=>`<li><a href="#${FIELD_ID[k]}" data-act="jump" data-to="${FIELD_ID[k]}">${esc(m)}</a></li>`).join('')}</ul></div>`:''}
+  ${sec(1,'bs1','What happened?',fCat(d,e))}
+  ${sec(2,'bs2','Where was it?',fWhere(d,e))}
+  ${sec(3,'bs3','When did you see it?',fWhen(d,e))}
+  ${sec(4,'bs4','What did you see?',fWhat(d,e))}
+  ${sec(5,'bs5','Photo (optional)',fPhoto(d))}
+  ${sec(6,'bs6','How your name shows',fIdentity(d,e))}
+ </div>
+ <div class="flow-foot"><button class="btn dark block" data-act="bPreview">Preview post</button></div>`;
+}
+
+/* ================= VARIANT C: card builder ================= */
+const C_SECS=[
+ {k:'cat',q:'What happened?',a:d=>d.cat?cat(d.cat).label:null,body:(d,e)=>fCat(d,e,{asChips:true}),fields:['cat']},
+ {k:'where',q:'Where?',a:d=>d.area?area(d.area).name+(d.detail?' · '+d.detail:''):null,body:fWhere,fields:['where']},
+ {k:'when',q:'When did you see it?',a:d=>d.when?(d.when==='today'?'Earlier today '+(d.whenTime||''):WHENS.find(w=>w.id===d.when).label):null,body:fWhen,fields:['when']},
+ {k:'what',q:'What did you see?',a:d=>d.text?`${d.text.length} characters`:null,body:fWhat,fields:['what']},
+ {k:'photo',q:'Photo',a:d=>d.photo?'1 photo, held for review':'None (optional)',body:fPhoto,fields:[],optional:true},
+ {k:'identity',q:'Your name',a:d=>d.identity?(d.identity==='hidden'?'Hidden from Students':'@'+ME):null,body:fIdentity,fields:['identity']},
+];
+function renderC(){
+ const f=S.flow, d=f.d, e=f.err||{};
+ const allOk=!Object.keys(validate(d,['cat','where','when','what','identity'])).length;
+ return `<div class="flow-hdr"><button class="icon-btn" data-act="toEmer" aria-label="Back">${ic('left')}</button><span class="t">Report an incident</span><button class="icon-btn" data-act="closeFlow" aria-label="Cancel report">${ic('x')}</button></div>
+ <div class="flow-body">
+  <h1 id="flowH" tabindex="-1" class="sr">Build your incident post</h1>
+  <div class="live-wrap"><p class="sec-h" style="margin-bottom:var(--sp-2)">Your post · live preview</p>${incCard(draftAsIncident(d),{preview:true})}</div>
+  <div class="acc">${C_SECS.map((s,j)=>{const open=f.open===s.k;const ans=s.a(d);const err=s.fields.some(k=>k==='where'?(e.campus||e.area||e.detail):e[k]);
+   return `<div class="acc-item ${open?'open':''}"><h2 style="font-size:inherit"><button class="acc-btn" id="acc-${s.k}" aria-expanded="${open}" aria-controls="accp-${s.k}" data-act="accToggle" data-k="${s.k}"><span class="sec-num" aria-hidden="true">${j+1}</span><span class="q">${s.q}</span><span class="st ${ans&&!err?'done':''}">${err?'Fix':ans?'✓ Done':s.optional?'Optional':'To do'}</span><span class="a">${ans?esc(ans):'Not answered'}</span></button></h2>
+    ${open?`<div class="acc-panel" id="accp-${s.k}" role="region" aria-labelledby="acc-${s.k}">${s.body(d,e)}${s.k==='cat'||s.k==='when'||s.k==='identity'?'':`<button class="btn dark" data-act="accNext" data-k="${s.k}">${j===C_SECS.length-1?'Done':'Next'}</button>`}</div>`:''}</div>`;}).join('')}</div>
+  <p class="fine">${FINE}</p>
+ </div>
+ <div class="flow-foot"><button class="btn primary block" data-act="cSubmit" aria-describedby="cHint">Post to the community</button><p class="hint" id="cHint">${allOk?'Ready. Check the preview above first.':'Answer every step marked “To do” first.'}</p></div>`;
+}
+
+/* ================= DIVERT + DONE ================= */
+function renderDivert(){
+ const k=S.flow.divert;
+ const back=`<button class="btn ghost block" data-act="undivert">Choose something else</button>`;
+ const call=(n,l,s,cls)=>`<button class="call ${cls}" data-act="call" data-n="${n}">${ic('phone',28)}<span>${l}<small>${s}</small></span></button>`;
+ let body='';
+ if(k==='medical') body=`<h1 id="flowH" tabindex="-1">Call 911 for medical help</h1><p>KSUX can't send help. Call now, then stay on the line.</p>${call('911','Call 911','Medical emergency','c911')}${call('470-578-6666','Call KSU Police','470-578-6666','cpd')}`;
+ if(k==='titleix') body=`<h1 id="flowH" tabindex="-1">KSUX doesn't post these publicly</h1><p>A public post can expose the person it happened to. These people can help, and some are confidential.</p>
+  <ul class="list"><li><b>KSU Title IX office</b><br><span class="meta">Report or get supportive measures. (link placeholder)</span></li><li><b>Confidential counseling (KSU CPS)</b><br><span class="meta">Talk to someone without making a report. (link placeholder)</span></li><li><b>KSU LiveSafe app</b><br><span class="meta">Report to KSU Police, with an option to hide your name.</span></li></ul>${call('470-578-6666','Call KSU Police','470-578-6666','cpd')}`;
+ if(k==='person') body=`<h1 id="flowH" tabindex="-1">KSUX doesn't post about people who seem suspicious</h1><p>Posts like this have singled people out for how they look. If someone is doing something dangerous right now, call KSU Police and describe it to them.</p>${call('470-578-6666','Call KSU Police','470-578-6666','cpd')}`;
+ return `<div class="flow-hdr"><button class="icon-btn" data-act="undivert" aria-label="Back">${ic('left')}</button><span class="t">Report an incident</span><button class="icon-btn" data-act="closeFlow" aria-label="Cancel report">${ic('x')}</button></div><div class="flow-body emer">${body}${back}</div>`;
+}
+function renderDone(){
+ const i=S.incidents.find(x=>x.id===S.flow.postedId);
+ return `<div class="flow-hdr"><span class="t">Report an incident</span><button class="icon-btn" data-act="closeFlow" aria-label="Close">${ic('x')}</button></div>
+ <div class="flow-body">
+  <div class="done-ic" aria-hidden="true">${ic('check',28)}</div>
+  <h1 id="flowH" tabindex="-1">Posted to the KSUX community</h1>
+  <p>Students on ${area(i.area).c} campus can see it on Incidents, labelled “Community report · not verified”.</p>
+  <p class="fine">This did not contact police or KSU. KSUX moderators are volunteers and may not see it for hours.</p>
+  ${i.photo?'<p class="note">Your photo is waiting for moderator review. Students can\'t see it yet.</p>':''}
+  <div class="stack"><button class="btn dark block" data-act="seePosted">See it on Incidents</button><button class="btn block" data-act="toEmerAgain">${ic('phone',18)}Still need help? Call or text</button><button class="btn danger block" data-act="deletePosted">Delete this post</button></div>
+ </div>`;
+}
+
+/* ================= DIALOGS (detail, mod report, update) ================= */
+function renderDialog(){
+ const dl=S.dialog; if(!dl) return '';
+ const i=S.incidents.find(x=>x.id===dl.id);
+ if(dl.type==='detail'){const mine=i.author===ME;
+  return `<div class="backdrop" data-act="closeDialog"></div><div class="dialog stack" role="dialog" aria-modal="true" aria-labelledby="dlgH"><div class="handle"></div>
+  <div class="dlg-head"><h2 id="dlgH" tabindex="-1">Incident details</h2><button class="icon-btn" data-act="closeDialog" aria-label="Close">${ic('x')}</button></div>
+  ${incCard(i,{full:true,preview:true})}
+  <p class="meta">Updates are added under the original post. The original is never edited after 5 minutes.</p>
+  <div class="stack">${mine?`<button class="btn dark" data-act="addUpdate" data-id="${i.id}">Add an update</button><button class="btn danger" data-act="deleteInc" data-id="${i.id}">Delete my post</button>`:''}
+  <button class="btn" data-act="report" data-id="${i.id}">${ic('flag',16)}Report to KSUX moderators</button><button class="btn ghost" data-act="identifies" data-id="${i.id}">This post identifies me</button></div></div>`;}
+ if(dl.type==='update') return `<div class="backdrop" data-act="closeDialog"></div><div class="dialog stack" role="dialog" aria-modal="true" aria-labelledby="dlgH"><div class="handle"></div>
+  <div class="dlg-head"><h2 id="dlgH" tabindex="-1">Add an update</h2><button class="icon-btn" data-act="closeDialog" aria-label="Close">${ic('x')}</button></div>
+  <div class="field"><label for="f-upd">What's changed?</label><textarea class="textarea" id="f-upd" maxlength="200"></textarea><p class="hint">Say what you now see. Don't say it's over, safe or all clear: you can't know that.</p><p class="err" id="upd-err"></p></div>
+  <div class="dlg-actions"><button class="btn" data-act="closeDialog">Cancel</button><button class="btn dark" data-act="saveUpdate" data-id="${i.id}">Add update</button></div></div>`;
+ if(dl.type==='mod') return `<div class="backdrop" data-act="closeDialog"></div><div class="dialog stack" role="dialog" aria-modal="true" aria-labelledby="dlgH"><div class="handle"></div>
+  <div class="dlg-head"><h2 id="dlgH" tabindex="-1">Report to KSUX moderators</h2><button class="icon-btn" data-act="closeDialog" aria-label="Close">${ic('x')}</button></div>
+  <fieldset><legend>What's wrong with this post?</legend><div class="radio-list">${['It identifies a person','It\'s false or misleading','Harassment or hate','Campus Safety: someone is in danger','Something else'].map((r,j)=>`<label class="radio"><input type="radio" name="modr" value="${j}" ${j===0?'checked':''}><span>${r}</span></label>`).join('')}</div></fieldset>
+  <p class="note">This goes to KSUX volunteer moderators. It does not contact police.</p>
+  <div class="dlg-actions"><button class="btn" data-act="closeDialog">Cancel</button><button class="btn dark" data-act="modSend">Send to moderators</button></div></div>`;
+ return '';
+}
+
+/* ================= RENDER ================= */
+function renderFlow(){
+ const f=S.flow; if(!f) return '';
+ let inner;
+ if(f.stage==='emer') inner=renderEmergency(f.fromReport);
+ else if(f.stage==='divert') inner=renderDivert();
+ else if(f.stage==='done') inner=renderDone();
+ else inner=S.variant==='A'?renderA():S.variant==='B'?renderB():renderC();
+ return `<div class="dialog full flow" role="dialog" aria-modal="true" aria-labelledby="flowH" id="flowDlg">${inner}</div>`;
+}
+let lastOpenKey=null;
+function render(){
+ const app=$('#app'); app.dataset.theme=S.theme; app.dataset.motion=S.motion; $('#stage').dataset.frame=S.frame; document.documentElement.style.fontSize=S.text+'%';
+ const scroll=$('#flowDlg')?.scrollTop, mscroll=$('#main')?.scrollTop;
+ const active=document.activeElement; const activeKey=active&&(active.id||active.dataset?.f&&`[data-f="${active.dataset.f}"]${active.value&&active.type==='radio'?`[value="${active.value}"]`:''}`||active.dataset?.act&&`[data-act="${active.dataset.act}"]${active.dataset.id?`[data-id="${active.dataset.id}"]`:''}${active.dataset.k?`[data-k="${active.dataset.k}"]`:''}${active.dataset.c?`[data-c="${active.dataset.c}"]`:''}`);
+ const selStart=active?.selectionStart;
+ $('#shellRoot').innerHTML=renderIncidents();
+ $('#dialogRoot').innerHTML=S.flow?renderFlow():renderDialog();
+ const openKey=S.flow?'flow':S.dialog?'dlg:'+S.dialog.type:null;
+ if(openKey&&openKey===lastOpenKey) document.querySelectorAll('#dialogRoot .dialog,#dialogRoot .backdrop').forEach(n=>n.classList.add('settled'));
+ lastOpenKey=openKey;
+ $('#shellRoot').inert=!!(S.flow||S.dialog);
+ if($('#flowDlg')&&scroll!=null&&!focusSel) $('#flowDlg').scrollTop=scroll;
+ if($('#main')&&mscroll!=null) $('#main').scrollTop=mscroll;
+ if(focusSel){const el=$(focusSel);if(el){el.focus({preventScroll:true});if(el.id!=='flowH'&&el.id!=='dlgH'&&el.id!=='pageH'){el.scrollIntoView?.({block:'center'});}else{const fd=$('#flowDlg');if(fd&&el.id==='flowH')fd.scrollTop=0;}}focusSel=null;}
+ else if(activeKey){const el=document.getElementById(active.id)||$(activeKey.startsWith('[')?activeKey:'#'+activeKey);if(el){el.focus({preventScroll:true});if(selStart!=null&&el.setSelectionRange&&el.type!=='radio'&&el.type!=='file'&&el.type!=='checkbox'&&el.type!=='time')try{el.setSelectionRange(selStart,selStart)}catch{}}}
+ app.scrollTop=0; app.scrollLeft=0;
+ $('#vLabel').textContent=`${S.variant} · ${VARIANTS.find(v=>v.k===S.variant).name}`;
+ if(S.state) renderState();
+}
+function renderState(){
+ const f=S.flow;
+ $('#statePanel').innerHTML=`<h2>Variant</h2><pre>${S.variant} (${VARIANTS.find(v=>v.k===S.variant).name})</pre><h2>Flow</h2><pre>${f?esc(JSON.stringify({stage:f.stage,step:S.variant==='A'?A_STEPS[f.stepIdx]?.k:S.variant==='B'?f.sub||'form':f.open,divert:f.divert,errors:f.err},null,1)):'closed'}</pre><h2>Draft</h2><pre>${f?esc(JSON.stringify({...f.d,photo:f.d.photo?'(image)':null},null,1)):'-'}</pre><h2>Last screen-reader announcement</h2><pre>${esc(S.lastAnnounce||'-')}</pre><h2>Write-time checks on text</h2><pre>${f?esc(JSON.stringify(checkText(f.d.text))):'-'}</pre><h2>Incidents</h2><pre>${esc(S.incidents.map(i=>`${i.id} ${i.cat} @${area(i.area).name} ${i.hidden?'(hidden)':'@'+i.author} ${i.photo?'+photo':''}`).join('\n'))}</pre>`;
+}
+
+/* ================= ACTIONS ================= */
+let lastTrigger=null;
+function startFlow(fromReport=false,reportId=null){S.flow={stage:'emer',fromReport,reportId,d:blankDraft(),stepIdx:0,open:'cat',err:{}};focusAfter('#flowH');render();announce('Is anyone in danger right now? Emergency options.');}
+function closeFlow(msg){S.flow=null;render();if(msg)toast(msg);if(lastTrigger&&document.body.contains(lastTrigger))lastTrigger.focus();else $('#pageH')?.focus();}
+function toForm(){const f=S.flow;f.stage='form';f.err={};focusAfter('#flowH');render();announce(S.variant==='A'?`Step ${f.stepIdx+1} of ${A_STEPS.length}. ${A_STEPS[f.stepIdx].h}`:S.variant==='B'?'Report form. 6 sections.':'Build your incident post. Live preview at the top.');}
+function setCat(id){
+ const f=S.flow; if(DIVERTS.some(v=>v.id===id)){f.stage='divert';f.divert=id;focusAfter('#flowH');render();announce(DIVERTS.find(v=>v.id===id).label+'. Not posted publicly.');return true;}
+ f.d.cat=id; delete f.err.cat; return false;
+}
+function postDraft(){
+ const d=S.flow.d; const inc=draftAsIncident(d); inc.id='i'+Date.now(); inc.photoPending=!!d.photo; inc.hidden=d.identity==='hidden';
+ S.incidents.unshift(inc); S.flow.stage='done'; S.flow.postedId=inc.id; S.campus=area(inc.area).c; focusAfter('#flowH'); render(); announce('Posted to the KSUX community. This did not contact police.');
+}
+function firstErrFocus(e){const k=Object.keys(e)[0];if(k)focusAfter('#'+FIELD_ID[k]);}
+
+document.addEventListener('click',ev=>{
+ const el=ev.target.closest('[data-act]'); if(!el) return;
+ const act=el.dataset.act, f=S.flow;
+ if(el.tagName==='A') ev.preventDefault();
+ switch(act){
+ case 'noop': toast('Not part of this prototype.');break;
+ case 'skipMain': $('#main').focus();break;
+ case 'skipMap': $('#listH').focus();break;
+ case 'campus': S.campus=el.dataset.c;S.selected=null;render();announce(`${S.campus} campus. ${$('#listH').textContent}`);break;
+ case 'dismissIntro': S.introDismissed=true;focusAfter('#pageH');render();break;
+ case 'startFlow': lastTrigger=el;startFlow();break;
+ case 'closeFlow': closeFlow(f&&f.stage!=='done'&&f.stage!=='emer'?'Report discarded. Nothing was posted.':null);break;
+ case 'call':{const n=el.dataset.n;const sms=n.startsWith('sms');const num=n.replace('sms ','');
+   toast(S.demo?`Demo Mode: nothing dialled. KSUX would open your ${sms?'Messages app to text':'phone app to call'} ${num}.`:`Opening your ${sms?'Messages app':'phone app'}… (prototype: ${sms?'sms':'tel'}:${num} not opened) KSUX can't confirm ${sms?'delivery':'the call'} or a police response.`);break;}
+ case 'notEmergency': toForm();break;
+ case 'toEmer': f.stage='emer';focusAfter('#flowH');render();break;
+ case 'toEmerAgain': f.stage='emer';f.fromReport=false;focusAfter('#flowH');render();break;
+ case 'sendModReport': S.flow=null;S.dialog={type:'mod',id:f.reportId};focusAfter('#dlgH');render();break;
+ case 'back': f.stepIdx--;f.err={};focusAfter('#flowH');render();announce(`Step ${f.stepIdx+1} of ${A_STEPS.length}. ${A_STEPS[f.stepIdx].h}`);break;
+ case 'next':{const st=A_STEPS[f.stepIdx];f.err=validate(f.d,st.fields);
+   if(Object.keys(f.err).length){firstErrFocus(f.err);render();announce(Object.values(f.err).join(' '));break;}
+   f.stepIdx++;focusAfter('#flowH');render();announce(`Step ${f.stepIdx+1} of ${A_STEPS.length}. ${A_STEPS[f.stepIdx].h}`);break;}
+ case 'submit': postDraft();break;
+ case 'setCat':{const div=setCat(el.dataset.id);if(div)break;
+   if(S.variant==='C'){f.open='where';focusAfter('#acc-where');render();announce(`${cat(f.d.cat).label} chosen. Next: where.`);}else render();break;}
+ case 'undivert': f.stage='form';f.divert=null;f.d.cat=null;f.open='cat';if(S.variant==='A')f.stepIdx=0;focusAfter('#flowH');render();break;
+ case 'setCampus': f.d.campus=el.dataset.c;if(f.d.area&&area(f.d.area).c!==f.d.campus)f.d.area=null;f.nearby=null;f.areaQ='';delete f.err.campus;render();announce(`${f.d.campus} campus. ${AREAS.filter(a=>a.c===f.d.campus).length} places to choose from.`);break;
+ case 'nearby': if(!f.nearby){toast('Prototype: pretend the browser asked for your location once and you allowed it.');const list=AREAS.filter(a=>a.c===f.d.campus);f.nearby=list.slice(0,3).map(a=>a.id);render();announce('List sorted with 3 places near you first. Your location was not saved.');}break;
+ case 'pickArea': f.d.area=el.dataset.id;delete f.err.area;render();announce(`${area(f.d.area).name} chosen.`);break;
+ case 'removePhoto': f.d.photo=null;f.d.blur=false;render();announce('Photo removed.');break;
+ case 'bPreview':{f.err=validate(f.d,['cat','where','when','what','identity']);
+   if(Object.keys(f.err).length){focusAfter('#errSum');render();announce(`${Object.keys(f.err).length} things to fix. Error list.`);break;}
+   f.sub='preview';focusAfter('#flowH');render();announce('Check your post. Preview.');break;}
+ case 'bEdit': f.sub=null;focusAfter('#flowH');render();break;
+ case 'jump':{const t=document.getElementById(el.dataset.to);t?.focus();break;}
+ case 'accToggle':{const k=el.dataset.k;f.open=f.open===k?null:k;focusAfter('#acc-'+k);render();break;}
+ case 'accNext':{const idx=C_SECS.findIndex(s=>s.k===el.dataset.k);const s=C_SECS[idx];const e=validate(f.d,s.fields);f.err={...f.err};
+   for(const k of ['cat','campus','area','detail','when','text','identity'])delete f.err[k];Object.assign(f.err,e);
+   if(Object.keys(e).length){firstErrFocus(e);render();announce(Object.values(e).join(' '));break;}
+   const nx=C_SECS[idx+1];f.open=nx?nx.k:null;focusAfter(nx?'#acc-'+nx.k:'[data-act="cSubmit"]');render();announce(nx?`${s.q} done. Next: ${nx.q}`:'All steps done. Check the preview, then post.');break;}
+ case 'cSubmit':{f.err=validate(f.d,['cat','where','when','what','identity']);
+   if(Object.keys(f.err).length){const k=Object.keys(f.err)[0];const sk=C_SECS.find(s=>s.fields.includes(k)||(s.k==='where'&&['campus','area','detail'].includes(k)));f.open=sk.k;firstErrFocus(f.err);render();announce(`Not ready. ${Object.values(f.err)[0]}`);break;}
+   postDraft();break;}
+ case 'seePosted': S.selected=f.postedId;S.flow=null;S.introDismissed=true;focusAfter(`#h-${S.selected}`);render();break;
+ case 'deletePosted': S.incidents=S.incidents.filter(i=>i.id!==f.postedId);closeFlow('Post deleted.');break;
+ case 'pin':{S.selected=el.dataset.id;const i=S.incidents.find(x=>x.id===S.selected);render();announce(`Selected: ${cat(i.cat).label} at ${area(i.area).name}. Shown first in the list below.`);break;}
+ case 'detail': lastTrigger=el;S.dialog={type:'detail',id:el.dataset.id};focusAfter('#dlgH');render();break;
+ case 'report': lastTrigger=lastTrigger||el;S.dialog={type:'mod',id:el.dataset.id};focusAfter('#dlgH');render();break;
+ case 'modSend':{const v=document.querySelector('input[name="modr"]:checked')?.value;
+   if(v==='3'){const id=S.dialog.id;S.dialog=null;S.flow={stage:'emer',fromReport:true,reportId:id,d:blankDraft(),err:{}};focusAfter('#flowH');render();break;}
+   S.dialog=null;render();toast('Sent to KSUX moderators.');lastTrigger?.focus();break;}
+ case 'identifies': S.dialog=null;render();toast('Sent to KSUX moderators as “identifies me”. Prototype: the post would be hidden until reviewed.');break;
+ case 'addUpdate': S.dialog={type:'update',id:el.dataset.id};focusAfter('#f-upd');render();break;
+ case 'saveUpdate':{const t=$('#f-upd').value.trim();const iss=checkText(t);
+   if(t.length<3){$('#upd-err').textContent='Write an update first.';$('#f-upd').focus();break;}
+   if(iss.length){$('#upd-err').textContent=iss[0].type==='claim'?`Updates can't say “${iss[0].label}”. Say what you now see.`:`Remove ${iss[0].label}.`;$('#f-upd').setAttribute('aria-describedby','upd-err');$('#f-upd').focus();announce($('#upd-err').textContent);break;}
+   const i=S.incidents.find(x=>x.id===el.dataset.id);i.updates.push({t:Date.now(),kind:'author',text:t});i.updatedAt=Date.now();S.dialog=null;render();toast('Update added under your post.');break;}
+ case 'deleteInc': S.incidents=S.incidents.filter(i=>i.id!==el.dataset.id);S.dialog=null;render();toast('Post deleted.');break;
+ case 'closeDialog': S.dialog=null;render();lastTrigger?.focus();break;
+ }
+});
+document.addEventListener('input',ev=>{
+ const el=ev.target, k=el.dataset?.f; if(!k||!S.flow) return; const d=S.flow.d;
+ if(k==='text'){d.text=el.value;render();return;}
+ if(k==='detail'){d.detail=el.value;render();return;}
+ if(k==='areaQ'){S.flow.areaQ=el.value;render();return;}
+ if(k==='whenTime'){d.whenTime=el.value;render();return;}
+});
+document.addEventListener('change',ev=>{
+ const el=ev.target, k=el.dataset?.f; if(!k||!S.flow) return; const f=S.flow, d=f.d;
+ if(k==='cat'){if(setCat(el.value))return;render();announce(`${cat(d.cat).label} chosen.`);}
+ if(k==='area'){d.area=el.value;delete f.err.area;render();announce(`${area(d.area).name} chosen.`);}
+ if(k==='when'){d.when=el.value;delete f.err.when;
+   if(S.variant==='C'&&d.when!=='today'){f.open='what';focusAfter('#acc-what');render();announce(`${WHENS.find(w=>w.id===d.when).label}. Next: what did you see?`);}else render();}
+ if(k==='identity'){d.identity=el.value;delete f.err.identity;render();if(S.variant==='C')announce('Name choice saved. All steps answered? Check the preview, then post.');}
+ if(k==='blur'){d.blur=el.checked;render();announce(d.blur?'Photo will be blurred.':'Blur removed.');}
+ if(k==='photo'&&el.files?.[0]){d.photo=URL.createObjectURL(el.files[0]);focusAfter('[data-f="blur"]');render();announce('Photo added. It will be held for moderator review.');}
+});
+document.addEventListener('keydown',ev=>{
+ if(ev.key==='Escape'){ if(S.dialog){S.dialog=null;render();lastTrigger?.focus();return;} if(S.flow){closeFlow(S.flow.stage!=='done'&&S.flow.stage!=='emer'?'Report discarded. Nothing was posted.':null);return;} }
+ const t=ev.target; if(ev.key!=='ArrowLeft'&&ev.key!=='ArrowRight') return;
+ if(t.closest('input,textarea,select,[contenteditable],[role="radio"],[role="radiogroup"],.seg,.chips-pick')) return;
+ cycle(ev.key==='ArrowRight'?1:-1);
+});
+
+/* ================= VARIANT SWITCHER ================= */
+function cycle(dir){
+ const i=VARIANTS.findIndex(v=>v.k===S.variant); S.variant=VARIANTS[(i+dir+VARIANTS.length)%VARIANTS.length].k;
+ const u=new URL(location.href); u.searchParams.set('variant',S.variant); history.replaceState(null,'',u);
+ if(S.flow&&S.flow.stage==='form'){S.flow.err={};S.flow.sub=null;if(S.variant==='A')S.flow.stepIdx=0;S.flow.open='cat';}
+ render();
+}
+$('#vPrev').onclick=()=>cycle(-1); $('#vNext').onclick=()=>cycle(1);
+$('#ctlTheme').onchange=e=>{S.theme=e.target.value;render();};
+$('#ctlMotion').onchange=e=>{S.motion=e.target.value;render();};
+$('#ctlText').oninput=e=>{S.text=+e.target.value;$('#textOut').textContent=S.text+'%';render();};
+$('#ctlDemo').onchange=e=>{S.demo=e.target.checked;render();};
+$('#ctlFrame').onchange=e=>{S.frame=e.target.value;render();};
+$('#ctlState').onclick=e=>{S.state=!S.state;$('#statePanel').hidden=!S.state;e.target.setAttribute('aria-expanded',S.state);render();};
+$('#ctlReset').onclick=()=>{S.incidents=seed();S.flow=null;S.dialog=null;S.introDismissed=false;S.selected=null;render();};
+render();
+</script>
+</body>
+</html>
