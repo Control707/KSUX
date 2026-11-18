@@ -35,6 +35,7 @@ it("keeps KSU-wide reads stable when a Student switches location and defaults ne
 
   const explicitlyLocal = { ...reader, campusOverride: "Marietta" as const };
   expect((await t.query(api.marketplace.listListings, explicitlyLocal)).map(({ campus }) => campus)).toEqual(["Marietta"]);
+  expect((await t.query(api.marketplace.listListings, { ...explicitlyLocal, onlyMine: true })).map(({ campus }) => campus)).toEqual(["Marietta"]);
   expect((await t.query(api.communities.listClubs, explicitlyLocal)).map(({ campus }) => campus)).toEqual(["Marietta"]);
   for (const stream of ["campus", "trending"] as const) {
     expect((await t.query(api.feed.listCampusOrTrendingFeed, {

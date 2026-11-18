@@ -153,7 +153,8 @@ export const listListings = viewerQuery({
     }
 
     const visibleDocs = args.onlyMine
-      ? rawDocs.filter((l) => l.visibilityStatus !== "removed")
+      ? rawDocs.filter((l) => l.visibilityStatus !== "removed"
+        && (campusFilter === "All KSU" || l.campus === campusFilter))
       : filterVisibleContent(rawDocs, viewer, {
           targetType: "listing",
           getAuthorId: (l) => l.sellerId,
