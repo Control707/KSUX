@@ -5,7 +5,7 @@ import { evaluateDiningOpenStatus } from "./lib/parkingMath";
 import { formatStalenessBadge } from "./lib/syncGuard";
 import { viewerMutation, viewerQuery } from "./lib/viewer";
 import { Doc } from "./_generated/dataModel";
-import { freshShuttleAlerts, freshShuttleEta, freshShuttleVehicles } from "./lib/shuttleRead";
+import { freshShuttleNotices, freshShuttleEta, freshShuttleVehicles } from "./lib/shuttleRead";
 import { easternDate } from "./lib/easternDate";
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
@@ -106,7 +106,7 @@ export const listShuttleOverview = viewerQuery({
         };
       }),
       vehicles: freshShuttleVehicles(latestSnap, now, viewer.mode === "demo"),
-      serviceAlerts: freshShuttleAlerts(latestSnap, now, viewer.mode === "demo"),
+      shuttleNotices: freshShuttleNotices(latestSnap, now, viewer.mode === "demo"),
       fetchedAt: latestSnap?.vehiclesFetchedAt ?? null,
       isFixture: viewer.mode === "demo" && Boolean(latestSnap?.isFixture),
     };

@@ -49,7 +49,7 @@ export function ModerationQueueView() {
     api.moderation.getModerationQueue,
     isModerator ? {} : "skip"
   );
-  const showFeedHealth = isModerator && auth.status !== "demo";
+  const showFeedHealth = summary?.viewer.isMaintainer === true && auth.status === "student";
   const feedHealth = useViewerQuery(api.moderation.getCampusFeedHealth, showFeedHealth ? {} : "skip");
   const blockedList = useViewerQuery(api.moderation.listBlockedStudents, {});
   const reviewTarget = useViewerMutation(api.moderation.reviewModerationTarget);

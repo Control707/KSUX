@@ -1,3 +1,4 @@
+import { seedV2DemoStates } from "./v2Fixtures";
 import { MutationCtx } from "../_generated/server";
 import { Doc, Id } from "../_generated/dataModel";
 import { makeStudentPairKey } from "../lib/crypto";
@@ -728,6 +729,7 @@ export async function cloneDemoWorkspaceFixtures(
       targetKey: quarantinedTargetKey,
       reason: "scam_spam",
       queueStatus: "quarantined",
+      priority: 3,
       createdAt: now - 45 * MIN,
     });
   }
@@ -1230,6 +1232,8 @@ export async function cloneDemoWorkspaceFixtures(
     publishedAt: now - 4 * MIN,
     expiresAt: now + 11 * MIN,
   });
+
+  await seedV2DemoStates(ctx, demoSessionId, { mayaId, jordanId, alexId }, now);
 
   return { mayaId, jordanId, alexId };
 }

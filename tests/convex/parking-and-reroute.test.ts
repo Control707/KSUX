@@ -6,7 +6,7 @@ import {
 } from "../helpers/convexTestEnv";
 
 describe("Seam 1 — Parking Lots, 45m Recency Decay, Outlier Trimming, Spot Opening & Rerouting (#20)", () => {
-  it("enforces 10m per-lot report cooldowns, 45m decay into 168-hr priors, >=3-report outlier trimming, 2-vote Gone clearing, and overflow Shuttle rerouting", async () => {
+  it("enforces 10m per-lot report cooldowns, 45m expiration, >=3-report outlier trimming, 2-vote Gone clearing, and overflow Shuttle rerouting", async () => {
     const t = createTestConvex();
     await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: true });
 
@@ -28,7 +28,7 @@ describe("Seam 1 — Parking Lots, 45m Recency Decay, Outlier Trimming, Spot Ope
 
     const baseNow = Date.now();
 
-    // Zero active reports fall back to the labeled modeled baseline.
+    // Zero active reports show unavailable occupancy.
     const initial = await t.query(api.parking.listParkingLots, {
       sessionToken: s1.sessionToken,
       campusOverride: "Kennesaw",
@@ -38,8 +38,8 @@ describe("Seam 1 — Parking Lots, 45m Recency Decay, Outlier Trimming, Spot Ope
     const central = initial.lots.find(
       (l) => l.slug === "central-parking-deck"
     )!;
-    expect(central.provenanceKind).toBe("baseline_prior");
-    expect(central.provenanceLabel).toMatch(/Estimated · Modeled/);
+    expect(central.provenanceKind).toBe("no_recent_reports");
+    expect(central.effectiveTier).toBeNull();
 
     // Pin up to 2 favorite lots; 3rd pin rejected
     const eastDeck = initial.lots.find((l) => l.slug === "east-parking-deck")!;
@@ -80,7 +80,7 @@ describe("Seam 1 — Parking Lots, 45m Recency Decay, Outlier Trimming, Spot Ope
       })
     ).rejects.toThrowError(/1 per 10 minutes/);
 
-    // 1 report blends 70/30 with prior ("Live · 1 Student report")
+    // 1 report keeps its reported tier ("Live · 1 Student report")
     const afterOne = await t.query(api.parking.listParkingLots, {
       sessionToken: s1.sessionToken,
       campusOverride: "Kennesaw",
@@ -89,7 +89,7 @@ describe("Seam 1 — Parking Lots, 45m Recency Decay, Outlier Trimming, Spot Ope
     const centralAfterOne = afterOne.lots.find(
       (l) => l.slug === "central-parking-deck"
     )!;
-    expect(centralAfterOne.provenanceKind).toBe("blended_single");
+    expect(centralAfterOne.provenanceKind).toBe("single_report");
 
     // s2 also reports Full (3), while s3 submits a lone troll Open (0) within 20m -> outlier trimmed, stays Full (3) + triggers Overflow Shuttle Reroute!
     await t.mutation(api.parking.submitParkingReport, {
@@ -107,6 +107,14 @@ describe("Seam 1 — Parking Lots, 45m Recency Decay, Outlier Trimming, Spot Ope
       nowOverride: baseNow + 3 * 60_000,
     });
 
+    const overflow = initial.lots.find((lot) => lot.slug === "town-point-economy-lot")!;
+    await t.mutation(api.parking.submitParkingReport, {
+      sessionToken: s2.sessionToken,
+      parkingLotId: overflow._id,
+      reportKind: "fullness",
+      fullnessTier: 0,
+      nowOverride: baseNow + 3 * 60_000,
+    });
     const afterThree = await t.query(api.parking.listParkingLots, {
       sessionToken: s1.sessionToken,
       campusOverride: "Kennesaw",
@@ -124,7 +132,7 @@ describe("Seam 1 — Parking Lots, 45m Recency Decay, Outlier Trimming, Spot Ope
       "Economy Route"
     );
 
-    // After 46 minutes, reports decay back to baseline_prior with zero status-flip crons!
+    // After 46 minutes, reports decay back to no_recent_reports with zero status-flip crons!
     const after46m = await t.query(api.parking.listParkingLots, {
       sessionToken: s1.sessionToken,
       campusOverride: "Kennesaw",
@@ -133,7 +141,7 @@ describe("Seam 1 — Parking Lots, 45m Recency Decay, Outlier Trimming, Spot Ope
     expect(
       after46m.lots.find((l) => l.slug === "central-parking-deck")
         ?.provenanceKind
-    ).toBe("baseline_prior");
+    ).toBe("no_recent_reports");
 
     // 10-minute Spot Opening pulse: clears after 2 distinct Gone votes
     const opening = await t.mutation(api.parking.submitParkingReport, {

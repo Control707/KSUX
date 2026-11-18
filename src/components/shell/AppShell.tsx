@@ -604,7 +604,7 @@ export function AppShell({
               <div className="space-y-2">
                 {(summary?.campusPulse.parkingLots ?? []).map((lot) => {
                   const tierBadge =
-                    lot.effectiveTier === 0
+                    lot.effectiveTier === null ? "bg-[#E4E7EE] text-[#5E6675]" : lot.effectiveTier === 0
                       ? "bg-[#DCFCE7] text-[#15803D]"
                       : lot.effectiveTier === 1
                         ? "bg-[#FEF3C7] text-[#B45309]"

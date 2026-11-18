@@ -42,7 +42,11 @@ export const registerPushSubscription = verifiedStudentMutation({
 
     if (existingByEndpoint) {
       await ctx.db.patch(existingByEndpoint._id, {
+        workspaceKey: "prod",
         studentId,
+        ...(existingByEndpoint.studentId !== studentId
+          ? { officialAlertOptIn: undefined, officialAlertOptedInAt: undefined }
+          : {}),
         p256dh: args.p256dh,
         auth: args.auth,
         userAgent: args.userAgent,
@@ -68,6 +72,7 @@ export const registerPushSubscription = verifiedStudentMutation({
     }
 
     const subscriptionId = await ctx.db.insert("pushSubscriptions", {
+      workspaceKey: "prod",
       studentId,
       endpoint: cleanEndpoint,
       p256dh: args.p256dh,

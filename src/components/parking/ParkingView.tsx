@@ -168,7 +168,7 @@ export function ParkingView() {
             </h1>
             <p className="text-xs text-[#5E6675]">
               Kennesaw &amp; Marietta · Recent Student reports and modeled
-              fullness estimates · Pin up to 2 Parking Lots.
+              fullness reports · Pin up to 2 Parking Lots.
             </p>
           </div>
 
@@ -222,7 +222,7 @@ export function ParkingView() {
       <div className="space-y-3">
         {displayedLots.map((lot) => {
           const badgeCls =
-            lot.effectiveTier === 0
+            lot.effectiveTier === null ? "bg-[#E4E7EE] text-[#5E6675]" : lot.effectiveTier === 0
               ? "bg-[#DCFCE7] text-[#15803D]"
               : lot.effectiveTier === 1
                 ? "bg-[#FEF3C7] text-[#B45309]"

@@ -14,7 +14,7 @@ export interface CampusMapLotMarker {
   campus: "Kennesaw" | "Marietta";
   latitude: number;
   longitude: number;
-  effectiveTier: 0 | 1 | 2 | 3;
+  effectiveTier: 0 | 1 | 2 | 3 | null;
   hasSpotOpening?: boolean;
 }
 
@@ -339,7 +339,7 @@ export function CampusGeoMap({
             ...f,
             properties: {
               ...f.properties,
-              effectiveTier: tierBySlug.get(f.properties?.slug) ?? 1,
+              effectiveTier: tierBySlug.get(f.properties?.slug) ?? -1,
             },
           })),
         };

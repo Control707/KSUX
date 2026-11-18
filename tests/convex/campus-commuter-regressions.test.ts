@@ -79,7 +79,7 @@ describe("Campus commuter data provenance", () => {
     });
     expect(parking.lots[0]).toMatchObject({
       _id: parkingLotId,
-      provenanceKind: "blended_single",
+      provenanceKind: "single_report",
       effectiveTier: 0,
     });
   });

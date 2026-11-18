@@ -12,7 +12,7 @@ import {
   viewerMutation,
   viewerQuery,
 } from "./lib/viewer";
-import { closeStudentArtifactsAndMedia } from "./students";
+import { cleanupV2Student, closeStudentArtifactsAndMedia } from "./students";
 import { Id } from "./_generated/dataModel";
 import { getChatMembership, updateLatestMessagePreview } from "./chats";
 import { queueMediaDeletion } from "./lib/mediaCleanup";
@@ -253,6 +253,7 @@ export const submitReport = viewerMutation({
         reason: args.reason,
         notes: args.notes?.trim().slice(0, 300),
         queueStatus: "open",
+        priority: 3,
         createdAt: now,
       });
     }
@@ -308,7 +309,7 @@ const campusFeeds = [
 export const getCampusFeedHealth = viewerQuery({
   args: {},
   handler: async (ctx) => {
-    if (ctx.viewer.mode !== "student" || !ctx.viewer.isModerator) {
+    if (ctx.viewer.mode !== "student" || !ctx.viewer.isMaintainer) {
       throw new ConvexError({ code: "FORBIDDEN", message: "Campus feed health requires maintainer access." });
     }
     const now = Date.now();
@@ -374,6 +375,8 @@ export const getModerationQueue = viewerQuery({
     >();
 
     for (const r of [...quarantinedReports, ...openReports]) {
+      // Incident content belongs to the v2 queue and its CSA/own-item guards.
+      if (r.targetType === "incident") continue;
       const targetId = r.targetKey.slice(r.targetType.length + 1);
       const existing = grouped.get(r.targetKey);
       if (!existing) {
@@ -504,6 +507,9 @@ export const reviewModerationTarget = moderatorMutation({
   handler: async (ctx, args) => {
     const now = Date.now();
     const wsKey = ctx.viewer.workspaceKey;
+    if (args.decision === "suspend_student" && !ctx.viewer.isMaintainer) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Only maintainers can suspend Students." });
+    }
     const targetKey = makeTargetKey(args.targetType, args.targetId);
 
     let targetAuthorId: Id<"students"> | undefined;
@@ -622,6 +628,7 @@ export const reviewModerationTarget = moderatorMutation({
           student._id
         );
 
+        await cleanupV2Student(ctx, wsKey, student._id, false);
         const suspendedHandle = `suspended_${String(student._id).slice(-10).toLowerCase()}`;
         await ctx.db.patch(student._id, {
           canonicalEmail: undefined,

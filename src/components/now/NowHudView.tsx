@@ -199,7 +199,7 @@ export function NowHudView() {
           <div className="mt-2.5 space-y-2.5">
             {parkingCards.slice(0, 2).map((lot: any) => {
               const badgeCls =
-                lot.effectiveTier === 0
+                lot.effectiveTier === null ? "bg-[#E4E7EE] text-[#5E6675]" : lot.effectiveTier === 0
                   ? "bg-[#DCFCE7] text-[#15803D]"
                   : lot.effectiveTier === 1
                     ? "bg-[#FEF3C7] text-[#B45309]"

@@ -15,7 +15,7 @@ it("reports successful empty, partial, stale, and recovered streams only to main
     const earlier = now - 20 * 60_000;
     const shuttle = internal.sync.transitDiningSync.applyShuttleSyncInternal;
 
-    await t.mutation(shuttle, { now: earlier, status: "ready_to_upsert", vehicles: [], stopEtas: [], serviceAlerts: [] });
+    await t.mutation(shuttle, { now: earlier, status: "ready_to_upsert", vehicles: [], stopEtas: [], shuttleNotices: [] });
     expect((await health()).passio_shuttle).toMatchObject({
       result: "empty", freshness: "stale", acceptedCount: 0, lastSuccessAt: earlier,
     });
@@ -25,7 +25,7 @@ it("reports successful empty, partial, stale, and recovered streams only to main
     });
     await t.mutation(shuttle, { now: now - 100, status: "failed", failureReason: "invalid stream" });
     expect((await health()).passio_shuttle).toMatchObject({ result: "failed", lastSuccessAt: earlier });
-    await t.mutation(shuttle, { now, status: "ready_to_upsert", vehicles: [], stopEtas: [], serviceAlerts: [] });
+    await t.mutation(shuttle, { now, status: "ready_to_upsert", vehicles: [], stopEtas: [], shuttleNotices: [] });
     expect((await health()).passio_shuttle).toMatchObject({ result: "empty", freshness: "within_window", lastSuccessAt: now });
     await t.mutation(internal.sync.eventsSync.applySyncedEventsInternal, {
       now, status: "failed_or_aborted", sourceObservations: [

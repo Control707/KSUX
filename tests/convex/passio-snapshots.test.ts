@@ -27,7 +27,7 @@ function passioFeed(streams: Record<string, unknown> = {}): UpstreamFetchFn {
 describe("Passio Shuttle Route snapshots", () => {
   it("normalizes header-only full snapshots and ignores header timestamps when hash gating", async () => {
     const initial = await runPassioShuttleIngestCycle({ syncState, nowMs: now, fetchImpl: passioFeed() });
-    expect(initial).toMatchObject({ status: "ready_to_upsert", vehicles: [], stopEtas: [], serviceAlerts: [] });
+    expect(initial).toMatchObject({ status: "ready_to_upsert", vehicles: [], stopEtas: [], shuttleNotices: [] });
     if (initial.status !== "ready_to_upsert") throw new Error("Expected an empty full snapshot");
 
     const next = await runPassioShuttleIngestCycle({
@@ -66,7 +66,7 @@ describe("Passio Shuttle Route snapshots", () => {
     if (prev.status !== "ready_to_upsert") throw new Error("Expected the live snapshot");
     await t.mutation(mutation, {
       now: now - 60_000, status: prev.status, payloadHash: prev.payloadHash,
-      vehicles: prev.vehicles, stopEtas: prev.stopEtas, serviceAlerts: prev.serviceAlerts,
+      vehicles: prev.vehicles, stopEtas: prev.stopEtas, shuttleNotices: prev.shuttleNotices,
     });
 
     const current = await runPassioShuttleIngestCycle({
@@ -75,16 +75,16 @@ describe("Passio Shuttle Route snapshots", () => {
     });
     if (current.status !== "ready_to_upsert") throw new Error("Expected an independent alert update");
     expect(current.vehicles).toBeUndefined();
-    expect(current.serviceAlerts).toEqual([]);
+    expect(current.shuttleNotices).toEqual([]);
     await t.mutation(mutation, {
       now, status: current.status, payloadHash: current.payloadHash,
-      vehicles: current.vehicles, stopEtas: current.stopEtas, serviceAlerts: current.serviceAlerts,
+      vehicles: current.vehicles, stopEtas: current.stopEtas, shuttleNotices: current.shuttleNotices,
     });
 
     const snapshot = await t.run(({ db }) => db.query("shuttleSnapshots").unique());
     expect(snapshot?.vehicles).toHaveLength(10);
     expect(snapshot?.vehiclesFetchedAt).toBe(now - 60_000);
-    expect(snapshot?.alertsFetchedAt).toBe(now);
-    expect(snapshot?.serviceAlerts).toEqual([]);
+    expect(snapshot?.noticesFetchedAt).toBe(now);
+    expect(snapshot?.shuttleNotices).toEqual([]);
   });
 });

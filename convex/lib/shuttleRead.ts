@@ -13,8 +13,8 @@ export function freshShuttleVehicles(snapshot: Snapshot, now: number, demo: bool
   return snapshot && isFresh(snapshot, snapshot.vehiclesFetchedAt, now, demo) ? snapshot.vehicles : [];
 }
 
-export function freshShuttleAlerts(snapshot: Snapshot, now: number, demo: boolean) {
-  return snapshot && isFresh(snapshot, snapshot.alertsFetchedAt, now, demo) ? snapshot.serviceAlerts : [];
+export function freshShuttleNotices(snapshot: Snapshot, now: number, demo: boolean) {
+  return snapshot && isFresh(snapshot, snapshot.noticesFetchedAt, now, demo) ? snapshot.shuttleNotices ?? [] : [];
 }
 
 export function freshShuttleEta(snapshot: Snapshot, routeId: string, now: number, demo: boolean) {
