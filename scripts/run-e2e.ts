@@ -112,6 +112,8 @@ async function main() {
         windowsHide: true,
       });
       await waitForConvexFunctionsReady(backend);
+    } else if (process.env.CI) {
+      throw new Error("CI requires port 3210 to be free so Playwright can start its own Convex backend.");
     } else if (!configuredSecret) {
       throw new Error("Set KSUX_SERVER_SECRET for the running local backend, or stop that backend so the test runner can configure its own.");
     }
