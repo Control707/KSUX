@@ -18,6 +18,7 @@ import {
 } from "@/lib/viewerClient";
 import { KsuPoliceEmergencyCallout } from "@/components/shared/ReportTrigger";
 
+import { V2LaunchOps } from "./V2LaunchOps";
 const outcomeLabels = {
   pending: "Awaiting first sync",
   accepted: "Accepted",
@@ -100,6 +101,7 @@ export function ModerationQueueView() {
         </div>
       </div>
 
+      {isModerator && auth.status === "student" && <V2LaunchOps />}
       {showFeedHealth && (
         <section aria-labelledby="campus-feed-health" className="rounded-2xl border border-[#E4E7EE] bg-white p-4">
           <h2 id="campus-feed-health" className="text-sm font-black">Campus feed health</h2>

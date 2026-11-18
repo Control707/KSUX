@@ -121,6 +121,41 @@ All accounts below require **zero credit cards** and **zero custom domains**:
 
 ---
 
+## KSUX v2 launch and Moderation operations
+
+### Incident posting switch
+
+- [ ] In production, appoint at least two active, verified Students with `@students.kennesaw.edu` addresses as Moderators; Faculty · Staff do not qualify. Record who appointed each and when in the prod-only Moderator roster. Future, expired, revoked, or inactive appointments do not count. Revoke appointments when staffing changes.
+- [ ] Ask each appointee to record a plain-text CSA statement. A person who reports being a campus security authority, including a maintainer, does not review Incidents or Incident Appeals. Resolve ambiguous declarations before giving Incident queue access.
+- [ ] Publish that volunteer Moderators offer no response-time commitment. Keep emergency contacts and official Alert links available independently of community posting.
+- [ ] Practice handling an identifies-me report, a request to remove identifying content, redaction, record retention, and an Appeal in Judge Demo Mode. Suppress public identifying material through the documented queue, preserve the agreed audit record, and use the template-only notes.
+- [ ] On a legal request, notify the designated maintainer privately. Record receipt and escalation in the authorized operations record. Preserve the material already in scope and refer disclosure or retention instructions to the authorized decision-maker.
+- [ ] Record the Moderation operations checklist sign-off. Set the Convex production variable `KSUX_V2_MODERATOR_OPS_COMPLETE=true` only after sign-off. Keep `KSUX_V2_INCIDENT_POSTING` unset or false until launch.
+- [ ] Set `KSUX_V2_INCIDENT_POSTING=true` to request release. The server still requires two eligible appointments and completed operations. Turning off either flag or revoking enough appointments closes the production gate. Incident writes must reuse `getIncidentLaunchGate` immediately before insert. Demo stays enabled.
+
+### Database I/O measurement
+
+From Convex's [function execution usage events](https://docs.convex.dev/platform-apis/track-usage), sum the measured database read and write bytes for the §14 functions during a representative pilot window. Use function-specific measurements from the same window. Include ordinary executions and subscription reruns. Separate other v2 activity and use zero only for a measured zero or a feature that was disabled during the sample. Do not substitute returned JSON bytes for Convex database I/O.
+
+Set the Convex variable `KSUX_V2_DB_IO_SAMPLE` to JSON with `days` (elapsed days), `measuredAt` (UTC end timestamp), and `bytes` (observed totals). Example shape using zero as a placeholder for each value:
+
+```json
+{"days":7,"measuredAt":"2026-11-18T00:00:00Z","bytes":{"alertSourceStatus":0,"activeIncidents":0,"olderIncidents":0,"incidentDetail":0,"leaderboard":0,"other":0}}
+```
+
+Maintain this weekly during the pilot. The maintainer panel projects each measured total over 30 days, flags 50% and 70% of 1 GB, and marks samples older than seven days stale. Compare with the full team budget separately. Use the §13 rollout rules before enabling the Leaderboard. Above 70%, keep the Leaderboard off first and then lengthen Incident list refresh intervals if needed.
+
+### P0 release record
+
+Record the checked commit, test run URLs, manual accessibility log, I/O measurement window, and Moderator readiness sign-off.
+
+- [ ] Phase 0 passes typecheck, isolated Convex deploy and seed, Judge Demo shell, route stubs, and shell accessibility automation.
+- [ ] Phase 1A passes the Layer 4 route, theme, and viewport matrix on migrated screens.
+- [ ] Phase 1B passes Incident, moderation, Appeals, official resources, offline, and Scrappy boundary checks.
+- [ ] Phase 1C passes Clout ledger, corroboration, payout and private Profile checks.
+- [ ] Layers 1–4 are green. Log VoiceOver on iOS Safari and Home Screen, TalkBack, keyboard, 200% zoom and text spacing, and phase Switch Access. Record remaining findings and confirm none stops a P0 flow.
+- [ ] The I/O meter has a fresh measured pilot sample. Keep gated safety and P1 controls off until their separate readiness rules are met.
+
 ## 5. Verification Gate Commands
 
 1. **Static typecheck & lint**:

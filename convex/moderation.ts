@@ -1,3 +1,5 @@
+import { getIncidentLaunchGate, projectMonthlyV2Io } from "./lib/v2Launch";
+import { parseMaintainerEmails } from "./lib/viewer";
 import { describeFeedHealth } from "./lib/syncGuard";
 import { ConvexError, v } from "convex/values";
 import { setClubMembershipRole } from "./communities";
@@ -675,5 +677,25 @@ export const reviewOfficerClaim = moderatorMutation({
     }
     await setClubMembershipRole(ctx, club, membership.workspaceKey, membership.studentId, role, Date.now());
     return { ok: true, role };
+  },
+});
+
+export const getIncidentLaunchStatus = viewerQuery({
+  args: {},
+  handler: async (ctx) => {
+    const { postingEnabled } = await getIncidentLaunchGate(ctx.db, ctx.viewer.mode);
+    return { postingEnabled };
+  },
+});
+
+export const getV2LaunchOps = viewerQuery({
+  args: {},
+  handler: async (ctx) => {
+    const email = ctx.viewer.actorStudent.canonicalEmail;
+    if (ctx.viewer.mode !== "student" || !email || !parseMaintainerEmails(process.env.KSUX_MAINTAINER_EMAILS).has(email)) return null;
+    return {
+      gate: await getIncidentLaunchGate(ctx.db, "student"),
+      io: projectMonthlyV2Io(process.env.KSUX_V2_DB_IO_SAMPLE),
+    };
   },
 });

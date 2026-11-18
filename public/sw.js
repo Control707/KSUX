@@ -52,6 +52,8 @@ self.addEventListener("message", (event) => {
 function isStrictPassthroughRequest(request, url) {
   if (request.method !== "GET") return true;
   if (url.pathname.startsWith("/api/")) return true;
+  // Safety is network-only, for document navigations and App Router/RSC fetches alike.
+  if (url.pathname === "/safety" || url.pathname.startsWith("/safety/")) return true;
   if (
     url.hostname.includes("convex.cloud") ||
     url.hostname.includes("convex.site") ||
