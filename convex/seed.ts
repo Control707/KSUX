@@ -297,14 +297,14 @@ export const bootstrapKsu = internalMutation({
       } : null;
       if (existing) {
         hubIdBySubjectCourse.set(hub.subjectCourse, existing._id);
-        if (!includeFixtures && liveFields) {
+        if (!includeFixtures && liveFields && existing.catalogSource !== "banner_live") {
           const legacyFixtureCount = existing.catalogSource !== "banner_verified" &&
             existing.searchText === hub.searchText ? hub.prodEnrollmentCount as number : 0;
           await ctx.db.patch(existing._id, {
             ...liveFields, isRetiredFixture: undefined, catalogSource: "banner_verified",
             prodEnrollmentCount: Math.max(0, existing.prodEnrollmentCount - legacyFixtureCount),
           });
-        } else if (!includeFixtures && existing.searchText === hub.searchText && !existing.isRetiredFixture) {
+        } else if (!includeFixtures && existing.catalogSource !== "banner_live" && existing.searchText === hub.searchText && !existing.isRetiredFixture) {
           await ctx.db.patch(existing._id, { isRetiredFixture: true });
         }
       } else if (includeFixtures || liveFields) {
@@ -324,7 +324,7 @@ export const bootstrapKsu = internalMutation({
         const existing = await ctx.db.query("courseSections")
           .withIndex("by_term_crn", (q) => q.eq("termCode", fixture.termCode).eq("crn", fixture.crn))
           .unique();
-        if (existing && existing.instructorName === fixture.instructorName && !existing.isRetiredFixture) {
+        if (existing && !existing.bannerRefreshed && existing.instructorName === fixture.instructorName && !existing.isRetiredFixture) {
           await ctx.db.patch(existing._id, { isRetiredFixture: true });
         }
       }
@@ -351,7 +351,7 @@ export const bootstrapKsu = internalMutation({
       if (!existing) {
         await ctx.db.insert("courseSections", { ...fields, isFixture: includeFixtures || undefined });
         sectionsInserted++;
-      } else if (!includeFixtures) {
+      } else if (!includeFixtures && !existing.bannerRefreshed) {
         await ctx.db.patch(existing._id, { ...fields, isRetiredFixture: undefined, isFixture: undefined });
       }
     }

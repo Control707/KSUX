@@ -602,6 +602,7 @@ export default defineSchema({
   // =========================================================================
 
   feedSyncState: defineTable({
+    bannerScope: v.optional(v.string()),
     sourceKey: v.string(),
     lastSuccessAt: v.optional(v.number()),
     lastAttemptAt: v.optional(v.number()),
@@ -860,7 +861,7 @@ export default defineSchema({
 
   courseHubs: defineTable({
     subjectCourse: v.string(),
-    catalogSource: v.optional(v.union(v.literal("fixture"), v.literal("banner_verified"))),
+    catalogSource: v.optional(v.union(v.literal("fixture"), v.literal("banner_verified"), v.literal("banner_live"))),
     isRetiredFixture: v.optional(v.boolean()),
     subjectCode: v.string(),
     courseNumber: v.string(),
@@ -879,6 +880,7 @@ export default defineSchema({
 
   // Strictly 2 B-tree indexes, 0 search/vector indexes per ADR-0006
   courseSections: defineTable({
+    bannerRefreshed: v.optional(v.boolean()),
     termCode: v.string(),
     isFixture: v.optional(v.boolean()),
     isRetiredFixture: v.optional(v.boolean()),

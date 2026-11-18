@@ -159,3 +159,17 @@ Record the date, deployment URL, verified commit SHA, tester, and outcome in the
 - [ ] Sign in with a real KSU inbox. Confirm OTP delivery, verification, reload, and sign-out.
 - [ ] Upload an image through the hosted media provider and confirm it renders. Verify cleanup for abandoned test media.
 - [ ] If Web Push is enabled, opt in on a supported device and confirm receipt and navigation for an eligible message. Record the tested browser and device, or mark push disabled.
+
+## Verified Banner catalog refresh
+
+The [public Owl Express class schedule](https://srs-owlexpress.kennesaw.edu/StudentRegistrationSsb/ssb/term/termSelection?mode=search) provides public term codes. The importer reads the [public class listing](https://owlexpress.kennesaw.edu/prodban/bwckctlg.p_disp_listcrse?crse_in=3305&schd_in=E&subj_in=CS&term_in=202608) without a NetID, stored credentials, personal schedules, or instructor email addresses.
+
+Run a refresh for the current term weekly during registration and once for the incoming term when it is published. Use the approved Convex deployment from your own terminal. Review coverage on an isolated deployment before running the same command in production.
+
+```bash
+npx convex run courses:refreshBannerTerm '{"termCode":"202608","courses":["CS 3305","SWE 3313","ME 3101","MATH 1190"]}'
+```
+
+The sample scope was verified against both public terms on November 18, 2026. It returned 57 Kennesaw/Marietta sections for Fall 2026 and 36 for Spring 2027. These counts cover four courses, across both Campuses. The importer accepts up to eight course requests and 300 validated sections per term, makes sequential requests with a delay, and never fetches a private portal. Other sites and fully remote records without a physical Campus are outside this import’s scope.
+
+Course Hubs show the number of accepted sections from the last successful scope and its refresh date. A timeout, invalid page, missing course, or unusually large drop in the same scope leaves the preceding catalog and refresh time in place. Existing section and Course Hub IDs are reused. The institutional seed remains a small fallback and stays isolated from the Judge Demo fixtures.
