@@ -101,7 +101,10 @@ async function networkFirstHtmlWith3sTimeout(request) {
 
 async function cacheFirstHashedBundle(request) {
   const cache = await caches.open(STATIC_CACHE);
-  const hit = await cache.match(request);
+  // File names under /_next/static are content-hashed, so the query string
+  // (dev-server ?v= cache-busting, deployment ?dpl= routing) never changes the
+  // bytes. Ignoring it lets the cached shell find bundles primed earlier.
+  const hit = await cache.match(request, { ignoreSearch: true });
   if (hit) return hit;
   const fresh = await fetch(request);
   if (fresh && fresh.ok) {

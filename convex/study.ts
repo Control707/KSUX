@@ -107,6 +107,8 @@ export const listStudyRoomsAndSessions = viewerQuery({
             openHalfHourSlotsCount: openSlotsCount,
             daytimeSlotsOpen: snap ? decodedAll.slice(16, 44) : [], // 8:00 AM .. 10:00 PM
             isFixtureSnapshot: Boolean(snap?.isFixture),
+            availabilityFreshness: snap && !snap.isFixture
+              ? formatStalenessBadge(snap.updatedAt, now, FIFTEEN_MINUTES_MS) : null,
             vibe: null,
           };
         }
@@ -141,6 +143,7 @@ export const listStudyRoomsAndSessions = viewerQuery({
           openHalfHourSlotsCount: null,
           daytimeSlotsOpen: [],
           isFixtureSnapshot: false,
+          availabilityFreshness: null,
           vibe: latestVibe
             ? {
                 tierValue: latestVibe.tierValue,

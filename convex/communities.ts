@@ -165,7 +165,8 @@ export const listClubs = viewerQuery({
     }
 
     const combined = [...wsRows, ...ksuRows]
-      .filter((c) => !args.clubKindFilter || c.clubKind === args.clubKindFilter)
+      .filter((c) => (!c.isFixture || viewer.mode === "demo")
+        && (!args.clubKindFilter || c.clubKind === args.clubKindFilter))
       .slice(0, limit);
 
     return Promise.all(combined.map(async (c) => ({
@@ -180,6 +181,20 @@ export const listClubs = viewerQuery({
       memberCount: await getClubMemberCount(ctx, c, viewer.workspaceKey),
       myRole: roleByClubId.get(String(c._id)) ?? null,
     })));
+  },
+});
+
+export const getClubDirectoryCoverage = viewerQuery({
+  args: { campusOverride: v.optional(campusFilterValidator) },
+  handler: async (ctx, { campusOverride }) => {
+    if (ctx.viewer.mode === "demo") return "demo" as const;
+    const campusFilter = campusOverride ?? "All KSU";
+    const campuses = campusFilter === "All KSU" ? ["Kennesaw", "Marietta"] as const : [campusFilter];
+    const rows = await Promise.all(campuses.map((campus) => ctx.db.query("clubs")
+      .withIndex("by_workspace_campus", (q) =>
+        q.eq("workspaceKey", "ksu").eq("visibilityStatus", "visible").eq("campus", campus))
+      .take(25)));
+    return rows.flat().some((club) => !club.isFixture) ? "partial" as const : "unavailable" as const;
   },
 });
 

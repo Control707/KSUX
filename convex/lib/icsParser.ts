@@ -7,6 +7,7 @@ export interface ParsedIcsClassBlock {
   courseCodeCandidate?: string;
   byDays: string[];
   startMinutes?: number;
+  endMinutes?: number;
   location?: string;
 }
 
@@ -22,6 +23,8 @@ export interface StatelessIcsParseResult {
   classBlocks: ParsedIcsClassBlock[];
   deadlines: ParsedIcsDeadline[];
 }
+
+const weekdayOrder = "UMTWRFS";
 
 const ICAL_DAY_MAP: Record<string, string> = {
   MO: "M",
@@ -50,14 +53,24 @@ function unescapeIcsText(val: string): string {
     .trim();
 }
 
-function stripAnyTokenUrls(text: string): string {
+function contentKey(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < text.length; index++) {
+    hash = Math.imul(hash ^ text.charCodeAt(index), 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+export function stripAnyTokenUrls(text: string): string {
   // Never persist live D2L/LMS subscription URLs or query tokens
-  return text.replace(/https?:\/\/\S+/gi, "").trim();
+  return text.replace(/(?:https?|webcals?):\/\/\S+/gi, "").trim();
 }
 
 function parseIcsTimestamp(rawVal: string, timeZone?: string): {
   epochMs: number;
   minutesOfDay: number;
+  dayOfWeek: string;
+  weekdayShift: number;
 } | null {
   // Matches YYYYMMDDTHHMMSSZ or YYYYMMDDTHHMMSS or YYYYMMDD
   const clean = rawVal.trim();
@@ -77,9 +90,13 @@ function parseIcsTimestamp(rawVal: string, timeZone?: string): {
     isUtc ? "UTC" : timeZone);
   if (epochMs === null) return null;
   const eastern = zonedDateParts(epochMs);
+  const easternDay = new Date(Date.UTC(eastern.year, eastern.month - 1, eastern.day)).getUTCDay();
+  const sourceDay = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
   return {
     epochMs,
     minutesOfDay: eastern.hour * 60 + eastern.minute,
+    dayOfWeek: weekdayOrder[easternDay]!,
+    weekdayShift: (easternDay - sourceDay + 7) % 7,
   };
 }
 
@@ -111,8 +128,10 @@ export function parseStatelessScheduleIcs(
       timeZones = {};
       continue;
     }
-    if (line.toUpperCase() === "END:VEVENT") {
+    if (inEvent && line.toUpperCase() === "END:VEVENT") {
       inEvent = false;
+      // A RECURRENCE-ID event overrides one instance of a weekly class; it is not a deadline.
+      if (fields["RECURRENCE-ID"] !== undefined) continue;
       const summary = stripAnyTokenUrls(
         unescapeIcsText(fields.SUMMARY ?? "Untitled Event")
       );
@@ -122,9 +141,10 @@ export function parseStatelessScheduleIcs(
       const location = stripAnyTokenUrls(
         unescapeIcsText(fields.LOCATION ?? "")
       );
+      // Without a UID, derive a content key so reimports dedupe and a different file never collides.
       const uid =
-        unescapeIcsText(fields.UID ?? "") ||
-        `ics-${classBlocks.length + deadlines.length + 1}`;
+        stripAnyTokenUrls(unescapeIcsText(fields.UID ?? "")).slice(0, 200) ||
+        `ics-${contentKey([summary, fields.DTSTART, fields.DTEND, fields.RRULE].join("|"))}`;
       const rrule = (fields.RRULE ?? "").toUpperCase();
       const dtStart = fields.DTSTART ? parseIcsTimestamp(fields.DTSTART, timeZones.DTSTART) : null;
       const dtEnd = fields.DTEND ? parseIcsTimestamp(fields.DTEND, timeZones.DTEND) : null;
@@ -140,7 +160,11 @@ export function parseStatelessScheduleIcs(
               .split(",")
               .map((d) => ICAL_DAY_MAP[d.slice(-2)] ?? "")
               .filter(Boolean)
-          : [];
+              .map((day) => weekdayOrder[(weekdayOrder.indexOf(day) + (dtStart?.weekdayShift ?? 0)) % 7]!)
+          : dtStart ? [dtStart.dayOfWeek] : [];
+        if (classBlocks.length >= 100) {
+          throw new Error("This .ics file contains more than 100 weekly class blocks.");
+        }
 
         classBlocks.push({
           uid,
@@ -149,6 +173,7 @@ export function parseStatelessScheduleIcs(
           courseCodeCandidate: courseCode,
           byDays,
           startMinutes: dtStart?.minutesOfDay,
+          endMinutes: dtEnd?.minutesOfDay,
           location: location || undefined,
         });
       } else if (dtEnd || dtStart) {
