@@ -36,7 +36,24 @@ it("keeps a requested production launch closed without eligible appointments and
     });
     await expect(t.query(api.moderation.getIncidentLaunchStatus, { sessionToken: student.sessionToken }))
       .resolves.toEqual({ postingEnabled: false });
+    const bytes = Object.fromEntries(v2IoShapes.map(({ key }) => [key, key === "leaderboard" ? 70_000_000 : 0]));
+    vi.stubEnv("KSUX_V2_DB_IO_SAMPLE", JSON.stringify({ days: 3, measuredAt: new Date().toISOString(), bytes }));
+    await expect(t.query(api.moderation.getV2LaunchOps, { sessionToken: maintainer.sessionToken })).resolves.toMatchObject({
+      io: { projectedBytes: 700_000_000, band: "over_70", stale: false, shapes: expect.arrayContaining([
+        expect.objectContaining({ key: "leaderboard", projectedBytes: 700_000_000 }),
+      ]) },
+    });
+    vi.stubEnv("KSUX_V2_DB_IO_SAMPLE", JSON.stringify({
+      days: 3, measuredAt: new Date(Date.now() - 8 * 24 * 60 * 60_000).toISOString(), bytes,
+    }));
+    await expect(t.query(api.moderation.getV2LaunchOps, { sessionToken: maintainer.sessionToken })).resolves.toMatchObject({ io: { stale: true } });
+    vi.stubEnv("KSUX_V2_DB_IO_SAMPLE", "invalid JSON");
+    await expect(t.query(api.moderation.getV2LaunchOps, { sessionToken: maintainer.sessionToken })).resolves.toMatchObject({ io: null });
+    await expect(t.query(api.moderation.getV2LaunchOps, {})).rejects.toThrow();
     const demo = await t.mutation(api.demo.session.provisionOrAttachDemoSession, {});
+    await expect(t.query(api.moderation.getV2LaunchOps, {
+      demoShortCode: demo.shortCode, demoPersonaHandle: "maya_cs",
+    })).resolves.toBeNull();
     await expect(t.query(api.moderation.getIncidentLaunchStatus, {
       demoShortCode: demo.shortCode, demoPersonaHandle: "maya_cs",
     })).resolves.toEqual({ postingEnabled: true });

@@ -43,9 +43,10 @@ type AppointmentDb = GenericDatabaseReader<{
   moderators: {
     document: {
       _id: GenericId<"moderators">; _creationTime: number; workspaceKey: "prod";
-      studentId: GenericId<"students">; isCsa: boolean; csaStatement: string; revokedAt?: number;
+      studentId: GenericId<"students">; isCsa: boolean; csaStatement: string;
+      appointedAt: number; revokedAt?: number; purgeAt?: number;
     };
-    fieldPaths: "_id" | "_creationTime" | "workspaceKey" | "studentId" | "isCsa" | "csaStatement" | "revokedAt";
+    fieldPaths: "_id" | "_creationTime" | "workspaceKey" | "studentId" | "isCsa" | "csaStatement" | "appointedAt" | "revokedAt" | "purgeAt";
     indexes: { by_revoked: ["workspaceKey", "revokedAt", "_creationTime"] };
     searchIndexes: Record<never, never>;
     vectorIndexes: Record<never, never>;
@@ -55,15 +56,21 @@ type AppointmentDb = GenericDatabaseReader<{
 async function appointedModerators(db: QueryCtx["db"]) {
   // #84 introduces this table on a separate branch. Until deployed, the gate is closed.
   if (!Object.hasOwn(schema.tables, "moderators")) return 0;
-  const roster = await (db as unknown as AppointmentDb)
-    .query("moderators").withIndex("by_revoked", (q) => q.eq("workspaceKey", "prod").eq("revokedAt", undefined))
-    .take(100);
+  const roster = (db as unknown as AppointmentDb)
+    .query("moderators").withIndex("by_revoked", (q) => q.eq("workspaceKey", "prod").eq("revokedAt", undefined));
+  const now = Date.now();
   const qualified = new Set();
-  for (const row of roster) {
-    if (row.isCsa !== false || typeof row.csaStatement !== "string" || !row.csaStatement.trim()) continue;
+  // Stream the indexed roster: an arbitrary first-N cutoff can hide eligible appointees.
+  for await (const row of roster) {
+    if (row.isCsa !== false || typeof row.csaStatement !== "string" || !row.csaStatement.trim()
+      || !Number.isFinite(row.appointedAt) || row.appointedAt > now
+      || (row.purgeAt !== undefined && row.purgeAt <= now)) continue;
     const studentId = db.normalizeId("students", row.studentId);
     const student = studentId ? await db.get(studentId) : null;
-    if (student?.workspaceKey === "prod" && student.accountStatus === "active") qualified.add(student._id);
+    // §8 excludes Faculty · Staff and unverified profiles, even with a roster row.
+    if (student?.workspaceKey === "prod" && student.accountStatus === "active"
+      && student.emailDomainBadge === "verified_student"
+      && student.canonicalEmail?.endsWith("@students.kennesaw.edu")) qualified.add(student._id);
   }
   return qualified.size;
 }

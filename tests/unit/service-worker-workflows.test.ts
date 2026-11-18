@@ -183,6 +183,17 @@ describe("Offline commuter service worker workflows", () => {
     expect(worker.network).not.toHaveBeenCalled();
   });
 
+  it("never caches Safety HTML or RSC responses, including descendants and query strings", async () => {
+    const worker = workerHarness();
+    await Promise.all(worker.dispatch("install").lifetime);
+    for (const path of ["/safety", "/safety?demo=1", "/safety/incidents/123", "/safety/alerts/123?_rsc=abc"]) {
+      for (const mode of ["navigate", "same-origin"] as const) {
+        expect(worker.dispatchFetch(path, { mode }).response).toBeUndefined();
+      }
+    }
+    expect(worker.network).not.toHaveBeenCalled();
+  });
+
   it("only skips waiting after receiving an explicit update message", async () => {
     const worker = workerHarness();
     await Promise.all(worker.dispatch("install").lifetime);
