@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { action, internalMutation, MutationCtx } from "./_generated/server";
+import { action, internalMutation, MutationCtx, QueryCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import {
   filterVisibleContent,
@@ -355,6 +355,13 @@ export const getMyPrivateSchedule = viewerQuery({
           )
           .take(20);
 
+    const privateTerms = await ctx.db.query("privateScheduleTerms")
+      .withIndex("by_student_term", (q) => {
+        const student = q.eq("workspaceKey", viewer.workspaceKey).eq("studentId", viewer.actorStudent._id);
+        return args.termCode ? student.eq("termCode", args.termCode) : student;
+      }).take(20);
+    const privateDeadlines = new Map(privateTerms.map(({ termCode, personalDeadlines }) => [termCode, personalDeadlines]));
+
     return Promise.all(
       enrollments.map(async (enr) => {
         const [hub, section] = await Promise.all([
@@ -367,7 +374,11 @@ export const getMyPrivateSchedule = viewerQuery({
           crn: enr.crn,
           courseHub: hub,
           section,
-          personalDeadlines: enr.personalDeadlines,
+          personalDeadlines: [
+            ...enr.personalDeadlines,
+            ...(privateDeadlines.get(enr.termCode) ?? []).filter((deadline) =>
+              deadline.courseCode === hub?.subjectCourse && !enr.personalDeadlines.some(({ uid }) => uid === deadline.uid)),
+          ],
         };
       })
     );
@@ -509,66 +520,170 @@ export const leaveCourseHub = viewerMutation({
   },
 });
 
+const scheduleDays = ["M", "T", "W", "R", "F", "S", "U"];
+const MAX_PRIVATE_SCHEDULE_ITEMS = 100;
+const privateClassFields = {
+  title: v.string(),
+  days: v.array(v.string()),
+  startMinutes: v.number(),
+  endMinutes: v.optional(v.number()),
+  location: v.optional(v.string()),
+};
+
+function readScheduleTerm(ctx: QueryCtx, workspaceKey: string, studentId: Id<"students">, termCode: string) {
+  if (!/^\d{6}$/.test(termCode)) throw new ConvexError("Choose a valid schedule term.");
+  return ctx.db.query("privateScheduleTerms").withIndex("by_student_term", (q) =>
+    q.eq("workspaceKey", workspaceKey).eq("studentId", studentId).eq("termCode", termCode)
+  ).unique();
+}
+
+type PrivateClass = Doc<"privateScheduleTerms">["entries"][number];
+
+function toPrivateClass(key: string, fields: Omit<PrivateClass, "key">): PrivateClass {
+  const title = fields.title.trim().replace(/(?:https?|webcals?):\/\/\S+/gi, "").trim().slice(0, 140);
+  const location = fields.location?.replace(/(?:https?|webcals?):\/\/\S+/gi, "").trim().slice(0, 160);
+  const validTime = (minutes: number) => Number.isInteger(minutes) && minutes >= 0 && minutes < 1440;
+  if (!title || !fields.days.length || fields.days.some((day) => !scheduleDays.includes(day)) ||
+      !validTime(fields.startMinutes) || (fields.endMinutes !== undefined && !validTime(fields.endMinutes))) {
+    throw new ConvexError("Enter a class name, meeting day and valid meeting time.");
+  }
+  return {
+    key,
+    title,
+    days: scheduleDays.filter((day) => fields.days.includes(day)),
+    startMinutes: fields.startMinutes,
+    endMinutes: fields.endMinutes,
+    location: location || undefined,
+  };
+}
+
+async function parseScheduleMatches(ctx: QueryCtx, rawIcs: string, termCode: string) {
+  const parsed = parseStatelessScheduleIcs(rawIcs);
+  const blocks = await Promise.all(parsed.classBlocks.map(async (block) => {
+    const byCrn = block.crnCandidate ? await ctx.db.query("courseSections")
+      .withIndex("by_term_crn", (q) => q.eq("termCode", termCode).eq("crn", block.crnCandidate!)).unique() : null;
+    const exactCrn = byCrn?.isRetiredFixture ? null : byCrn;
+    const hub = exactCrn ? await ctx.db.get(exactCrn.courseHubId) : block.courseCodeCandidate
+      ? await ctx.db.query("courseHubs").withIndex("by_subject_course", (q) =>
+        q.eq("subjectCourse", normalizeSubjectCourse(block.courseCodeCandidate!))).unique()
+      : null;
+    const activeHub = hub?.isRetiredFixture ? null : hub;
+    const sections = activeHub && !exactCrn ? await ctx.db.query("courseSections")
+      .withIndex("by_hub_term", (q) => q.eq("courseHubId", activeHub._id).eq("termCode", termCode))
+      .filter((q) => q.neq(q.field("isRetiredFixture"), true)).take(60) : [];
+    const sameTime = sections.filter((section) => section.meetings.some((meeting) =>
+      block.byDays.length > 0 && block.byDays.every((day) => meeting.days.includes(day))
+        && block.startMinutes === meeting.startMinutes));
+    const exact = activeHub ? exactCrn ?? (sameTime.length === 1 ? sameTime[0] : null) : null;
+    const options = exact ? [exact] : sameTime.length ? sameTime : sections;
+    const status = exact ? "exact" : options.length ? "ambiguous" : "unmatched";
+    const reason = exact ? (exactCrn ? "Matched published CRN." : "Matched course code and meeting time.")
+      : sameTime.length > 1 ? "More than one section matches the meeting time."
+      : options.length ? "No section matches the meeting time. Choose a section or save privately."
+      : "No published section matches this class.";
+    const entry = block.startMinutes === undefined || !block.byDays.length ? null : toPrivateClass(
+      "ics:" + block.uid, {
+        title: block.summary || block.courseCodeCandidate || "Imported class",
+        days: block.byDays,
+        startMinutes: block.startMinutes,
+        endMinutes: block.endMinutes,
+        location: block.location,
+      });
+    return { block, entry, hub: activeHub, options, exact, status, reason };
+  }));
+  return { blocks, deadlines: parsed.deadlines };
+}
+
+export const previewScheduleFromIcs = viewerQuery({
+  args: { rawIcs: v.string(), termCode: v.string() },
+  handler: async (ctx, args) => {
+    const { blocks, deadlines } = await parseScheduleMatches(ctx, args.rawIcs, args.termCode);
+    return {
+      blocks: blocks.map(({ block, entry, exact, options, status, reason }, index) => ({
+        index,
+        title: entry?.title ?? block.summary,
+        entry,
+        status,
+        reason: entry ? reason : reason + " No valid meeting time is available to save privately.",
+        exactSectionId: exact?._id,
+        options: options.map(({ _id, sectionNumber, crn, campus, meetings }) => ({
+          _id, sectionNumber, crn, campus, time: meetings[0]?.timeLabel,
+        })),
+      })),
+      deadlineCount: deadlines.length,
+    };
+  },
+});
+
+export const listMyPrivateClasses = viewerQuery({
+  args: { termCode: v.string() },
+  handler: async (ctx, { termCode }) => (await readScheduleTerm(
+    ctx, ctx.viewer.workspaceKey, ctx.viewer.actorStudent._id, termCode
+  ))?.entries ?? [],
+});
+
+export const savePrivateClass = viewerMutation({
+  args: { termCode: v.string(), key: v.optional(v.string()), ...privateClassFields },
+  handler: async (ctx, args) => {
+    const { workspaceKey, actorStudent } = ctx.viewer;
+    const term = await readScheduleTerm(ctx, workspaceKey, actorStudent._id, args.termCode);
+    const entries = term?.entries ?? [];
+    const key = args.key ?? "manual:" + crypto.randomUUID();
+    const index = entries.findIndex((entry) => entry.key === key);
+    if (args.key && index === -1) throw new ConvexError("Private class not found.");
+    const entry = { ...toPrivateClass(key, args), sectionId: entries[index]?.sectionId };
+    if (index === -1) entries.push(entry);
+    else entries[index] = entry;
+    if (entries.length > MAX_PRIVATE_SCHEDULE_ITEMS) throw new ConvexError("This term already has 100 private classes.");
+    if (term) await ctx.db.patch(term._id, { entries });
+    else await ctx.db.insert("privateScheduleTerms", {
+      workspaceKey, studentId: actorStudent._id, termCode: args.termCode, entries, personalDeadlines: [],
+    });
+    return key;
+  },
+});
+
+export const removePrivateClass = viewerMutation({
+  args: { termCode: v.string(), key: v.string() },
+  handler: async (ctx, args) => {
+    const term = await readScheduleTerm(ctx, ctx.viewer.workspaceKey, ctx.viewer.actorStudent._id, args.termCode);
+    if (term) await ctx.db.patch(term._id, { entries: term.entries.filter((entry) => entry.key !== args.key) });
+  },
+});
+
 export const importScheduleFromIcs = viewerMutation({
   args: {
     rawIcs: v.string(),
     termCode: v.optional(v.string()),
+    selections: v.optional(v.array(v.object({
+      index: v.number(),
+      sectionId: v.union(v.id("courseSections"), v.null()),
+    }))),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
     const { viewer } = ctx;
     const termCode = args.termCode ?? "202608";
+    const term = await readScheduleTerm(ctx, viewer.workspaceKey, viewer.actorStudent._id, termCode);
+    const parsed = await parseScheduleMatches(ctx, args.rawIcs, termCode);
+    const selections = new Map(args.selections?.map(({ index, sectionId }) => [index, sectionId]));
+    const privateEntries = new Map(term?.entries.map((entry) => [entry.key, entry]));
+    const originalEntries = new Set(privateEntries.keys());
+    const matchedHubIds = new Set<Id<"courseHubs">>();
+    const enrolledResults: Array<{ subjectCourse: string; crn?: string }> = [];
 
-    const parsed = parseStatelessScheduleIcs(args.rawIcs);
-    const matchedHubIds = new Set<string>();
-    const enrolledResults: Array<{
-      subjectCourse: string;
-      crn?: string;
-    }> = [];
-
-    for (const block of parsed.classBlocks) {
-      let section: Doc<"courseSections"> | null = null;
-      let hub: Doc<"courseHubs"> | null = null;
-
-      if (block.crnCandidate) {
-        section = await ctx.db
-          .query("courseSections")
-          .withIndex("by_term_crn", (q) =>
-            q.eq("termCode", termCode).eq("crn", block.crnCandidate!)
-          )
-          .unique();
-        if (section?.isRetiredFixture) section = null;
-        if (section) {
-          hub = await ctx.db.get(section.courseHubId);
-        }
+    for (const [index, match] of parsed.blocks.entries()) {
+      const selected = selections.get(index);
+      const section = selected === undefined ? match.exact : match.options.find(({ _id }) => _id === selected);
+      if (selected && !section) throw new ConvexError("A selected section is no longer available. Preview the file again.");
+      const { hub, entry } = match;
+      const alreadyMatched = hub && matchedHubIds.has(hub._id);
+      if (entry) {
+        const saved = privateEntries.get(entry.key) ?? entry;
+        privateEntries.set(entry.key, { ...saved, sectionId: section?._id });
       }
-
-      if (!hub && block.courseCodeCandidate) {
-        const normalized = normalizeSubjectCourse(block.courseCodeCandidate);
-        hub = await ctx.db
-          .query("courseHubs")
-          .withIndex("by_subject_course", (q) =>
-            q.eq("subjectCourse", normalized)
-          )
-          .unique();
-        if (hub?.isRetiredFixture) hub = null;
-        if (hub && !section) {
-          const candidates = await ctx.db
-            .query("courseSections")
-            .withIndex("by_hub_term", (q) =>
-              q.eq("courseHubId", hub!._id).eq("termCode", termCode)
-            )
-            .filter((q) => q.neq(q.field("isRetiredFixture"), true))
-            .take(15);
-          const matches = candidates.filter((candidate) => candidate.meetings.some((meeting) =>
-            block.byDays.length > 0 && block.byDays.every((day) => meeting.days.includes(day))
-            && block.startMinutes === meeting.startMinutes));
-          section = matches.length === 1 ? matches[0]! : null;
-        }
-      }
-
-      if (!hub || hub.isRetiredFixture || matchedHubIds.has(String(hub._id))) continue;
-      matchedHubIds.add(String(hub._id));
+      if (!section || !hub || alreadyMatched) continue;
+      matchedHubIds.add(hub._id);
 
       const existing = await ctx.db
         .query("studentEnrollments")
@@ -626,52 +741,30 @@ export const importScheduleFromIcs = viewerMutation({
       )
       .take(20);
 
+    const termDeadlines = [...(term?.personalDeadlines ?? [])];
+    const knownDeadlineIds = new Set([
+      ...termDeadlines,
+      ...allMyEnrollments.flatMap((row) => row.personalDeadlines),
+    ].map(({ uid }) => uid));
     let savedDeadlines = 0;
-    if (allMyEnrollments.length > 0 && parsed.deadlines.length > 0) {
-      const hubCodeToEnrollment = new Map<string, Doc<"studentEnrollments">>();
-      for (const enr of allMyEnrollments) {
-        const h = await ctx.db.get(enr.courseHubId);
-        if (h) hubCodeToEnrollment.set(h.subjectCourse, enr);
-      }
-
-      const buckets = new Map<
-        Id<"studentEnrollments">,
-        Doc<"studentEnrollments">["personalDeadlines"]
-      >();
-      for (const enr of allMyEnrollments) {
-        buckets.set(enr._id, [...enr.personalDeadlines]);
-      }
-
-      const fallbackTarget = allMyEnrollments[0]!;
-      let totalCount = allMyEnrollments.reduce(
-        (acc, e) => acc + e.personalDeadlines.length,
-        0
-      );
-
-      for (const dl of parsed.deadlines) {
-        if (totalCount >= 100) break;
-        const targetEnr =
-          (dl.courseCode
-            ? hubCodeToEnrollment.get(normalizeSubjectCourse(dl.courseCode))
-            : undefined) ?? fallbackTarget;
-        const list = buckets.get(targetEnr._id)!;
-        if (!list.some((existing) => existing.uid === dl.uid)) {
-          list.push(dl);
-          totalCount++;
-          savedDeadlines++;
-        }
-      }
-
-      for (const [enrId, list] of buckets.entries()) {
-        await ctx.db.patch(enrId, {
-          personalDeadlines: list.slice(0, 100),
-        });
-      }
+    for (const deadline of parsed.deadlines) {
+      if (knownDeadlineIds.size >= MAX_PRIVATE_SCHEDULE_ITEMS) break;
+      if (knownDeadlineIds.has(deadline.uid)) continue;
+      termDeadlines.push(deadline);
+      knownDeadlineIds.add(deadline.uid);
+      savedDeadlines++;
     }
 
+    const entries = [...privateEntries.values()];
+    if (entries.length > MAX_PRIVATE_SCHEDULE_ITEMS) throw new ConvexError("This import would exceed 100 private classes in this term.");
+    if (term) await ctx.db.patch(term._id, { entries, personalDeadlines: termDeadlines });
+    else if (entries.length || termDeadlines.length) await ctx.db.insert("privateScheduleTerms", {
+      workspaceKey: viewer.workspaceKey, studentId: viewer.actorStudent._id, termCode, entries, personalDeadlines: termDeadlines,
+    });
     return {
       matchedCourses: enrolledResults,
       importedDeadlinesCount: savedDeadlines,
+      importedPrivateClassCount: entries.filter(({ key }) => !originalEntries.has(key)).length,
     };
   },
 });

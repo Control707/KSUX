@@ -2,6 +2,7 @@
 
 import React, { useEffect } from "react";
 import Link from "next/link";
+import { formatPrivateClassMeeting } from "@/lib/privateSchedule";
 import {
   ArrowRight,
   BookOpen,
@@ -46,6 +47,9 @@ export function NowHudView() {
 
   const campusFilter: string = activeData.campusFilter ?? "Kennesaw";
   const enrolledCourses = activeData.schedule?.enrolledCourses ?? [];
+  const privateClasses = activeData.schedule?.privateClasses ?? [];
+  const standaloneClasses = privateClasses.filter((entry) =>
+    !entry.sectionId || !enrolledCourses.some((course) => course.sectionId === entry.sectionId));
   const personalDeadlines = activeData.schedule?.personalDeadlines ?? [];
   const parkingCards = activeData.parkingCards ?? [];
   const shuttleCards = activeData.shuttleCards ?? [];
@@ -121,8 +125,9 @@ export function NowHudView() {
             </p>
           ) : (
             <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {enrolledCourses.map((c: any) => (
-                <Link
+              {enrolledCourses.map((c) => {
+                const imported = c.sectionId ? privateClasses.filter((entry) => entry.sectionId === c.sectionId) : [];
+                return <Link
                   key={String(c.enrollmentId)}
                   href={`/courses/${encodeURIComponent(c.subjectCourse)}`}
                   className="rounded-xl border border-[#E4E7EE] bg-[#F9FAFC] p-3 transition hover:border-[#D99B00]"
@@ -136,13 +141,26 @@ export function NowHudView() {
                     </span>
                   </div>
                   <div className="mt-1 text-[11.5px] text-[#5E6675]">
-                    {c.meetings?.[0]
+                    {imported.length ? imported.map((entry) => (
+                      <div key={entry.key}>{formatPrivateClassMeeting(entry)}</div>
+                    )) : c.meetings?.[0]
                       ? `${c.meetings[0].timeLabel} · ${c.meetings[0].buildingName} ${c.meetings[0].roomNumber}`
                       : `CRN ${c.crn ?? "Enrolled"} · ${c.instructorName ?? "KSU Faculty"}`}
                   </div>
-                </Link>
-              ))}
+                </Link>;
+              })}
             </div>
+          )}
+
+          {standaloneClasses.length > 0 && (
+            <ul aria-label="Private classes" className="mt-2.5 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+              {standaloneClasses.map((entry) => (
+                <li key={entry.termCode + ":" + entry.key} className="rounded-xl border border-[#E4E7EE] bg-[#F9FAFC] p-3">
+                  <strong>{entry.title}</strong>
+                  <div>{formatPrivateClassMeeting(entry)}</div>
+                </li>
+              ))}
+            </ul>
           )}
 
           {personalDeadlines.length > 0 && (

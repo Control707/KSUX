@@ -839,6 +839,20 @@ export const getMyPersonalContext = internalQuery({
       }
     }
 
+    const privateTerms = await ctx.db.query("privateScheduleTerms").withIndex("by_student_term", (q) =>
+      q.eq("workspaceKey", viewer.workspaceKey).eq("studentId", viewer.actorStudent._id)
+    ).order("desc").take(MAX_TOOL_ROWS);
+    const knownDeadlines = new Set(deadlines.map(({ title, dueAtIso }) => title + dueAtIso));
+    for (const term of privateTerms) {
+      for (const deadline of term.personalDeadlines) {
+        const title = fenceUntrustedCampusText(deadline.title, 120);
+        const dueAtIso = new Date(deadline.dueAt).toISOString();
+        if (knownDeadlines.has(title + dueAtIso)) continue;
+        deadlines.push({ title, dueAtIso });
+        knownDeadlines.add(title + dueAtIso);
+      }
+    }
+
     const memberSessions = [];
     for (const hid of viewer.enrolledCourseHubIds) {
       const rows = await ctx.db

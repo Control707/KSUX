@@ -69,3 +69,19 @@ describe("Seam 2 — Stateless .ics Parser & Simple Syllabus Fetch Adapter (#18)
     expect(downRes.sourceUrl).toContain("kennesaw.simplesyllabus.com");
   });
 });
+
+it("projects weekly calendar days into Eastern time and keeps their meeting end times", () => {
+  const calendar = [
+    "BEGIN:VCALENDAR",
+    "BEGIN:VEVENT", "UID:late-tuesday", "SUMMARY:Weekly Lab",
+    "DTSTART:20261117T020000Z", "DTEND:20261117T033000Z",
+    "RRULE:FREQ=WEEKLY;BYDAY=TU", "END:VEVENT",
+    "BEGIN:VEVENT", "UID:floating", "SUMMARY:Local seminar",
+    "DTSTART;TZID=America/New_York:20261118T090000", "RRULE:FREQ=WEEKLY",
+    "END:VEVENT", "END:VCALENDAR",
+  ].join("\r\n");
+  expect(parseStatelessScheduleIcs(calendar).classBlocks).toMatchObject([
+    { byDays: ["M"], startMinutes: 1260, endMinutes: 1350 },
+    { byDays: ["W"], startMinutes: 540 },
+  ]);
+});
