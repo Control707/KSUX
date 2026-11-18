@@ -115,8 +115,16 @@ A Student's request that KSUX Moderators review a piece of content or a Student 
 _Avoid_: Flag, police report, report (unqualified)
 
 **Moderator**:
-A volunteer KSUX Student who reviews Moderation Reports and Incident photos and writes moderator notes; not police, not KSU staff, and not on call.
+A volunteer KSUX Student, appointed by maintainers, who reviews Moderation Reports, Incident photos and Appeals and writes moderator notes; not police, not KSU staff, and not on call.
 _Avoid_: Admin, dispatcher, officer
+
+**Redaction**:
+A Moderator's removal of identifying or prohibited passages from an Incident, always disclosed on the Incident with a moderator note; the only change ever made to an Incident's original text after it is posted.
+_Avoid_: Edit, censorship, correction
+
+**Appeal**:
+An author's single request, per moderation decision, for a different Moderator to review that decision again.
+_Avoid_: Dispute, complaint, ticket
 
 **Emergency Panel**:
 The full-screen choice of calling 911, calling KSU Police, or texting KSU Police, shown before every Incident and every Campus Safety Moderation Report.
