@@ -302,7 +302,7 @@ export function FeedView() {
         <div className="flex items-center gap-1.5">
           {(
             [
-              ["campus", "Campus"],
+              ["campus", "All KSU"],
               ["following", "Following"],
               ["trending", "Trending (24h)"],
             ] as const

@@ -105,7 +105,7 @@ export const listListings = viewerQuery({
     const now = Date.now();
     const { viewer } = ctx;
     const campusFilter =
-      args.campusOverride ?? viewer.actorStudent.activeCampusFilter;
+      args.campusOverride ?? "All KSU";
     const limit = Math.min(args.limit ?? 25, 25);
     const qText = args.queryText?.trim();
 
@@ -193,6 +193,11 @@ export const listListings = viewerQuery({
             return false;
           return true;
         });
+
+    if (!args.onlyMine && campusFilter === "All KSU") {
+      const home = viewer.actorStudent.homeCampus;
+      visibleDocs.sort((a, b) => Number(b.campus === home) - Number(a.campus === home));
+    }
 
     const listingCards = await Promise.all(
       visibleDocs.map(async (listing) => {

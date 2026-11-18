@@ -86,7 +86,7 @@ export const listClubs = viewerQuery({
   handler: async (ctx, args) => {
     const { viewer } = ctx;
     const campusFilter =
-      args.campusOverride ?? viewer.actorStudent.activeCampusFilter;
+      args.campusOverride ?? "All KSU";
     const limit = Math.min(args.limit ?? 25, 25);
     const qText = args.queryText?.trim();
 
