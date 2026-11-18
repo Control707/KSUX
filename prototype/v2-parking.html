@@ -526,16 +526,18 @@ legend{font-size:var(--fs-sm);font-weight:700;padding:0;margin-bottom:var(--sp-1
   .lay-sheet .sheet[data-snap="peek"]{max-height:70%;overflow:auto}
 }
 
-.quick{background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);padding:var(--sp-3) var(--sp-4);display:grid;gap:var(--sp-2)}
-.qr-h{font-size:var(--fs-sm);font-weight:600}
-.qr-h b{font-weight:800}
-.qr-tiers{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-1)}
-.qr-tiers .btn{flex-direction:column;gap:2px;padding:var(--sp-1);border-radius:var(--r-sm);min-height:3.5rem;font-size:var(--fs-xs)}
+.quick{display:grid;grid-template-columns:auto repeat(4,minmax(var(--target),1fr));align-items:center;gap:var(--sp-1);background:var(--surface);border-radius:var(--r-pill);box-shadow:var(--shadow);padding:2px 2px 2px var(--sp-4)}
+.quick.done{display:flex;flex-wrap:wrap;gap:var(--sp-1) var(--sp-2);border-radius:var(--r-md);padding:var(--sp-1) var(--sp-3);margin:0}
+.qr-lbl{font-size:var(--fs-xs);font-weight:700;line-height:1.2;padding-right:var(--sp-1)}
+.qr-lbl .link{min-height:var(--target);font-size:var(--fs-sm)}
+.qbtn{min-height:var(--target);min-width:var(--target);display:grid;justify-items:center;align-content:center;gap:0;border:0;border-radius:var(--r-pill);background:transparent;cursor:pointer;color:var(--ink);padding:0 2px}
+.qbtn:hover{background:var(--surface-2)}
+.qbtn .qt{font-size:.75rem;font-weight:750;line-height:1.1}
 .clout summary{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);min-height:var(--target);cursor:pointer;list-style:none;flex-wrap:wrap}
 .clout summary::-webkit-details-marker{display:none}
 .clout summary .meta{text-decoration:underline}
 .lay-sheet .sheet[data-snap="half"] .peek .quick,.lay-sheet .sheet[data-snap="full"] .peek .quick{display:none}
-@container app (max-width:18em){.qr-tiers{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container app (max-width:18em){.quick{grid-template-columns:repeat(4,minmax(0,1fr));border-radius:var(--r-md);padding:var(--sp-2)}.qr-lbl{grid-column:1/-1}}
 </style>
 </head>
 <body>
@@ -738,12 +740,10 @@ const pendingFor=slug=>S.clout.pending.find(p=>p.slug===slug&&p.kind==='report')
 const earnedToday=()=>S.clout.log.reduce((a,x)=>a+x.amt,0);
 function quickLot(){const q=S.quick&&bySlug[S.quick];if(q&&inCampus(q))return q;const c=candidates();return c[0];}
 function quickRow(){
-  const l=quickLot();if(!l)return '';const done=l.mine;
-  return `<section class="quick" aria-labelledby="qr-h"><div class="spread"><h2 id="qr-h" class="qr-h">${done?'Thanks for reporting':'Just parked? How full is'} <b>${esc(l.name)}</b>${done?'':'?'}</h2>
-    <button class="link" id="qr-change" data-a="reportPick" aria-haspopup="dialog">Different lot</button></div>
-    ${done?`<p class="meta">${ic('clock',14)} You'll get Clout when another Student's report agrees within 20 min.</p>`:
-    `<div class="qr-tiers" role="group" aria-label="Report ${esc(l.name)} fullness. One tap publishes.">${Object.keys(TIERS).map(k=>`<button class="btn" id="qr-${k}" data-a="quickReport" data-x="${l.slug}:${k}">${glyph(k,18)}<span>${TIERS[k]}</span></button>`).join('')}</div>
-    <p class="meta">One tap publishes · Clout when another Student agrees.</p>`}</section>`;
+  const l=quickLot();if(!l)return '';
+  if(l.mine)return `<p class="quick done meta" role="status">${ic('clock',14)} Reported ${esc(l.code)} ${TIERS[l.mine]} · Clout when a Student agrees <button class="link" data-a="undo" data-x="${l.slug}">Undo</button></p>`;
+  return `<div class="quick" role="group" aria-labelledby="qr-h"><span class="qr-lbl"><span id="qr-h">Just parked at</span> <button class="link" id="qr-change" data-a="reportPick" aria-haspopup="dialog" aria-label="Just parked at ${esc(l.name)}. Choose a different lot">${esc(l.code)}</button>?</span>
+   ${Object.keys(TIERS).map(k=>`<button class="qbtn" id="qr-${k}" data-a="quickReport" data-x="${l.slug}:${k}" aria-label="${esc(l.name)} is ${TIERS[k]}. Publish report"><span class="mark-${k}">${ic(k,20)}</span><span class="qt">${TIERS[k].replace('Nearly Full','Nearly')}</span></button>`).join('')}</div>`;
 }
 function cloutStrip(){
   const n=S.clout.pending.length,cap=earnedToday()>=CLOUT_CAP;
@@ -884,7 +884,7 @@ const A={
  dlevel:(el,x)=>{S.dialog.level=S.dialog.level===x?'':x;render({focus:'#dl-'+x});},
  dreport:(el,x)=>{const d=S.dialog;publish(d.slug,x,d.level);S.dialog=null;S.sel=d.slug;render({focus:lastTrigger});},
  dleaveTier:(el,x)=>{S.dialog.tier=x;render({focus:'#dlt-'+x});},
- quickReport:(el,x)=>{const [s,t]=x.split(':');S.quick=s;publish(s,t,'');render({focus:'#qr-change'});},
+ quickReport:(el,x)=>{const [s,t]=x.split(':');S.quick=s;publish(s,t,'');render({focus:'#rpt'});},
  took:(el,x)=>{const [s,i]=x.split(':');bySlug[s].openings.splice(+i,1);toast('Thanks! The Student who shared it gets Clout.');render();},
  simAgree:()=>{const p=S.clout.pending.find(p=>p.kind==='report');if(!p){toast('No pending report to confirm.');return;}const l=bySlug[p.slug];l.n+=1;award(p,`another Student confirmed ${l.name} is ${TIERS[p.t]}`);render();},
  simTook:()=>{const p=S.clout.pending.find(p=>p.kind==='spot');if(!p){toast('No spot opening shared.');return;}const l=bySlug[p.slug];l.openings=l.openings.filter(o=>!o.mine);S.leaving=null;award(p,`a Student took your spot at ${l.name}`);render();},
@@ -922,7 +922,7 @@ $('#notes').innerHTML=`<button class="x" onclick="$('#ctlNotes').click()">Close<
 <li><b>Permit</b> filters by default; “Show N lots your permit can't use” adds them greyed with a struck pin.</li>
 <li><b>Parking Report</b> in 2 taps: “Parking Report” → (nearest/pinned lot pre-selected) → tap a tier = published, with Undo in the toast and in the lot. Same flow inline on any expanded lot. Deck level stays optional.</li>
 <li><b>Spot Opening</b>: “I'm leaving ~5 min” → confirm lot → optional fullness rating → share. One active per Student. Others tap “I took this spot” (pays the sharer Clout) or “Gone” (2 votes removes).</li>
-<li><b>Clout (round 2, agreed on #52)</b>: the peek opens with “Just parked? How full is &lt;pinned/nearest lot&gt;?” where one tap publishes. Clout is paid only on corroboration (a matching report within 20 min, or “I took this spot”), shown as <i>pending</i> until then. No location check. Daily cap, no streaks, Undo removes the pending Clout. <b>Amounts (+5, cap 40) are placeholders.</b> Use the bar's “Sim: another Student agrees” / “Sim: spot taken” to play the payout.</li>
+<li><b>Clout (round 2, agreed on #52)</b>: the peek opens with a slim one-row “Just parked at &lt;lot code&gt;? ○ ◐ ◕ ●” strip where one tap publishes (round 3: kept slim so the map stays visible). Clout is paid only on corroboration (a matching report within 20 min, or “I took this spot”), shown as <i>pending</i> until then. No location check. Daily cap, no streaks, Undo removes the pending Clout. <b>Amounts (+5, cap 40) are placeholders.</b> Use the bar's “Sim: another Student agrees” / “Sim: spot taken” to play the payout.</li>
 <li><b>List parity</b>: every lot on the map is in the list in the chosen order; tapping a lot on the map opens the same row and announces it; “Show on map” goes the other way with a blue (focus-colour) outline, never colour-coded status.</li>
 <li><b>Map keyboard</b>: canvas is focusable (arrows pan, +/− zoom) with a “Skip map” link first; zoom in / out / recenter buttons are 44 px; rotation and pitch are off. OSM attribution is on (fixes the <code>attributionControl:false</code> gap).</li>
 <li><b>Reduced motion</b>: camera moves become jumps (duration 0), sheet snaps without sliding.</li>
