@@ -36,6 +36,47 @@ it("keeps KSU-wide reads stable when a Student switches location and defaults ne
   const explicitlyLocal = { ...reader, campusOverride: "Marietta" as const };
   expect((await t.query(api.marketplace.listListings, explicitlyLocal)).map(({ campus }) => campus)).toEqual(["Marietta"]);
   expect((await t.query(api.communities.listClubs, explicitlyLocal)).map(({ campus }) => campus)).toEqual(["Marietta"]);
+  for (const stream of ["campus", "trending"] as const) {
+    expect((await t.query(api.feed.listCampusOrTrendingFeed, {
+      ...explicitlyLocal, stream, paginationOpts: { numItems: 10, cursor: null },
+    })).page.map(({ campus }) => campus)).toEqual(["Marietta"]);
+  }
+  expect((await t.query(api.feed.listFeedRingsAndTrends, explicitlyLocal)).topTrendingTags.map(({ tag }) => tag)).toEqual(["marietta"]);
   const created = await t.mutation(api.feed.createPost, { ...reader, body: "Default to my home Campus." });
   expect(await t.run((ctx) => ctx.db.get(created.postId))).toMatchObject({ campus: "Kennesaw" });
 });
+
+for (const homeCampus of ["Kennesaw", "Marietta"] as const) {
+  it(`prioritizes ${homeCampus} Listings before applying the KSU-wide result limit`, async () => {
+    const t = createTestConvex();
+    const student = await createVerifiedTestStudent(t, {
+      handle: `buyer_${homeCampus.toLowerCase()}`, displayName: "Campus Buyer", homeCampus,
+    });
+    const reader = { sessionToken: student.sessionToken };
+    const otherCampus = homeCampus === "Kennesaw" ? "Marietta" : "Kennesaw";
+    const { listingId } = await t.mutation(api.marketplace.createListing, {
+      ...reader, campus: homeCampus, title: "Engineering calculator", description: "Calculator for class",
+      pricingMode: "fixed_obo", category: "electronics", priceCents: 1000,
+    });
+    await t.run(async (ctx) => {
+      const template = (await ctx.db.get(listingId))!;
+      const { _id: _id, _creationTime: _creationTime, ...listing } = template;
+      for (let i = 1; i <= 26; i++) {
+        await ctx.db.insert("listings", { ...listing, campus: otherCampus, publishedAt: template.publishedAt + i });
+      }
+    });
+
+    for (const filters of [{}, { category: "electronics" as const }, { queryText: "calculator" }]) {
+      const results = await t.query(api.marketplace.listListings, { ...reader, ...filters });
+      expect(results).toHaveLength(25);
+      expect(results[0]._id).toBe(listingId);
+      expect(results.slice(1).every(({ campus }) => campus === otherCampus)).toBe(true);
+      const limited = await t.query(api.marketplace.listListings, { ...reader, ...filters, limit: 2 });
+      expect(limited).toHaveLength(2);
+      expect(limited[0]._id).toBe(listingId);
+      expect((await t.query(api.marketplace.listListings, {
+        ...reader, ...filters, campusOverride: otherCampus, limit: 2,
+      })).every(({ campus }) => campus === otherCampus)).toBe(true);
+    }
+  });
+}
