@@ -1,0 +1,106 @@
+{
+  "violations": [
+    {
+      "id": "color-contrast",
+      "impact": "serious",
+      "help": "Elements must meet minimum color contrast ratio thresholds",
+      "tags": [
+        "cat.color",
+        "wcag2aa",
+        "wcag143",
+        "TTv5",
+        "TT13.c",
+        "EN-301-549",
+        "EN-9.1.4.3",
+        "ACT",
+        "RGAAv4",
+        "RGAA-3.2.1"
+      ],
+      "count": 18,
+      "nodes": [
+        {
+          "target": [
+            ".p-4.shadow-xs.rounded-2xl:nth-child(1) > .pt-2\\.5.mt-3.border-t > .gap-1\\.5.flex-wrap.flex > .border-\\[\\#DC2626\\].text-\\[\\#DC2626\\].bg-\\[\\#FEE2E2\\]"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.95 (foreground color: #dc2626, background color: #fee2e2, font size: 8.3pt (11px), font weight: bold). Expected contrast ratio of 4.5:1"
+        },
+        {
+          "target": [
+            ".p-4.shadow-xs.rounded-2xl:nth-child(2) > .pt-2\\.5.mt-3.border-t > .gap-1\\.5.flex-wrap.flex > .border-\\[\\#DC2626\\].text-\\[\\#DC2626\\].bg-\\[\\#FEE2E2\\]"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.95 (foreground color: #dc2626, background color: #fee2e2, font size: 8.3pt (11px), font weight: bold). Expected contrast ratio of 4.5:1"
+        },
+        {
+          "target": [
+            ".p-4.shadow-xs.rounded-2xl:nth-child(3) > .pt-2\\.5.mt-3.border-t > .gap-1\\.5.flex-wrap.flex > .border-\\[\\#DC2626\\].text-\\[\\#DC2626\\].bg-\\[\\#FEE2E2\\]"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.95 (foreground color: #dc2626, background color: #fee2e2, font size: 8.3pt (11px), font weight: bold). Expected contrast ratio of 4.5:1"
+        },
+        {
+          "target": [
+            "button[data-testid=\"report-tier-shuttle-lot-3305-2\"]"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.95 (foreground color: #dc2626, background color: #fee2e2, font size: 8.3pt (11px), font weight: bold). Expected contrast ratio of 4.5:1"
+        },
+        {
+          "target": [
+            ".p-4.shadow-xs.rounded-2xl:nth-child(5) > .pt-2\\.5.mt-3.border-t > .gap-1\\.5.flex-wrap.flex > .border-\\[\\#DC2626\\].text-\\[\\#DC2626\\].bg-\\[\\#FEE2E2\\]"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.95 (foreground color: #dc2626, background color: #fee2e2, font size: 8.3pt (11px), font weight: bold). Expected contrast ratio of 4.5:1"
+        }
+      ]
+    },
+    {
+      "id": "landmark-unique",
+      "impact": "moderate",
+      "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+      "tags": [
+        "cat.semantics",
+        "best-practice"
+      ],
+      "count": 1,
+      "nodes": [
+        {
+          "target": [
+            ".border-r"
+          ],
+          "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+        }
+      ]
+    },
+    {
+      "id": "select-name",
+      "impact": "critical",
+      "help": "Select element must have an accessible name",
+      "tags": [
+        "cat.forms",
+        "wcag2a",
+        "wcag412",
+        "section508",
+        "section508.22.n",
+        "TTv5",
+        "TT5.c",
+        "EN-301-549",
+        "EN-9.4.1.2",
+        "ACT",
+        "RGAAv4",
+        "RGAA-11.1.1"
+      ],
+      "count": 1,
+      "nodes": [
+        {
+          "target": [
+            "select"
+          ],
+          "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+        }
+      ]
+    }
+  ],
+  "incomplete": [
+    {
+      "id": "color-contrast",
+      "count": 2
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "violations": [
+    {
+      "id": "color-contrast",
+      "impact": "serious",
+      "help": "Elements must meet minimum color contrast ratio thresholds",
+      "tags": [
+        "cat.color",
+        "wcag2aa",
+        "wcag143",
+        "TTv5",
+        "TT13.c",
+        "EN-301-549",
+        "EN-9.1.4.3",
+        "ACT",
+        "RGAAv4",
+        "RGAA-3.2.1"
+      ],
+      "count": 5,
+      "nodes": [
+        {
+          "target": [
+            ".p-4.shadow-xs.rounded-2xl:nth-child(1) > .gap-2.justify-between.flex-wrap > .gap-2.items-center.flex > .h-8.w-8.justify-center"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 1.7 (foreground color: #ffffff, background color: #fdbb30, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"
+        },
+        {
+          "target": [
+            ".p-4.shadow-xs.rounded-2xl:nth-child(2) > .gap-2.justify-between.flex-wrap > .gap-2.items-center.flex > .h-8.w-8.justify-center"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.42 (foreground color: #ffffff, background color: #6baed6, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"
+        },
+        {
+          "target": [
+            ".p-4.shadow-xs.rounded-2xl:nth-child(5) > .gap-2.justify-between.flex-wrap > .gap-2.items-center.flex > .h-8.w-8.justify-center"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.01 (foreground color: #ffffff, background color: #bcbd22, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"
+        },
+        {
+          "target": [
+            ".p-4.shadow-xs.rounded-2xl:nth-child(7) > .gap-2.justify-between.flex-wrap > .gap-2.items-center.flex > .h-8.w-8.justify-center"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.18 (foreground color: #ffffff, background color: #d97706, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"
+        },
+        {
+          "target": [
+            ".p-4.shadow-xs.rounded-2xl:nth-child(9) > .gap-2.justify-between.flex-wrap > .gap-2.items-center.flex > .h-8.w-8.justify-center"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.4 (foreground color: #ffffff, background color: #2ca02c, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"
+        }
+      ]
+    },
+    {
+      "id": "landmark-unique",
+      "impact": "moderate",
+      "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+      "tags": [
+        "cat.semantics",
+        "best-practice"
+      ],
+      "count": 1,
+      "nodes": [
+        {
+          "target": [
+            ".border-r"
+          ],
+          "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+        }
+      ]
+    }
+  ],
+  "incomplete": [
+    {
+      "id": "color-contrast",
+      "count": 2
+    }
+  ]
+}

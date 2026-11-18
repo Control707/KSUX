@@ -1,0 +1,80 @@
+{
+  "violations": [
+    {
+      "id": "button-name",
+      "impact": "critical",
+      "help": "Buttons must have discernible text",
+      "tags": [
+        "cat.name-role-value",
+        "wcag2a",
+        "wcag412",
+        "section508",
+        "section508.22.a",
+        "TTv5",
+        "TT6.a",
+        "EN-301-549",
+        "EN-9.4.1.2",
+        "ACT",
+        "RGAAv4",
+        "RGAA-11.9.1"
+      ],
+      "count": 2,
+      "nodes": [
+        {
+          "target": [
+            "article:nth-child(1) > .pt-2\\.5.mt-3.border-t > .hover\\:text-\\[\\#111317\\][type=\"button\"]:nth-child(5)"
+          ],
+          "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+        },
+        {
+          "target": [
+            "article:nth-child(2) > .pt-2\\.5.mt-3.border-t > .hover\\:text-\\[\\#111317\\][type=\"button\"]:nth-child(5)"
+          ],
+          "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+        }
+      ]
+    },
+    {
+      "id": "landmark-unique",
+      "impact": "moderate",
+      "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+      "tags": [
+        "cat.semantics",
+        "best-practice"
+      ],
+      "count": 1,
+      "nodes": [
+        {
+          "target": [
+            ".border-r"
+          ],
+          "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+        }
+      ]
+    },
+    {
+      "id": "page-has-heading-one",
+      "impact": "moderate",
+      "help": "Page should contain a level-one heading",
+      "tags": [
+        "cat.semantics",
+        "best-practice"
+      ],
+      "count": 1,
+      "nodes": [
+        {
+          "target": [
+            "html"
+          ],
+          "summary": "Fix all of the following:\n  Page must have a level-one heading"
+        }
+      ]
+    }
+  ],
+  "incomplete": [
+    {
+      "id": "color-contrast",
+      "count": 2
+    }
+  ]
+}

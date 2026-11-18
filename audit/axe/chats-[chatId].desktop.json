@@ -1,0 +1,41 @@
+{
+  "violations": [
+    {
+      "id": "landmark-unique",
+      "impact": "moderate",
+      "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+      "tags": [
+        "cat.semantics",
+        "best-practice"
+      ],
+      "count": 1,
+      "nodes": [
+        {
+          "target": [
+            ".border-r"
+          ],
+          "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+        }
+      ]
+    },
+    {
+      "id": "page-has-heading-one",
+      "impact": "moderate",
+      "help": "Page should contain a level-one heading",
+      "tags": [
+        "cat.semantics",
+        "best-practice"
+      ],
+      "count": 1,
+      "nodes": [
+        {
+          "target": [
+            "html"
+          ],
+          "summary": "Fix all of the following:\n  Page must have a level-one heading"
+        }
+      ]
+    }
+  ],
+  "incomplete": []
+}

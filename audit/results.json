@@ -1,0 +1,2353 @@
+[
+  {
+    "route": "/ (signed out)",
+    "name": "welcome",
+    "mobileAxe": {
+      "violations": [
+        {
+          "id": "landmark-one-main",
+          "impact": "moderate",
+          "help": "Document should have one main landmark",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                "html"
+              ],
+              "summary": "Fix all of the following:\n  Document does not have a main landmark"
+            }
+          ]
+        },
+        {
+          "id": "region",
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "tags": [
+            "cat.keyboard",
+            "best-practice",
+            "RGAAv4",
+            "RGAA-9.2.1"
+          ],
+          "count": 4,
+          "nodes": [
+            {
+              "target": [
+                ".gap-3"
+              ],
+              "summary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+            },
+            {
+              "target": [
+                ".mt-5"
+              ],
+              "summary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+            },
+            {
+              "target": [
+                ".items-start.gap-2.flex:nth-child(1) > span"
+              ],
+              "summary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+            },
+            {
+              "target": [
+                ".items-start.gap-2.flex:nth-child(2) > span"
+              ],
+              "summary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+            }
+          ]
+        }
+      ],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "count": 1
+        }
+      ]
+    },
+    "mobileProbes": {
+      "interactiveCount": 2,
+      "targetsUnder24": 0,
+      "targetsUnder44": 0,
+      "smallExamples": [],
+      "hasMain": false,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 3,
+      "noVisibleRing": 0,
+      "offscreen": 0,
+      "possibleTrap": true,
+      "first": [
+        "button:welcome-edu-signin-btn",
+        "button:welcome-enter-demo-btn",
+        "body:undefined",
+        "button:welcome-edu-signin-btn",
+        "button:welcome-enter-demo-btn",
+        "body:undefined",
+        "button:welcome-edu-signin-btn",
+        "button:welcome-enter-demo-btn"
+      ]
+    }
+  },
+  {
+    "route": "/ (OTP modal)",
+    "name": "otp-modal",
+    "mobileAxe": {
+      "violations": [
+        {
+          "id": "button-name",
+          "impact": "critical",
+          "help": "Buttons must have discernible text",
+          "tags": [
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.a",
+            "TTv5",
+            "TT6.a",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.9.1"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".rounded-lg"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        },
+        {
+          "id": "region",
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "tags": [
+            "cat.keyboard",
+            "best-practice",
+            "RGAAv4",
+            "RGAA-9.2.1"
+          ],
+          "count": 8,
+          "nodes": [
+            {
+              "target": [
+                ".gap-3"
+              ],
+              "summary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+            },
+            {
+              "target": [
+                ".mt-5"
+              ],
+              "summary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+            },
+            {
+              "target": [
+                ".items-start.gap-2.flex:nth-child(1) > span"
+              ],
+              "summary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+            },
+            {
+              "target": [
+                ".items-start.gap-2.flex:nth-child(2) > span"
+              ],
+              "summary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+            },
+            {
+              "target": [
+                ".max-w-md > .justify-between.items-center.flex > .gap-2\\.5.items-center.flex"
+              ],
+              "summary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+            }
+          ]
+        }
+      ],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "count": 1
+        }
+      ]
+    },
+    "mobileProbes": {
+      "interactiveCount": 5,
+      "targetsUnder24": 0,
+      "targetsUnder44": 3,
+      "smallExamples": [],
+      "hasMain": false,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "KSUX — Kennesaw State Campus Companion",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 15,
+      "unique": 6,
+      "noVisibleRing": 3,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "button:welcome-enter-demo-btn",
+        "button:",
+        "input:",
+        "button:Send 6-Digit Code",
+        "body:undefined",
+        "button:welcome-edu-signin-btn",
+        "button:welcome-enter-demo-btn",
+        "button:"
+      ]
+    },
+    "escapeCloses": false,
+    "dialogRole": false
+  },
+  {
+    "route": "/",
+    "name": "now",
+    "mobileAxe": {
+      "violations": [],
+      "incomplete": []
+    },
+    "mobileProbes": {
+      "interactiveCount": 23,
+      "targetsUnder24": 5,
+      "targetsUnder44": 16,
+      "smallExamples": [
+        "a[Map & Report →] 96x16",
+        "a[Shuttle tracker →] 105x16",
+        "a[LibCal Grid →] 81x16",
+        "a[Menus & Lines →] 102x16",
+        "a[Full Calendar →] 94x16"
+      ],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(3) KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 23,
+      "noVisibleRing": 0,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "a:Ask Scrappy",
+        "a:Manage Schedule / .ics",
+        "a:CS 3305 · Data StructuresKenne"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 4
+    }
+  },
+  {
+    "route": "/feed",
+    "name": "feed",
+    "mobileAxe": {
+      "violations": [
+        {
+          "id": "button-name",
+          "impact": "critical",
+          "help": "Buttons must have discernible text",
+          "tags": [
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.a",
+            "TTv5",
+            "TT6.a",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.9.1"
+          ],
+          "count": 2,
+          "nodes": [
+            {
+              "target": [
+                "article:nth-child(1) > .pt-2\\.5.mt-3.border-t > .hover\\:text-\\[\\#111317\\][type=\"button\"]:nth-child(5)"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            },
+            {
+              "target": [
+                "article:nth-child(2) > .pt-2\\.5.mt-3.border-t > .hover\\:text-\\[\\#111317\\][type=\"button\"]:nth-child(5)"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        },
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "help": "Page should contain a level-one heading",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                "html"
+              ],
+              "summary": "Fix all of the following:\n  Page must have a level-one heading"
+            }
+          ]
+        }
+      ],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "count": 2
+        }
+      ]
+    },
+    "mobileProbes": {
+      "interactiveCount": 39,
+      "targetsUnder24": 18,
+      "targetsUnder44": 33,
+      "smallExamples": [
+        "button[#parking (8)] 92x23",
+        "button[#cs3305 (6)] 92x23",
+        "button[#bobshuttle (5)] 110x23",
+        "a[Alex Rivera] 69x16",
+        "a[Association for Computing Machinery at K] 251x17",
+        "button[0] 28x16"
+      ],
+      "hasMain": true,
+      "h1Count": 0,
+      "lang": "en",
+      "title": "(3) KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 25,
+      "noVisibleRing": 0,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "button:ALLAll Feed",
+        "button:CS3305CS 3305",
+        "button:SWE3313SWE 3313"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "button-name",
+          "impact": "critical",
+          "help": "Buttons must have discernible text",
+          "tags": [
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.a",
+            "TTv5",
+            "TT6.a",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.9.1"
+          ],
+          "count": 2,
+          "nodes": [
+            {
+              "target": [
+                "article:nth-child(1) > .pt-2\\.5.mt-3.border-t > .hover\\:text-\\[\\#111317\\][type=\"button\"]:nth-child(5)"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            },
+            {
+              "target": [
+                "article:nth-child(2) > .pt-2\\.5.mt-3.border-t > .hover\\:text-\\[\\#111317\\][type=\"button\"]:nth-child(5)"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        },
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        },
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "help": "Page should contain a level-one heading",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                "html"
+              ],
+              "summary": "Fix all of the following:\n  Page must have a level-one heading"
+            }
+          ]
+        }
+      ],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "count": 2
+        }
+      ]
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 1
+    }
+  },
+  {
+    "route": "/marketplace",
+    "name": "marketplace",
+    "mobileAxe": {
+      "violations": [
+        {
+          "id": "button-name",
+          "impact": "critical",
+          "help": "Buttons must have discernible text",
+          "tags": [
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.a",
+            "TTv5",
+            "TT6.a",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.9.1"
+          ],
+          "count": 3,
+          "nodes": [
+            {
+              "target": [
+                ".p-1.text-\\[\\#D99B00\\].rounded-lg"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            },
+            {
+              "target": [
+                ".gap-3.p-4[data-testid=\"marketplace-listing-card\"]:nth-child(2) > div:nth-child(1) > .gap-2.justify-between.flex > .p-1.rounded-lg[type=\"button\"]"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            },
+            {
+              "target": [
+                ".gap-3.p-4[data-testid=\"marketplace-listing-card\"]:nth-child(3) > div:nth-child(1) > .gap-2.justify-between.flex > .p-1.rounded-lg[type=\"button\"]"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        },
+        {
+          "id": "select-name",
+          "impact": "critical",
+          "help": "Select element must have an accessible name",
+          "tags": [
+            "cat.forms",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.n",
+            "TTv5",
+            "TT5.c",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.1.1"
+          ],
+          "count": 2,
+          "nodes": [
+            {
+              "target": [
+                "select:nth-child(2)"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            },
+            {
+              "target": [
+                "select:nth-child(3)"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "mobileProbes": {
+      "interactiveCount": 27,
+      "targetsUnder24": 7,
+      "targetsUnder44": 26,
+      "smallExamples": [
+        "input[Search textbooks, calculators, dorm gear] 275x16",
+        "a[@alex_owl· 7] 95x16",
+        "button[Report content] 69x23",
+        "a[@alex_owl· 7] 95x16",
+        "button[Report content] 69x23",
+        "a[@taylor_bio· 4] 104x16"
+      ],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(3) KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 18,
+      "noVisibleRing": 1,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "button:My Listings",
+        "button:open-create-listing-btn",
+        "input:"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "button-name",
+          "impact": "critical",
+          "help": "Buttons must have discernible text",
+          "tags": [
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.a",
+            "TTv5",
+            "TT6.a",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.9.1"
+          ],
+          "count": 3,
+          "nodes": [
+            {
+              "target": [
+                ".p-1.text-\\[\\#D99B00\\].rounded-lg"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            },
+            {
+              "target": [
+                ".gap-3.p-4[data-testid=\"marketplace-listing-card\"]:nth-child(2) > div:nth-child(1) > .gap-2.justify-between.flex > .p-1.rounded-lg[type=\"button\"]"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            },
+            {
+              "target": [
+                ".gap-3.p-4[data-testid=\"marketplace-listing-card\"]:nth-child(3) > div:nth-child(1) > .gap-2.justify-between.flex > .p-1.rounded-lg[type=\"button\"]"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        },
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        },
+        {
+          "id": "select-name",
+          "impact": "critical",
+          "help": "Select element must have an accessible name",
+          "tags": [
+            "cat.forms",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.n",
+            "TTv5",
+            "TT5.c",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.1.1"
+          ],
+          "count": 2,
+          "nodes": [
+            {
+              "target": [
+                "select:nth-child(2)"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            },
+            {
+              "target": [
+                "select:nth-child(3)"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 0
+    }
+  },
+  {
+    "route": "/chats",
+    "name": "chats",
+    "mobileAxe": {
+      "violations": [],
+      "incomplete": []
+    },
+    "mobileProbes": {
+      "interactiveCount": 28,
+      "targetsUnder24": 0,
+      "targetsUnder44": 23,
+      "smallExamples": [],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(3) KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 20,
+      "noVisibleRing": 0,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "button:+ DM",
+        "button:+ Group Chat",
+        "button:chats-filter-all"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 12
+    }
+  },
+  {
+    "route": "/scrappy",
+    "name": "scrappy",
+    "mobileAxe": {
+      "violations": [],
+      "incomplete": []
+    },
+    "mobileProbes": {
+      "interactiveCount": 16,
+      "targetsUnder24": 0,
+      "targetsUnder44": 13,
+      "smallExamples": [],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(3) KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 16,
+      "noVisibleRing": 1,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "button:New Thread",
+        "button:Where should I park on Kennesa",
+        "button:What are my enrolled Course Hu"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 0
+    }
+  },
+  {
+    "route": "/parking",
+    "name": "parking",
+    "mobileAxe": {
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "tags": [
+            "cat.color",
+            "wcag2aa",
+            "wcag143",
+            "TTv5",
+            "TT13.c",
+            "EN-301-549",
+            "EN-9.1.4.3",
+            "ACT",
+            "RGAAv4",
+            "RGAA-3.2.1"
+          ],
+          "count": 18,
+          "nodes": [
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(1) > .pt-2\\.5.mt-3.border-t > .gap-1\\.5.flex-wrap.flex > .border-\\[\\#DC2626\\].text-\\[\\#DC2626\\].bg-\\[\\#FEE2E2\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.95 (foreground color: #dc2626, background color: #fee2e2, font size: 8.3pt (11px), font weight: bold). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(2) > .pt-2\\.5.mt-3.border-t > .gap-1\\.5.flex-wrap.flex > .border-\\[\\#DC2626\\].text-\\[\\#DC2626\\].bg-\\[\\#FEE2E2\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.95 (foreground color: #dc2626, background color: #fee2e2, font size: 8.3pt (11px), font weight: bold). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(3) > .pt-2\\.5.mt-3.border-t > .gap-1\\.5.flex-wrap.flex > .border-\\[\\#DC2626\\].text-\\[\\#DC2626\\].bg-\\[\\#FEE2E2\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.95 (foreground color: #dc2626, background color: #fee2e2, font size: 8.3pt (11px), font weight: bold). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                "button[data-testid=\"report-tier-shuttle-lot-3305-2\"]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.95 (foreground color: #dc2626, background color: #fee2e2, font size: 8.3pt (11px), font weight: bold). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(5) > .pt-2\\.5.mt-3.border-t > .gap-1\\.5.flex-wrap.flex > .border-\\[\\#DC2626\\].text-\\[\\#DC2626\\].bg-\\[\\#FEE2E2\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.95 (foreground color: #dc2626, background color: #fee2e2, font size: 8.3pt (11px), font weight: bold). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        },
+        {
+          "id": "select-name",
+          "impact": "critical",
+          "help": "Select element must have an accessible name",
+          "tags": [
+            "cat.forms",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.n",
+            "TTv5",
+            "TT5.c",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.1.1"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                "select"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        }
+      ],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "count": 2
+        }
+      ]
+    },
+    "mobileProbes": {
+      "interactiveCount": 135,
+      "targetsUnder24": 14,
+      "targetsUnder44": 133,
+      "smallExamples": [
+        "button[Mark Gone (0/2)] 113x23",
+        "button[P1] 31x23",
+        "button[P2] 33x23",
+        "button[P3] 33x23",
+        "button[P4] 33x23",
+        "button[P5] 33x23"
+      ],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(3) KSUX",
+      "canvasCount": 1,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 24,
+      "noVisibleRing": 0,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "select:permit-tier-select",
+        "input:campus-place-search",
+        "canvas:Map"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "tags": [
+            "cat.color",
+            "wcag2aa",
+            "wcag143",
+            "TTv5",
+            "TT13.c",
+            "EN-301-549",
+            "EN-9.1.4.3",
+            "ACT",
+            "RGAAv4",
+            "RGAA-3.2.1"
+          ],
+          "count": 18,
+          "nodes": [
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(1) > .pt-2\\.5.mt-3.border-t > .gap-1\\.5.flex-wrap.flex > .border-\\[\\#DC2626\\].text-\\[\\#DC2626\\].bg-\\[\\#FEE2E2\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.95 (foreground color: #dc2626, background color: #fee2e2, font size: 8.3pt (11px), font weight: bold). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(2) > .pt-2\\.5.mt-3.border-t > .gap-1\\.5.flex-wrap.flex > .border-\\[\\#DC2626\\].text-\\[\\#DC2626\\].bg-\\[\\#FEE2E2\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.95 (foreground color: #dc2626, background color: #fee2e2, font size: 8.3pt (11px), font weight: bold). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(3) > .pt-2\\.5.mt-3.border-t > .gap-1\\.5.flex-wrap.flex > .border-\\[\\#DC2626\\].text-\\[\\#DC2626\\].bg-\\[\\#FEE2E2\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.95 (foreground color: #dc2626, background color: #fee2e2, font size: 8.3pt (11px), font weight: bold). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                "button[data-testid=\"report-tier-shuttle-lot-3305-2\"]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.95 (foreground color: #dc2626, background color: #fee2e2, font size: 8.3pt (11px), font weight: bold). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(5) > .pt-2\\.5.mt-3.border-t > .gap-1\\.5.flex-wrap.flex > .border-\\[\\#DC2626\\].text-\\[\\#DC2626\\].bg-\\[\\#FEE2E2\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.95 (foreground color: #dc2626, background color: #fee2e2, font size: 8.3pt (11px), font weight: bold). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        },
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        },
+        {
+          "id": "select-name",
+          "impact": "critical",
+          "help": "Select element must have an accessible name",
+          "tags": [
+            "cat.forms",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.n",
+            "TTv5",
+            "TT5.c",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.1.1"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                "select"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        }
+      ],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "count": 2
+        }
+      ]
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 0
+    }
+  },
+  {
+    "route": "/study",
+    "name": "study",
+    "mobileAxe": {
+      "violations": [],
+      "incomplete": []
+    },
+    "mobileProbes": {
+      "interactiveCount": 48,
+      "targetsUnder24": 0,
+      "targetsUnder44": 46,
+      "smallExamples": [],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(3) KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 13,
+      "noVisibleRing": 0,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "button:today",
+        "button:tomorrow",
+        "button:+ Host Study Session"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 0
+    }
+  },
+  {
+    "route": "/transit",
+    "name": "transit",
+    "mobileAxe": {
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "tags": [
+            "cat.color",
+            "wcag2aa",
+            "wcag143",
+            "TTv5",
+            "TT13.c",
+            "EN-301-549",
+            "EN-9.1.4.3",
+            "ACT",
+            "RGAAv4",
+            "RGAA-3.2.1"
+          ],
+          "count": 5,
+          "nodes": [
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(1) > .gap-2.justify-between.flex-wrap > .gap-2.items-center.flex > .h-8.w-8.justify-center"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 1.7 (foreground color: #ffffff, background color: #fdbb30, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(2) > .gap-2.justify-between.flex-wrap > .gap-2.items-center.flex > .h-8.w-8.justify-center"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.42 (foreground color: #ffffff, background color: #6baed6, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(5) > .gap-2.justify-between.flex-wrap > .gap-2.items-center.flex > .h-8.w-8.justify-center"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.01 (foreground color: #ffffff, background color: #bcbd22, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(7) > .gap-2.justify-between.flex-wrap > .gap-2.items-center.flex > .h-8.w-8.justify-center"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.18 (foreground color: #ffffff, background color: #d97706, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(9) > .gap-2.justify-between.flex-wrap > .gap-2.items-center.flex > .h-8.w-8.justify-center"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.4 (foreground color: #ffffff, background color: #2ca02c, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "count": 3
+        }
+      ]
+    },
+    "mobileProbes": {
+      "interactiveCount": 117,
+      "targetsUnder24": 0,
+      "targetsUnder44": 115,
+      "smallExamples": [],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(3) KSUX",
+      "canvasCount": 1,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 10,
+      "noVisibleRing": 0,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "input:campus-place-search",
+        "canvas:Map",
+        "button:Stop clear"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "tags": [
+            "cat.color",
+            "wcag2aa",
+            "wcag143",
+            "TTv5",
+            "TT13.c",
+            "EN-301-549",
+            "EN-9.1.4.3",
+            "ACT",
+            "RGAAv4",
+            "RGAA-3.2.1"
+          ],
+          "count": 5,
+          "nodes": [
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(1) > .gap-2.justify-between.flex-wrap > .gap-2.items-center.flex > .h-8.w-8.justify-center"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 1.7 (foreground color: #ffffff, background color: #fdbb30, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(2) > .gap-2.justify-between.flex-wrap > .gap-2.items-center.flex > .h-8.w-8.justify-center"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.42 (foreground color: #ffffff, background color: #6baed6, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(5) > .gap-2.justify-between.flex-wrap > .gap-2.items-center.flex > .h-8.w-8.justify-center"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 2.01 (foreground color: #ffffff, background color: #bcbd22, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(7) > .gap-2.justify-between.flex-wrap > .gap-2.items-center.flex > .h-8.w-8.justify-center"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.18 (foreground color: #ffffff, background color: #d97706, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-4.shadow-xs.rounded-2xl:nth-child(9) > .gap-2.justify-between.flex-wrap > .gap-2.items-center.flex > .h-8.w-8.justify-center"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.4 (foreground color: #ffffff, background color: #2ca02c, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        },
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        }
+      ],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "count": 2
+        }
+      ]
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 0
+    }
+  },
+  {
+    "route": "/dining",
+    "name": "dining",
+    "mobileAxe": {
+      "violations": [
+        {
+          "id": "select-name",
+          "impact": "critical",
+          "help": "Select element must have an accessible name",
+          "tags": [
+            "cat.forms",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.n",
+            "TTv5",
+            "TT5.c",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.1.1"
+          ],
+          "count": 2,
+          "nodes": [
+            {
+              "target": [
+                "select:nth-child(2)"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            },
+            {
+              "target": [
+                "select:nth-child(3)"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "mobileProbes": {
+      "interactiveCount": 98,
+      "targetsUnder24": 48,
+      "targetsUnder44": 97,
+      "smallExamples": [
+        "a[Check Nutrislice] 93x15",
+        "button[+ Fresh batch out] 116x22",
+        "button[+ Ice cream / beverage station down] 215x22",
+        "button[+ Seating tight] 101x22",
+        "a[Check Nutrislice] 93x15",
+        "button[+ Fresh batch out] 116x22"
+      ],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(3) KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 16,
+      "noVisibleRing": 0,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "button:today",
+        "button:tomorrow",
+        "select:All Dietary PreferencesVeganVe"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        },
+        {
+          "id": "select-name",
+          "impact": "critical",
+          "help": "Select element must have an accessible name",
+          "tags": [
+            "cat.forms",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.n",
+            "TTv5",
+            "TT5.c",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.1.1"
+          ],
+          "count": 2,
+          "nodes": [
+            {
+              "target": [
+                "select:nth-child(2)"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            },
+            {
+              "target": [
+                "select:nth-child(3)"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 0
+    }
+  },
+  {
+    "route": "/profile",
+    "name": "profile",
+    "mobileAxe": {
+      "violations": [],
+      "incomplete": []
+    },
+    "mobileProbes": {
+      "interactiveCount": 17,
+      "targetsUnder24": 0,
+      "targetsUnder44": 12,
+      "smallExamples": [],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(3) KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 18,
+      "noVisibleRing": 0,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "button:Edit Profile",
+        "button:Exit Demo",
+        "a:Association for Computing Mach"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 0
+    }
+  },
+  {
+    "route": "/moderation",
+    "name": "moderation",
+    "mobileAxe": {
+      "violations": [],
+      "incomplete": []
+    },
+    "mobileProbes": {
+      "interactiveCount": 14,
+      "targetsUnder24": 1,
+      "targetsUnder44": 13,
+      "smallExamples": [
+        "a[470-578-6666] 104x16"
+      ],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(3) KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 15,
+      "noVisibleRing": 0,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "a:470-578-6666",
+        "button:moderation-restore-btn",
+        "button:moderation-remove-btn"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 0
+    }
+  },
+  {
+    "route": "/clubs",
+    "name": "clubs",
+    "mobileAxe": {
+      "violations": [
+        {
+          "id": "select-name",
+          "impact": "critical",
+          "help": "Select element must have an accessible name",
+          "tags": [
+            "cat.forms",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.n",
+            "TTv5",
+            "TT5.c",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.1.1"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                "select"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "mobileProbes": {
+      "interactiveCount": 89,
+      "targetsUnder24": 51,
+      "targetsUnder44": 88,
+      "smallExamples": [
+        "a[Browse Events Calendar →] 160x15",
+        "input[Search 544 KSU Clubs (ACM, Robotics, Mot] 275x16",
+        "a[Association for Computing Machinery at K] 324x20",
+        "a[View Club & Events →] 130x16",
+        "a[Biomedical Research Society] 324x20",
+        "a[View Club & Events →] 130x16"
+      ],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(3) KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 18,
+      "noVisibleRing": 1,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "a:Browse Events Calendar →",
+        "button:+ Community Club",
+        "input:"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        },
+        {
+          "id": "select-name",
+          "impact": "critical",
+          "help": "Select element must have an accessible name",
+          "tags": [
+            "cat.forms",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.n",
+            "TTv5",
+            "TT5.c",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.1.1"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                "select"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 0
+    }
+  },
+  {
+    "route": "/events",
+    "name": "events",
+    "mobileAxe": {
+      "violations": [],
+      "incomplete": []
+    },
+    "mobileProbes": {
+      "interactiveCount": 112,
+      "targetsUnder24": 40,
+      "targetsUnder44": 111,
+      "smallExamples": [
+        "input[Search Kennesaw, Marietta, or Virtual Ev] 275x16",
+        "a[Jazz Ensemble II & III] 324x20",
+        "a[Source] 58x16",
+        "a[Jazz Ensemble II & III] 324x20",
+        "a[Source] 58x16",
+        "a[Source] 58x16"
+      ],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(3) KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 16,
+      "noVisibleRing": 1,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "button:+ Campus Hangout",
+        "input:",
+        "a:Jazz Ensemble II & III"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 0
+    }
+  },
+  {
+    "route": "/chats/jh7evm4yg1pq2e9pejc1scrnax8jfjf2",
+    "name": "chats-[chatId]",
+    "mobileAxe": {
+      "violations": [
+        {
+          "id": "button-name",
+          "impact": "critical",
+          "help": "Buttons must have discernible text",
+          "tags": [
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.a",
+            "TTv5",
+            "TT6.a",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.9.1"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".hover\\:text-\\[\\#B91C1C\\].rounded.p-1"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        },
+        {
+          "id": "link-name",
+          "impact": "serious",
+          "help": "Links must have discernible text",
+          "tags": [
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag244",
+            "wcag412",
+            "section508",
+            "section508.22.a",
+            "TTv5",
+            "TT6.a",
+            "EN-301-549",
+            "EN-9.2.4.4",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-6.2.1"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".p-1\\.5"
+              ],
+              "summary": "Fix all of the following:\n  Element is in tab order and does not have accessible text\n\nFix any of the following:\n  Element does not have text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute"
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "mobileProbes": {
+      "interactiveCount": 31,
+      "targetsUnder24": 14,
+      "targetsUnder44": 30,
+      "smallExamples": [
+        "button[Quote Reply] 22x22",
+        "button[] 22x22",
+        "button[🦉] 32x21",
+        "button[👍] 32x21",
+        "button[❤️] 32x21",
+        "button[😂] 32x21"
+      ],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(2) KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 18,
+      "noVisibleRing": 1,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "a:",
+        "button:confirm-meetup-btn",
+        "button:Update Spot"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        },
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "help": "Page should contain a level-one heading",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                "html"
+              ],
+              "summary": "Fix all of the following:\n  Page must have a level-one heading"
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 0
+    }
+  },
+  {
+    "route": "/clubs/acm-ksu",
+    "name": "clubs-[slug]",
+    "mobileAxe": {
+      "violations": [],
+      "incomplete": []
+    },
+    "mobileProbes": {
+      "interactiveCount": 18,
+      "targetsUnder24": 0,
+      "targetsUnder44": 14,
+      "smallExamples": [],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(2) KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 16,
+      "noVisibleRing": 0,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "a:Club Group Chat",
+        "button:Joined (member)",
+        "button:Claim Officer Role"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 0
+    }
+  },
+  {
+    "route": "/events/ks7cj0qzaecyy6x72aj4depmz98jakep",
+    "name": "events-[eventId]",
+    "mobileAxe": {
+      "violations": [],
+      "incomplete": []
+    },
+    "mobileProbes": {
+      "interactiveCount": 12,
+      "targetsUnder24": 0,
+      "targetsUnder44": 11,
+      "smallExamples": [],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(2) KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 13,
+      "noVisibleRing": 0,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "button:RSVP Going (0)",
+        "a:← All Events",
+        "a:Now"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 0
+    }
+  },
+  {
+    "route": "/courses/CS%203305",
+    "name": "courses-[subjectCourse]",
+    "mobileAxe": {
+      "violations": [
+        {
+          "id": "select-name",
+          "impact": "critical",
+          "help": "Select element must have an accessible name",
+          "tags": [
+            "cat.forms",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.n",
+            "TTv5",
+            "TT5.c",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.1.1"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                "select"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "mobileProbes": {
+      "interactiveCount": 25,
+      "targetsUnder24": 1,
+      "targetsUnder44": 20,
+      "smallExamples": [
+        "input[] 13x13"
+      ],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(2) KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 25,
+      "unique": 25,
+      "noVisibleRing": 1,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:🦉KSUX",
+        "button:judge-demo-pill",
+        "button:campus-switch-kennesaw",
+        "button:campus-switch-marietta",
+        "button:campus-switch-all-ksu",
+        "select:Fall 2026 (202608)Spring 2027 ",
+        "a:Course Group Chat",
+        "button:Sec 01 · CRN 83190 (Kennesaw)D"
+      ]
+    },
+    "desktopAxe": {
+      "violations": [
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".border-r"
+              ],
+              "summary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+            }
+          ]
+        },
+        {
+          "id": "select-name",
+          "impact": "critical",
+          "help": "Select element must have an accessible name",
+          "tags": [
+            "cat.forms",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.n",
+            "TTv5",
+            "TT5.c",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.1.1"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                "select"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        }
+      ],
+      "incomplete": []
+    },
+    "zoom200": {
+      "horizontalOverflow": false,
+      "clippedText": 0
+    }
+  },
+  {
+    "route": "Quick Sheet",
+    "name": "quick-sheet",
+    "mobileAxe": {
+      "violations": [
+        {
+          "id": "button-name",
+          "impact": "critical",
+          "help": "Buttons must have discernible text",
+          "tags": [
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.a",
+            "TTv5",
+            "TT6.a",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.9.1"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                ".p-1\\.5"
+              ],
+              "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        },
+        {
+          "id": "heading-order",
+          "impact": "moderate",
+          "help": "Heading levels should only increase by one",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "count": 1,
+          "nodes": [
+            {
+              "target": [
+                "h3"
+              ],
+              "summary": "Fix any of the following:\n  Heading order invalid"
+            }
+          ]
+        },
+        {
+          "id": "region",
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "tags": [
+            "cat.keyboard",
+            "best-practice",
+            "RGAAv4",
+            "RGAA-9.2.1"
+          ],
+          "count": 11,
+          "nodes": [
+            {
+              "target": [
+                ".max-w-xl > .justify-between.flex.items-center:nth-child(1) > .gap-2.flex.items-center"
+              ],
+              "summary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+            },
+            {
+              "target": [
+                ".text-center.hover\\:bg-\\[\\#FFF6DC\\][href=\"/\"] > .leading-tight"
+              ],
+              "summary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+            },
+            {
+              "target": [
+                ".text-center.hover\\:bg-\\[\\#FFF6DC\\][href$=\"parking\"] > .leading-tight"
+              ],
+              "summary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+            },
+            {
+              "target": [
+                ".text-center.hover\\:bg-\\[\\#FFF6DC\\][href$=\"study\"] > .leading-tight"
+              ],
+              "summary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+            },
+            {
+              "target": [
+                ".text-center.hover\\:bg-\\[\\#FFF6DC\\][href$=\"transit\"] > .leading-tight"
+              ],
+              "summary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+            }
+          ]
+        }
+      ],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "count": 7
+        }
+      ]
+    },
+    "mobileProbes": {
+      "interactiveCount": 39,
+      "targetsUnder24": 5,
+      "targetsUnder44": 21,
+      "smallExamples": [
+        "a[Map & Report →] 96x16",
+        "a[Shuttle tracker →] 105x16",
+        "a[LibCal Grid →] 81x16",
+        "a[Menus & Lines →] 102x16",
+        "a[Full Calendar →] 94x16"
+      ],
+      "hasMain": true,
+      "h1Count": 1,
+      "lang": "en",
+      "title": "(2) KSUX",
+      "canvasCount": 0,
+      "liveRegions": 0,
+      "horizontalOverflow": false,
+      "animatedEls": 0
+    },
+    "focus": {
+      "steps": 20,
+      "unique": 20,
+      "noVisibleRing": 0,
+      "offscreen": 0,
+      "possibleTrap": false,
+      "first": [
+        "a:Market",
+        "a:mobile-chats-tab",
+        "button:",
+        "button:🦉 Ask Scrappy anything about ",
+        "button:+ Post",
+        "button:+ Parking Report",
+        "button:+ Listing",
+        "button:+ Study Session"
+      ]
+    },
+    "escapeCloses": false
+  },
+  {
+    "route": "/ (prefers-reduced-motion)",
+    "name": "reduced-motion",
+    "infiniteAnimationsUnderReduce": 0,
+    "examples": []
+  }
+]
