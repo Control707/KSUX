@@ -78,3 +78,24 @@ it("resolves an ambiguous section and isolates manual classes across Judge Demo 
   );
   expect(await t.query(api.courses.listMyPrivateClasses, { ...auth, demoShortCode: other.shortCode, termCode })).toEqual([]);
 });
+
+it("purges private schedules with expired Judge Demo workspaces and deleted Student profiles", async () => {
+  const t = createTestConvex();
+  await t.mutation(internal.seed.bootstrapKsu, {});
+  const demo = await t.mutation(api.demo.session.provisionOrAttachDemoSession, { preferredPersona: "maya_cs" });
+  const auth = { demoShortCode: demo.shortCode, demoPersonaHandle: "maya_cs" };
+  await t.mutation(api.courses.savePrivateClass, { ...auth, termCode: "202608", title: "Demo class", days: ["M"], startMinutes: 600 });
+  const owner = await createVerifiedTestStudent(t, { handle: "schedule_leaver", displayName: "Schedule Leaver" });
+  await t.mutation(api.courses.savePrivateClass, {
+    sessionToken: owner.sessionToken, termCode: "202608", title: "Prod class", days: ["T"], startMinutes: 600,
+  });
+  expect(await t.run(({ db }) => db.query("privateScheduleTerms").take(10))).toHaveLength(2);
+
+  await t.run(async ({ db }) => {
+    const row = await db.query("demoSessions").withIndex("by_short_code", (q) => q.eq("shortCode", demo.shortCode)).unique();
+    await db.patch(row!._id, { expiresAt: 0 });
+  });
+  await t.action(internal.housekeeping.runHourlyPurge, {});
+  await t.mutation(api.students.deleteMyProfile, { sessionToken: owner.sessionToken });
+  expect(await t.run(({ db }) => db.query("privateScheduleTerms").take(10))).toEqual([]);
+});

@@ -11,8 +11,8 @@ import { formatPrivateClassMeeting, scheduleTimeInput, scheduleWeekdays } from "
 type Preview = FunctionReturnType<typeof api.courses.previewScheduleFromIcs>;
 type PrivateClass = FunctionReturnType<typeof api.courses.listMyPrivateClasses>[number];
 
-const buttonStyle = "rounded-lg border border-[#D99B00] bg-[#FFF6DC] px-3 py-2 text-xs font-bold disabled:opacity-50";
-const inputStyle = "rounded-lg border border-[#E4E7EE] p-2 text-sm";
+const buttonStyle = "min-h-11 rounded-lg border border-[#D99B00] bg-[#FFF6DC] px-3 py-2 text-xs font-bold disabled:opacity-50";
+const inputStyle = "min-h-11 rounded-lg border border-[#E4E7EE] p-2 text-sm";
 
 function message(error: unknown) {
   if (error instanceof Error) {

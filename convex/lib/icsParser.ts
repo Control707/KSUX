@@ -53,7 +53,15 @@ function unescapeIcsText(val: string): string {
     .trim();
 }
 
-function stripAnyTokenUrls(text: string): string {
+function contentKey(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < text.length; index++) {
+    hash = Math.imul(hash ^ text.charCodeAt(index), 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+export function stripAnyTokenUrls(text: string): string {
   // Never persist live D2L/LMS subscription URLs or query tokens
   return text.replace(/(?:https?|webcals?):\/\/\S+/gi, "").trim();
 }
@@ -122,6 +130,8 @@ export function parseStatelessScheduleIcs(
     }
     if (inEvent && line.toUpperCase() === "END:VEVENT") {
       inEvent = false;
+      // A RECURRENCE-ID event overrides one instance of a weekly class; it is not a deadline.
+      if (fields["RECURRENCE-ID"] !== undefined) continue;
       const summary = stripAnyTokenUrls(
         unescapeIcsText(fields.SUMMARY ?? "Untitled Event")
       );
@@ -131,9 +141,10 @@ export function parseStatelessScheduleIcs(
       const location = stripAnyTokenUrls(
         unescapeIcsText(fields.LOCATION ?? "")
       );
+      // Without a UID, derive a content key so reimports dedupe and a different file never collides.
       const uid =
         stripAnyTokenUrls(unescapeIcsText(fields.UID ?? "")).slice(0, 200) ||
-        `ics-${classBlocks.length + deadlines.length + 1}`;
+        `ics-${contentKey([summary, fields.DTSTART, fields.DTEND, fields.RRULE].join("|"))}`;
       const rrule = (fields.RRULE ?? "").toUpperCase();
       const dtStart = fields.DTSTART ? parseIcsTimestamp(fields.DTSTART, timeZones.DTSTART) : null;
       const dtEnd = fields.DTEND ? parseIcsTimestamp(fields.DTEND, timeZones.DTEND) : null;

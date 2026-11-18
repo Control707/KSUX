@@ -8,7 +8,7 @@ import {
   viewerQuery,
 } from "./lib/viewer";
 import { hydratePostCards } from "./feed";
-import { parseStatelessScheduleIcs } from "./lib/icsParser";
+import { parseStatelessScheduleIcs, stripAnyTokenUrls } from "./lib/icsParser";
 import { fetchSimpleSyllabusSummary } from "./lib/syllabusAdapter";
 import { Doc, Id } from "./_generated/dataModel";
 import { removeCommunityChatMember } from "./lib/campusChat";
@@ -540,8 +540,8 @@ function readScheduleTerm(ctx: QueryCtx, workspaceKey: string, studentId: Id<"st
 type PrivateClass = Doc<"privateScheduleTerms">["entries"][number];
 
 function toPrivateClass(key: string, fields: Omit<PrivateClass, "key">): PrivateClass {
-  const title = fields.title.trim().replace(/(?:https?|webcals?):\/\/\S+/gi, "").trim().slice(0, 140);
-  const location = fields.location?.replace(/(?:https?|webcals?):\/\/\S+/gi, "").trim().slice(0, 160);
+  const title = stripAnyTokenUrls(fields.title).slice(0, 140);
+  const location = fields.location === undefined ? undefined : stripAnyTokenUrls(fields.location).slice(0, 160);
   const validTime = (minutes: number) => Number.isInteger(minutes) && minutes >= 0 && minutes < 1440;
   if (!title || !fields.days.length || fields.days.some((day) => !scheduleDays.includes(day)) ||
       !validTime(fields.startMinutes) || (fields.endMinutes !== undefined && !validTime(fields.endMinutes))) {
@@ -558,7 +558,13 @@ function toPrivateClass(key: string, fields: Omit<PrivateClass, "key">): Private
 }
 
 async function parseScheduleMatches(ctx: QueryCtx, rawIcs: string, termCode: string) {
-  const parsed = parseStatelessScheduleIcs(rawIcs);
+  let parsed: ReturnType<typeof parseStatelessScheduleIcs>;
+  try {
+    parsed = parseStatelessScheduleIcs(rawIcs);
+  } catch (problem) {
+    // Plain Errors are redacted in production; surface the parser's reason to the Student.
+    throw new ConvexError(problem instanceof Error ? problem.message : "Could not read this .ics file.");
+  }
   const blocks = await Promise.all(parsed.classBlocks.map(async (block) => {
     const byCrn = block.crnCandidate ? await ctx.db.query("courseSections")
       .withIndex("by_term_crn", (q) => q.eq("termCode", termCode).eq("crn", block.crnCandidate!)).unique() : null;

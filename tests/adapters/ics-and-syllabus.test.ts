@@ -85,3 +85,18 @@ it("projects weekly calendar days into Eastern time and keeps their meeting end 
     { byDays: ["W"], startMinutes: 540 },
   ]);
 });
+
+it("keeps one-off recurrence overrides out of deadlines and gives UID-less events stable keys", () => {
+  const calendar = [
+    "BEGIN:VCALENDAR",
+    "BEGIN:VEVENT", "SUMMARY:BIOL 9900 Lab", "DTSTART:20260902T140000Z", "RRULE:FREQ=WEEKLY;BYDAY=WE", "END:VEVENT",
+    "BEGIN:VEVENT", "UID:override", "RECURRENCE-ID:20260909T140000Z", "SUMMARY:BIOL 9900 Lab (moved)",
+    "DTSTART:20260910T140000Z", "DTEND:20260910T153000Z", "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const first = parseStatelessScheduleIcs(calendar);
+  expect(first.deadlines).toEqual([]);
+  expect(first.classBlocks).toHaveLength(1);
+  const reordered = calendar.replace("BEGIN:VCALENDAR", "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:Extra\r\nDTEND:20260911T040000Z\r\nEND:VEVENT");
+  expect(parseStatelessScheduleIcs(reordered).classBlocks[0]!.uid).toBe(first.classBlocks[0]!.uid);
+});
