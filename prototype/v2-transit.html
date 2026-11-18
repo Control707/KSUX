@@ -1,0 +1,963 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PROTOTYPE · KSUX v2 · Transit screen &amp; shuttle map</title>
+<!--
+  THROWAWAY PROTOTYPE. Branch prototype/v2-transit, never merged.
+  Ticket #67 "Prototype redesigned transit screen and shuttle map" (Map #35: KSUX v2).
+  Builds on Direction C (prototype/v2-shell) and the Parking map patterns (prototype/v2-parking, #47).
+  Real MapLibre GL JS 5.5 + OpenFreeMap positron/dark, real Passio route lines + 35 stops (public/data/shuttle-routes.geojson,
+  decimated, embedded) and real hours/stop order (data/ksu-seed/shuttle-routes.json).
+  Bus positions, ETAs, loads, stop reports and Shuttle Notices are FAKE and simulated in memory (12 s ticks). Reload resets.
+  Three layouts under test (?layout=sheet|board|strip, or the prototype bar):
+    sheet = full-bleed map + bottom sheet (Parking's winner) with "Your stop" peek and route list,
+    board = stop-first departures board with a collapsible map card,
+    strip = route-first: pick a route, vertical stop-line diagram with buses between stops.
+-->
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.css">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html{font-size:100%;-webkit-text-size-adjust:100%}
+body{margin:0;background:#26282d;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.stage{height:calc(100dvh - 64px);display:flex;align-items:center;justify-content:center;padding:12px}
+.stage[data-frame="fluid"]{padding:0}
+.stage[data-frame="fluid"] .app{width:100%;height:100%}
+.stage[data-frame="phone"] .app{width:390px;height:min(844px,100%);border-radius:30px;box-shadow:0 0 0 10px #0d0e10,0 24px 60px rgba(0,0,0,.55)}
+
+/* ================= TOKENS (Direction C) ================= */
+.app{
+  --fs-xs:.8125rem; --fs-sm:.875rem; --fs-body:1.0625rem; --fs-lg:1.125rem; --fs-xl:1.375rem; --fs-2xl:1.75rem; --fs-3xl:2.25rem;
+  --sp-1:.25rem; --sp-2:.5rem; --sp-3:.75rem; --sp-4:1rem; --sp-5:1.5rem; --sp-6:2rem;
+  --target:2.75rem; --r-sm:12px; --r-md:18px; --r-lg:24px; --r-card:28px; --r-pill:999px;
+  --font-body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --font-display:ui-serif,"Iowan Old Style","Charter",Georgia,serif;
+  --dur-1:120ms; --dur-2:320ms; --dur-fade:150ms; --ease:cubic-bezier(.2,.8,.2,1); --sheet-move:100%; --focus-w:3px;
+  --bg:#FBF7EF; --surface:#FFFFFF; --surface-2:#F3ECDD; --ink:#1F1A14; --muted:#5C5245; --line:#E2D8C6; --line-strong:#8A7E6B;
+  --accent:#FDBB30; --on-accent:#1F1A14; --accent-ink:#7A4E00; --accent-soft:#FBEBC4;
+  --header:#FBF7EF; --demo:#FFB020; --focus:#0B57D0;
+  --ok-fg:#14592F; --ok-bg:#DCF2E3; --warn-fg:#6B4700; --warn-bg:#FCEFD2; --bad-fg:#8F1D1D; --bad-bg:#FBE2E2;
+  --ken-fg:#7A4E00; --ken-bg:#FBEBC4; --mar-fg:#1E3A8A; --mar-bg:#DBEAFE;
+  --open-fg:#00517F; --open-bg:#E2F0F9; --filling-fg:#6B4700; --filling-bg:#FCEFD2; --nearly-fg:#8A2E00; --nearly-bg:#FBE1D3; --full-fg:#6E1F5C; --full-bg:#F6E1EE;
+  --open-mark:#0072B2; --filling-mark:#B07A00; --nearly-mark:#D55E00; --full-mark:#A23B84;
+  --shadow:0 2px 6px rgba(60,40,10,.06),0 12px 32px rgba(60,40,10,.08);
+  --map-land:#EFE8D8; --map-road:#FFFFFF; --map-bldg:#D9CDB6;
+}
+.app[data-theme="dark"]{
+  --bg:#17140F; --surface:#211D17; --surface-2:#2C271F; --ink:#F6EFE3; --muted:#BFB3A0; --line:#3A342A; --line-strong:#8C806C;
+  --accent:#FDBB30; --on-accent:#1F1A14; --accent-ink:#FDCB5C; --accent-soft:#3A2F14;
+  --header:#17140F; --focus:#8AB4F8;
+  --ok-fg:#8FE0A9; --ok-bg:#12301C; --warn-fg:#F6C667; --warn-bg:#34270C; --bad-fg:#FFA8A8; --bad-bg:#3D1515;
+  --ken-fg:#FDCB5C; --ken-bg:#3A2F14; --mar-fg:#A9C4FF; --mar-bg:#16234A;
+  --open-fg:#8CCBF2; --open-bg:#0F2A3D; --filling-fg:#F6C667; --filling-bg:#34270C; --nearly-fg:#FFA27A; --nearly-bg:#3D1D0F; --full-fg:#F2A6D9; --full-bg:#3A1530;
+  --open-mark:#56B4E9; --filling-mark:#E69F00; --nearly-mark:#FF7A33; --full-mark:#E07FC0;
+  --shadow:0 1px 2px rgba(0,0,0,.4); --map-land:#252019; --map-road:#3A342A; --map-bldg:#3F372B;
+}
+.app[data-motion="reduce"]{--dur-1:0ms;--dur-2:0ms;--sheet-move:0%}
+@media (prefers-reduced-motion:reduce){.app[data-motion="system"]{--dur-1:0ms;--dur-2:0ms;--sheet-move:0%}}
+
+/* ================= BASE ================= */
+.app{position:relative;overflow:hidden;container:app/inline-size;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:var(--fs-body);line-height:1.5;color-scheme:light}
+.app[data-theme="dark"]{color-scheme:dark}
+#shellRoot{height:100%}
+.sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.app :focus-visible{outline:var(--focus-w) solid var(--focus);outline-offset:2px}
+.app [tabindex="-1"]:focus{outline:none}
+h1,h2,h3,h4,p,figure{margin:0}
+a{color:inherit}
+button,input,select,textarea{font:inherit;color:inherit}
+.skip{position:absolute;left:var(--sp-2);top:-5rem;z-index:80;background:var(--ink);color:var(--bg);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-sm);font-weight:700}
+.skip:focus{top:var(--sp-2)}
+.muted{color:var(--muted)} .meta{font-size:var(--fs-xs);color:var(--muted)} .num{font-variant-numeric:tabular-nums}
+.disp{font-family:var(--font-display)}
+svg.i{flex:none;display:block}
+.stack{display:grid;gap:var(--sp-3);grid-template-columns:minmax(0,1fr)} .stack-lg{display:grid;gap:var(--sp-5);grid-template-columns:minmax(0,1fr)}
+.app h1,.app h2,.app h3,.app p,.app b,.app a,.app span{overflow-wrap:anywhere;word-break:normal}
+.row{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
+.spread{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);flex-wrap:wrap}
+
+/* buttons */
+.btn{min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-pill);border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:var(--sp-2);text-decoration:none;font-size:var(--fs-sm);line-height:1.2;text-align:center}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:transparent}
+.btn.dark{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--bad-fg);border-color:currentColor;background:transparent}
+.btn.block{width:100%}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.link{min-height:var(--target);display:inline-flex;align-items:center;gap:var(--sp-1);color:var(--accent-ink);font-weight:750;text-decoration:underline;text-underline-offset:3px;background:none;border:0;padding:0;cursor:pointer;font-size:var(--fs-sm)}
+.icon-btn{min-width:var(--target);min-height:var(--target);display:inline-grid;place-items:center;border:0;background:transparent;border-radius:var(--r-pill);cursor:pointer;color:var(--muted);padding:0}
+.icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+.icon-btn.solid{background:var(--surface-2);color:var(--ink)}
+.icon-btn[aria-pressed="true"]{color:var(--ink)}
+.seg{display:flex;gap:var(--sp-1);flex-wrap:wrap}
+.seg button,.pill{min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-pill);border:1.5px solid var(--line);background:var(--surface);font-weight:700;font-size:var(--fs-sm);cursor:pointer;display:inline-flex;align-items:center;gap:var(--sp-1);white-space:nowrap}
+.seg button[aria-pressed="true"],.pill[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.hscroll{display:flex;gap:var(--sp-2);overflow-x:auto;scrollbar-width:none;padding-bottom:var(--sp-1)}
+.hscroll>*{flex:none}
+
+/* chips & badges */
+.chip{max-width:100%;display:inline-flex;align-items:center;gap:.3em;font-size:var(--fs-xs);font-weight:750;padding:.15rem .6rem .15rem .45rem;border-radius:var(--r-pill);white-space:nowrap;line-height:1.5;background:var(--surface-2);color:var(--ink)}
+.chip.k{background:var(--ken-bg);color:var(--ken-fg)} .chip.m{background:var(--mar-bg);color:var(--mar-fg)}
+.chip.ok{background:var(--ok-bg);color:var(--ok-fg)} .chip.warn{background:var(--warn-bg);color:var(--warn-fg)} .chip.bad{background:var(--bad-bg);color:var(--bad-fg)}
+.chip.open{color:var(--open-fg);background:var(--open-bg)} .chip.filling{color:var(--filling-fg);background:var(--filling-bg)} .chip.nearly{color:var(--nearly-fg);background:var(--nearly-bg)} .chip.full{color:var(--full-fg);background:var(--full-bg)}
+.chip.outline{background:transparent;border:1.5px solid var(--line)}
+a.chip{text-decoration:none;min-height:1.75rem}
+.bar{height:.5rem;border-radius:var(--r-pill);background:var(--surface-2);overflow:hidden}
+.fill{display:block;height:100%;border-radius:inherit}
+.fill.open{background:var(--open-mark)}
+.fill.filling{background:repeating-linear-gradient(90deg,var(--filling-mark) 0 7px,transparent 7px 9px)}
+.fill.nearly{background:repeating-linear-gradient(45deg,var(--nearly-mark) 0 5px,color-mix(in srgb,var(--nearly-mark) 45%,transparent) 5px 8px)}
+.fill.full{background:repeating-linear-gradient(135deg,var(--full-mark) 0 3px,color-mix(in srgb,var(--full-mark) 60%,transparent) 3px 5px)}
+.mark-open{color:var(--open-mark)} .mark-filling{color:var(--filling-mark)} .mark-nearly{color:var(--nearly-mark)} .mark-full{color:var(--full-mark)}
+.count{min-width:1.35rem;height:1.35rem;padding:0 .35rem;border-radius:var(--r-pill);background:var(--ink);color:var(--bg);font-size:.75rem;font-weight:800;display:inline-grid;place-items:center;line-height:1}
+.avatar{flex:none;width:2.5rem;height:2.5rem;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:var(--fs-sm);background:var(--surface-2);color:var(--ink);border:2px solid var(--line)}
+.avatar.lg{width:5rem;height:5rem;font-size:var(--fs-xl)}
+.avatar.owl{background:var(--accent);color:var(--on-accent);border-color:transparent}
+
+/* cards */
+.card{background:var(--surface);border-radius:var(--r-card);padding:var(--sp-4);box-shadow:var(--shadow);display:grid;gap:var(--sp-2);min-width:0;grid-template-columns:minmax(0,1fr)}
+.card.pad{padding:var(--sp-5)}
+.card.flat{box-shadow:none;border:1.5px solid var(--line)}
+.kicker{display:flex;align-items:center;gap:var(--sp-2);font-size:var(--fs-xs);font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--accent-ink)}
+.card h3,.story-h{font-family:var(--font-display);font-size:var(--fs-xl);line-height:1.2;font-weight:700}
+.note{padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--surface-2);font-size:var(--fs-sm)}
+.note.ok{background:var(--ok-bg);color:var(--ok-fg)} .note.warn{background:var(--warn-bg);color:var(--warn-fg)} .note.bad{background:var(--bad-bg);color:var(--bad-fg)}
+.callout{border:2px solid var(--bad-fg);border-radius:var(--r-md);padding:var(--sp-3) var(--sp-4);font-size:var(--fs-sm);display:grid;gap:var(--sp-1)}
+.callout b{color:var(--bad-fg)}
+.list{list-style:none;margin:0;padding:0;display:grid}
+.list>li{padding:var(--sp-3) 0;border-top:1px solid var(--line)}
+.list>li:first-child{border-top:0}
+.empty{text-align:center;padding:var(--sp-5);color:var(--muted);font-size:var(--fs-sm)}
+
+/* forms */
+.field{display:grid;gap:var(--sp-1)}
+.field>label,.lbl{font-size:var(--fs-sm);font-weight:700}
+.input,.select,.textarea{width:100%;min-height:var(--target);padding:var(--sp-2) var(--sp-3);border:1.5px solid var(--line-strong);border-radius:var(--r-sm);background:var(--surface);font-size:var(--fs-body)}
+.textarea{min-height:6rem;resize:vertical;line-height:1.45}
+.select{appearance:none;padding-right:2.25rem;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 1.1rem) 50%,calc(100% - .75rem) 50%;background-size:.35rem .35rem;background-repeat:no-repeat}
+.input:focus-visible,.select:focus-visible,.textarea:focus-visible{outline:var(--focus-w) solid var(--focus);outline-offset:1px}
+.hint{font-size:var(--fs-xs);color:var(--muted)}
+.err{font-size:var(--fs-sm);color:var(--bad-fg);font-weight:700}
+.check{display:flex;gap:var(--sp-2);align-items:flex-start;min-height:var(--target);padding-top:var(--sp-2);font-size:var(--fs-sm);cursor:pointer}
+.check input{width:1.4rem;height:1.4rem;margin:0;flex:none;accent-color:var(--ink)}
+fieldset{border:0;margin:0;padding:0;min-width:0}
+legend{font-size:var(--fs-sm);font-weight:700;padding:0;margin-bottom:var(--sp-1)}
+.radio-list{display:grid;gap:var(--sp-2)}
+.radio{display:flex;gap:var(--sp-3);align-items:flex-start;padding:var(--sp-3);border:1.5px solid var(--line);border-radius:var(--r-sm);cursor:pointer}
+.radio:has(input:checked){border-color:var(--ink);background:var(--surface-2)}
+.radio input{width:1.3rem;height:1.3rem;margin:.15rem 0 0;flex:none;accent-color:var(--ink)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3)}
+@container app (max-width:22em){.grid2{grid-template-columns:1fr}}
+
+/* photo picker + gallery */
+.thumbs{display:flex;gap:var(--sp-2);flex-wrap:wrap}
+.thumb{position:relative;width:5rem;height:5rem;border-radius:var(--r-sm);overflow:hidden;background:var(--surface-2)}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb .icon-btn{position:absolute;top:2px;right:2px;min-width:2.25rem;min-height:2.25rem;background:rgba(0,0,0,.65);color:#fff}
+.add-photo{width:5rem;height:5rem;border:2px dashed var(--line-strong);border-radius:var(--r-sm);display:grid;place-items:center;align-content:center;gap:2px;font-size:var(--fs-xs);font-weight:750;cursor:pointer;color:var(--muted);text-align:center}
+.add-photo:focus-within{outline:var(--focus-w) solid var(--focus);outline-offset:2px}
+.add-photo input{position:absolute;opacity:0;width:1px;height:1px}
+.media{display:grid;gap:var(--sp-2);grid-template-columns:repeat(2,minmax(0,1fr));border-radius:var(--r-md);overflow:hidden}
+.media.one{grid-template-columns:1fr}
+.media img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;border-radius:var(--r-sm)}
+.gallery{position:relative;border-radius:var(--r-md);overflow:hidden;background:var(--surface-2)}
+.gallery img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+.gallery .nav-g{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.6);color:#fff}
+.gallery .prev{left:var(--sp-2)} .gallery .next{right:var(--sp-2)}
+.gallery .pos{position:absolute;bottom:var(--sp-2);right:var(--sp-2);background:rgba(0,0,0,.7);color:#fff;font-size:var(--fs-xs);font-weight:800;padding:.1rem .6rem;border-radius:var(--r-pill)}
+.gthumbs{display:flex;gap:var(--sp-2);margin-top:var(--sp-2)}
+.gthumbs button{padding:0;border:3px solid transparent;border-radius:var(--r-sm);overflow:hidden;width:3.5rem;height:3.5rem;cursor:pointer;background:none}
+.gthumbs button[aria-current="true"]{border-color:var(--ink)}
+.gthumbs img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* ================= SHELL ================= */
+.shell{display:grid;height:100%;min-height:0;grid-template-rows:auto 1fr;grid-template-columns:100%;grid-template-areas:"header" "main"}
+.hdr{grid-area:header;position:relative;z-index:6;background:color-mix(in srgb,var(--header) 94%,transparent);backdrop-filter:blur(10px);padding:var(--sp-2) var(--sp-4);border-bottom:1px solid transparent}
+.hdr.scrolled{border-bottom-color:var(--line)}
+.hdr-row{display:flex;align-items:center;gap:var(--sp-2);min-height:var(--target)}
+.brand{font-family:var(--font-display);font-weight:800;font-size:var(--fs-xl);font-style:italic;display:inline-flex;align-items:center;gap:var(--sp-2);text-decoration:none;color:var(--ink);min-height:var(--target)}
+.brand .dot{width:.6rem;height:.6rem;border-radius:50%;background:var(--accent)}
+.hdr-title{font-weight:800;font-size:var(--fs-lg);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hdr .grow{flex:1}
+.campus-chips{display:flex;gap:var(--sp-2);overflow-x:auto;scrollbar-width:none;padding:var(--sp-2) 0 var(--sp-1)}
+.campus-chips button{flex:none;min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-pill);border:1.5px solid var(--line);background:var(--surface);font-weight:700;font-size:var(--fs-sm);cursor:pointer;display:inline-flex;align-items:center;gap:var(--sp-1)}
+.campus-chips button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.campus-chips .lbl{align-self:center;flex:none;padding-right:var(--sp-1)}
+.demo{position:relative}
+.demo-pill{min-height:var(--target);display:inline-flex;align-items:center;gap:.3rem;padding:0 var(--sp-3);border-radius:var(--r-pill);background:transparent;color:var(--ink);border:2px solid var(--demo);font-weight:800;font-size:var(--fs-xs);cursor:pointer;white-space:nowrap}
+.demo-pill .zap{color:var(--accent-ink)}
+.menu{position:absolute;right:0;top:calc(100% + 6px);z-index:30;width:min(19rem,86vw);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-md);padding:var(--sp-2);box-shadow:0 12px 32px rgba(0,0,0,.25);max-height:70vh;overflow:auto}
+.menu hr{border:0;border-top:1px solid var(--line);margin:var(--sp-2) 0}
+.menu-h{font-size:var(--fs-xs);font-weight:800;color:var(--muted);padding:var(--sp-1) var(--sp-2);text-transform:uppercase;letter-spacing:.06em}
+.mi{display:flex;flex-direction:column;align-items:flex-start;width:100%;min-height:var(--target);padding:var(--sp-2);border:0;background:none;border-radius:var(--r-sm);cursor:pointer;text-align:left;font-size:var(--fs-sm);font-weight:700;color:var(--ink);text-decoration:none}
+.mi:hover{background:var(--surface-2)}
+.mi .muted{font-weight:500;font-size:var(--fs-xs)}
+.mi[aria-checked="true"]::after{content:"✓ Active";font-size:var(--fs-xs);color:var(--accent-ink);font-weight:800}
+.mi.danger{color:var(--bad-fg)}
+.main{grid-area:main;overflow:auto;min-height:0;overscroll-behavior:contain;padding-bottom:7rem;scroll-padding-block:6rem 8rem}
+.main.no-dock{padding-bottom:0}
+.page{padding:var(--sp-3) var(--sp-4) var(--sp-5);display:grid;gap:var(--sp-5);max-width:46rem;margin:0 auto;grid-template-columns:minmax(0,1fr)}
+.page-h h1{font-family:var(--font-display);font-size:var(--fs-2xl);line-height:1.15;font-weight:700}
+.page-h p{color:var(--muted);font-size:var(--fs-sm);margin-top:var(--sp-1)}
+.page-h .scope{display:inline-flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-xs);font-weight:700;color:var(--muted);margin-top:var(--sp-1)}
+.sec-row{display:flex;align-items:baseline;justify-content:space-between;gap:var(--sp-2);margin-bottom:var(--sp-2);flex-wrap:wrap}
+.sec-row h2{font-family:var(--font-display);font-size:var(--fs-xl)}
+
+/* dock (mobile bottom nav) */
+.dock{position:absolute;left:var(--sp-3);right:var(--sp-3);bottom:max(var(--sp-3),env(safe-area-inset-bottom));z-index:7;display:grid;grid-template-columns:1fr 1fr 1.7fr 1fr 1fr;align-items:center;gap:var(--sp-1);padding:var(--sp-1);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-pill);box-shadow:0 10px 30px rgba(40,25,5,.18)}
+.dock-i{position:relative;min-height:3.25rem;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);text-decoration:none;font-size:.75rem;font-weight:700;border-radius:var(--r-pill);line-height:1.1}
+.dock-i[aria-current="page"]{background:var(--surface-2);color:var(--ink);font-weight:850}
+.dock-i .count{position:absolute;top:.1rem;left:calc(50% + .3rem)}
+.dock-q{min-height:3.25rem;display:flex;align-items:center;justify-content:center;gap:var(--sp-1);border-radius:var(--r-pill);border:0;background:var(--accent);color:var(--on-accent);font-weight:850;font-size:var(--fs-sm);cursor:pointer;padding:0 var(--sp-2);line-height:1.1}
+.rail,.pulse{display:none}
+@container app (min-width:1024px){
+  .shell{grid-template-columns:16rem minmax(0,1fr) 21rem;grid-template-areas:"rail header pulse" "rail main pulse"}
+  .dock{display:none!important}
+  .main{padding-bottom:var(--sp-6)}
+  .rail{display:flex;flex-direction:column;grid-area:rail;min-height:0;overflow:auto;background:var(--bg);padding:var(--sp-4) var(--sp-3);gap:2px;border-right:1px solid var(--line)}
+  .rail .brand{padding:0 var(--sp-3) var(--sp-3);font-size:var(--fs-2xl)}
+  .rail a{display:flex;align-items:center;gap:var(--sp-3);min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-pill);color:var(--muted);text-decoration:none;font-weight:700}
+  .rail a[aria-current="page"]{background:var(--ink);color:var(--bg)}
+  .rail a .count{margin-left:auto}
+  .rail .rail-h{font-size:var(--fs-xs);font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:var(--sp-4) var(--sp-4) var(--sp-1)}
+  .rail .btn{margin-top:var(--sp-4);min-height:3.25rem}
+  .pulse{display:block;grid-area:pulse;overflow:auto;min-height:0;padding:var(--sp-4);border-left:1px solid var(--line);background:var(--surface)}
+  .hdr .brand-m{display:none}
+}
+.pulse h2{font-family:var(--font-display);font-size:var(--fs-xl)}
+.pulse h3{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:var(--sp-4) 0 var(--sp-1)}
+.plist{list-style:none;margin:0;padding:0}
+.plist li{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--sp-2);font-size:var(--fs-sm);padding:var(--sp-2) 0;border-bottom:1px solid var(--line)}
+
+/* dialog / sheet primitive */
+.backdrop{position:absolute;inset:0;z-index:40;background:rgba(0,0,0,.45);animation:fade var(--dur-fade) ease-out}
+.dialog{grid-template-columns:minmax(0,1fr);position:absolute;z-index:41;left:0;right:0;bottom:0;max-height:92%;overflow:auto;background:var(--surface);color:var(--ink);border-radius:var(--r-card) var(--r-card) 0 0;padding:var(--sp-3) var(--sp-5) var(--sp-6);animation:sheetIn var(--dur-2) var(--ease),fade var(--dur-fade) ease-out;display:grid;gap:var(--sp-4);align-content:start}
+.dialog.full{top:0;max-height:none;border-radius:0}
+@keyframes sheetIn{from{transform:translateY(var(--sheet-move))}to{transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@container app (min-width:1024px){.dialog,.dialog.full{left:50%;right:auto;bottom:auto;top:8%;width:38rem;max-height:84%;transform:translateX(-50%);border-radius:var(--r-card);animation:fade var(--dur-fade) ease-out}}
+.handle{width:2.5rem;height:.3rem;border-radius:var(--r-pill);background:var(--line);margin:0 auto}
+.dlg-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3)}
+.dlg-head h2{font-family:var(--font-display);font-size:var(--fs-xl);line-height:1.2}
+.dlg-actions{display:flex;gap:var(--sp-2);justify-content:flex-end;flex-wrap:wrap}
+.ask-field{display:flex;align-items:center;gap:var(--sp-2);min-height:3.5rem;padding:0 var(--sp-2) 0 var(--sp-4);border:2px solid var(--line-strong);border-radius:var(--r-pill);background:var(--bg)}
+.ask-field input{flex:1;border:0;background:none;min-height:var(--target);font-size:var(--fs-body);min-width:0}
+.ask-field input:focus{outline:none}
+.ask-field:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.sec-h{font-size:var(--fs-xs);font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3)}
+.tiles button{display:grid;gap:var(--sp-1);text-align:left;min-height:5.5rem;padding:var(--sp-4);border-radius:var(--r-md);border:0;background:var(--surface-2);cursor:pointer;align-content:start;color:var(--ink)}
+.tiles b{font-family:var(--font-display);font-size:var(--fs-lg)}
+.tiles span{font-size:var(--fs-xs);color:var(--muted)}
+.capchips{display:flex;flex-wrap:wrap;gap:var(--sp-2);list-style:none;margin:0;padding:0}
+.capchips a{min-height:var(--target);display:inline-flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-4);border-radius:var(--r-pill);border:1.5px solid var(--line);text-decoration:none;color:var(--ink);font-weight:700;font-size:var(--fs-sm)}
+
+/* toasts */
+.toasts{position:absolute;left:50%;transform:translateX(-50%);bottom:6.5rem;z-index:60;width:max-content;max-width:92%;display:grid;gap:var(--sp-2);pointer-events:none}
+.toast{background:var(--ink);color:var(--bg);font-weight:700;font-size:var(--fs-sm);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);box-shadow:0 8px 24px rgba(0,0,0,.3);animation:fade var(--dur-fade)}
+.msg-toast{position:absolute;left:var(--sp-3);right:var(--sp-3);top:var(--sp-3);z-index:61;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow);padding:var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4);display:flex;align-items:center;gap:var(--sp-2);animation:fade var(--dur-fade)}
+.msg-toast a{flex:1;text-decoration:none;font-size:var(--fs-sm);min-height:var(--target);display:grid;align-content:center}
+@container app (min-width:1024px){.toasts{bottom:var(--sp-5)}.msg-toast{left:auto;width:24rem}}
+.offline-bar{background:var(--warn-bg);color:var(--warn-fg);font-weight:750;font-size:var(--fs-sm);padding:var(--sp-2) var(--sp-4);display:flex;gap:var(--sp-2);align-items:center}
+
+/* ================= SCREENS ================= */
+/* Now */
+.dateline{font-size:var(--fs-sm);color:var(--muted);font-weight:650}
+.hello{font-family:var(--font-display);font-size:var(--fs-3xl);line-height:1.1;font-weight:700;letter-spacing:-.015em}
+.lede blockquote{margin:0;font-family:var(--font-display);font-size:var(--fs-xl);line-height:1.35}
+.lede blockquote::before{content:"“";color:var(--accent-ink);font-size:1.6em;line-height:0;vertical-align:-.35em;margin-right:.05em}
+.src{font-size:var(--fs-xs);color:var(--muted);display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap}
+.carousel{display:flex;gap:var(--sp-3);overflow-x:auto;scroll-snap-type:x mandatory;padding:var(--sp-1) var(--sp-4) var(--sp-3);margin:0 calc(-1 * var(--sp-4));list-style:none;scroll-padding-inline:var(--sp-4);scrollbar-width:none}
+.carousel:focus-visible{outline-offset:-3px}
+.carousel>li{flex:0 0 min(15rem,78%);scroll-snap-align:start}
+.carousel .card{height:100%}
+.pct{font-family:var(--font-display);font-size:3rem;line-height:1;font-weight:700}
+.deadlines{display:flex;gap:var(--sp-2);flex-wrap:wrap}
+.tonight{list-style:none;margin:0;padding:0}
+.tonight li{display:grid;grid-template-columns:5rem minmax(0,1fr);gap:var(--sp-3);padding:var(--sp-3) 0;border-top:1px solid var(--line)}
+.tonight .t{font-weight:800;font-size:var(--fs-sm)}
+.tonight .link,.list .link{display:inline;min-height:0;line-height:1.6;padding-block:.6rem;}
+@container app (max-width:22em){.tonight li{grid-template-columns:minmax(0,1fr)}}
+.install{display:flex;gap:var(--sp-3);align-items:flex-start;position:relative}
+.install>.icon-btn{position:absolute;top:var(--sp-2);right:var(--sp-2)}
+.install>.stack{padding-right:var(--target)}
+
+/* feed */
+.rings{display:flex;gap:var(--sp-3);overflow-x:auto;scrollbar-width:none;padding:var(--sp-1) var(--sp-4) var(--sp-2);margin:0 calc(-1 * var(--sp-4));list-style:none}
+.rings li{flex:none}
+.ring{display:flex;flex-direction:column;align-items:center;gap:var(--sp-1);border:0;background:none;cursor:pointer;padding:0;min-width:4rem;color:var(--ink);font-size:var(--fs-xs);font-weight:700;text-decoration:none}
+.ring .r{width:3.5rem;height:3.5rem;border-radius:50%;display:grid;place-items:center;font-weight:850;font-size:.75rem;overflow-wrap:normal!important;line-height:1.1;text-align:center;border:3px solid var(--line);background:var(--surface)}
+.ring[aria-pressed="true"] .r{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.ring.club .r{border-style:dashed}
+.composer-start{flex-wrap:wrap;display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-card);background:var(--surface);box-shadow:var(--shadow);border:0;width:100%;cursor:pointer;text-align:left;color:var(--muted);font-size:var(--fs-body);min-height:4rem}
+.post{background:var(--surface);border-radius:var(--r-card);padding:var(--sp-4);box-shadow:var(--shadow);display:grid;gap:var(--sp-3);grid-template-columns:minmax(0,1fr)}
+.post-h{display:flex;gap:var(--sp-3);align-items:flex-start}
+.post-h .who{flex:1;min-width:0;display:grid;gap:2px}
+.post-h .who a{font-weight:800;text-decoration:none}
+.post-h .who a:hover{text-decoration:underline}
+.post-body{white-space:pre-wrap;overflow-wrap:anywhere}
+.post-body .tag{color:var(--accent-ink);font-weight:750}
+.embed{display:grid;gap:2px;padding:var(--sp-3) var(--sp-4);border:1.5px solid var(--line);border-radius:var(--r-md);text-decoration:none}
+.embed .t{font-weight:800}
+.quote{border-left:4px solid var(--line-strong);padding:var(--sp-1) var(--sp-3);font-size:var(--fs-sm)}
+.actions{display:flex;flex-wrap:wrap;justify-content:space-between;border-top:1px solid var(--line);padding-top:var(--sp-1);margin:0 calc(-1 * var(--sp-2))}
+.act{min-height:var(--target);min-width:var(--target);display:inline-flex;align-items:center;justify-content:center;gap:var(--sp-1);border:0;background:none;border-radius:var(--r-pill);cursor:pointer;color:var(--muted);font-weight:700;font-size:var(--fs-sm);padding:0 var(--sp-2)}
+.act:hover{background:var(--surface-2);color:var(--ink)}
+.act[aria-pressed="true"]{color:var(--ink)}
+.cite{display:inline-flex;align-items:center;gap:var(--sp-1);min-height:2rem;padding:0 var(--sp-3);border-radius:var(--r-pill);background:var(--accent-soft);color:var(--ink);font-size:var(--fs-xs);font-weight:750;text-decoration:none}
+.reply{display:grid;gap:var(--sp-1);padding:var(--sp-3);border-radius:var(--r-md);background:var(--surface-2)}
+.reply.owl{background:var(--accent-soft)}
+
+/* marketplace */
+.listings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3)}
+@container app (min-width:700px){.listings{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@container app (max-width:20em){.listings{grid-template-columns:1fr}}
+.listing{background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;position:relative}
+.listing .ph{position:relative;aspect-ratio:1;background:var(--surface-2)}
+.listing .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.listing .ph .n{position:absolute;bottom:var(--sp-2);left:var(--sp-2);background:rgba(0,0,0,.7);color:#fff;font-size:.75rem;font-weight:800;padding:.05rem .5rem;border-radius:var(--r-pill);display:inline-flex;gap:3px;align-items:center}
+.listing .save{position:absolute;top:var(--sp-1);right:var(--sp-1);background:rgba(255,255,255,.92);color:#1F1A14;z-index:2}
+.listing .save[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+.listing .body{padding:var(--sp-3);display:grid;gap:2px;flex:1}
+.listing .price{font-weight:900;font-size:var(--fs-lg)}
+.listing .ttl{font-weight:700;font-size:var(--fs-sm);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.listing a.cover{position:absolute;inset:0;z-index:1;border-radius:var(--r-md)}
+.listing a.cover:focus-visible{outline-offset:-3px}
+.status-tag{position:absolute;top:var(--sp-2);left:var(--sp-2);z-index:2}
+
+/* chats */
+.chat-row{display:flex;gap:var(--sp-3);align-items:center;padding:var(--sp-2) 0}
+.chat-row a{flex:1;min-width:0;display:grid;gap:2px;text-decoration:none;min-height:3.5rem;align-content:center}
+.chat-row .t{font-weight:800;display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap}
+.chat-row .p{font-size:var(--fs-sm);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-row.unread .p{color:var(--ink);font-weight:650}
+.thread{display:flex;flex-direction:column;height:100%;min-height:0}
+.thread-scroll{flex:1;overflow:auto;padding:var(--sp-3) var(--sp-4);display:grid;gap:var(--sp-3);align-content:start}
+.bubble-wrap{display:grid;gap:2px;max-width:85%}
+.bubble-wrap.me{justify-self:end}
+.bubble{padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--surface);box-shadow:var(--shadow);overflow-wrap:anywhere}
+.me .bubble{background:var(--ink);color:var(--bg)}
+.sys .bubble{background:var(--accent-soft);box-shadow:none;border:1.5px solid var(--accent)}
+.bubble img{max-width:100%;border-radius:var(--r-sm);margin-top:var(--sp-1);display:block}
+.bubble .rq{font-size:var(--fs-xs);border-left:3px solid currentColor;padding-left:var(--sp-2);opacity:.85;margin-bottom:var(--sp-1)}
+.reacts{display:flex;gap:var(--sp-1);flex-wrap:wrap}
+.reacts button{min-height:2rem;padding:0 var(--sp-2);border-radius:var(--r-pill);border:1.5px solid var(--line);background:var(--surface);cursor:pointer;font-size:var(--fs-xs);font-weight:750}
+.reacts button[aria-pressed="true"]{border-color:var(--ink);background:var(--surface-2)}
+.msg-tools{display:flex;gap:var(--sp-1);flex-wrap:wrap}
+.composer-bar{border-top:1px solid var(--line);padding:var(--sp-2) var(--sp-3) max(var(--sp-3),env(safe-area-inset-bottom));display:grid;gap:var(--sp-2);background:var(--bg)}
+.composer-bar form{display:flex;gap:var(--sp-2);align-items:flex-end}
+.composer-bar .input{border-radius:var(--r-lg)}
+.handoff{background:var(--surface);border-bottom:1px solid var(--line);padding:var(--sp-3) var(--sp-4);display:grid;gap:var(--sp-2)}
+.handoff details summary{cursor:pointer;min-height:var(--target);display:flex;align-items:center;gap:var(--sp-2);font-weight:800;list-style:none}
+.handoff details summary::-webkit-details-marker{display:none}
+
+/* parking map */
+.map{position:relative;border-radius:var(--r-md);overflow:hidden;background:var(--map-land);border:1.5px solid var(--line)}
+.map svg.mapsvg{display:block;width:100%;height:auto;transition:transform var(--dur-2) var(--ease);transform-origin:center}
+.map .ctrls{position:absolute;right:var(--sp-2);top:var(--sp-2);display:grid;gap:2px;background:var(--surface);border-radius:var(--r-sm);box-shadow:var(--shadow);overflow:hidden}
+.map .ctrls .icon-btn{border-radius:0;color:var(--ink)}
+.map .attr{position:absolute;right:0;bottom:0;background:color-mix(in srgb,var(--surface) 90%,transparent);font-size:.75rem;padding:2px var(--sp-2);border-top-left-radius:var(--r-sm)}
+.map .legend{position:absolute;left:var(--sp-2);bottom:var(--sp-2);background:var(--surface);border-radius:var(--r-sm);padding:var(--sp-1) var(--sp-2);font-size:.75rem;display:flex;gap:var(--sp-2);flex-wrap:wrap;max-width:70%}
+.map .legend span{display:inline-flex;align-items:center;gap:2px;font-weight:700}
+.lot{background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);padding:var(--sp-3) var(--sp-4);display:grid;gap:var(--sp-2);border:2px solid transparent}
+.lot.sel{border-color:var(--ink)}
+.lot-head{display:flex;gap:var(--sp-3);align-items:center}
+.lot-head button.expand{flex:1;min-width:0;text-align:left;background:none;border:0;padding:0;cursor:pointer;display:grid;gap:2px;min-height:var(--target)}
+.lot-head .nm{font-weight:800}
+.slots{display:grid;grid-template-columns:repeat(28,1fr);gap:2px;margin-top:var(--sp-1)}
+.slots span{height:1.1rem;border-radius:3px;background:var(--surface-2);border:1px solid var(--line)}
+.slots span.f{background:var(--ok-fg);border-color:var(--ok-fg)}
+.route-tile{flex:none;width:3rem;height:3rem;border-radius:var(--r-sm);display:grid;place-items:center;font-weight:900;font-size:var(--fs-sm);color:#1F1A14}
+.stations{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:var(--sp-2)}
+.station{border:1.5px solid var(--line);border-radius:var(--r-sm);padding:var(--sp-2) var(--sp-3);font-size:var(--fs-sm)}
+.station ul{margin:var(--sp-1) 0 0;padding-left:1.1rem}
+.tabs{display:flex;gap:var(--sp-1);border-bottom:1.5px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs button{min-height:var(--target);padding:0 var(--sp-3);border:0;background:none;font-weight:700;font-size:var(--fs-sm);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1.5px;white-space:nowrap;color:var(--muted)}
+.tabs button[aria-selected="true"]{border-bottom-color:var(--ink);color:var(--ink)}
+.profile-top{display:flex;gap:var(--sp-4);align-items:center}
+.stats{display:flex;gap:var(--sp-5)}
+.stats b{display:block;font-size:var(--fs-xl);font-family:var(--font-display)}
+
+/* welcome */
+.welcome{min-height:100%;display:grid;align-content:center;gap:var(--sp-5);padding:var(--sp-6) var(--sp-5);max-width:30rem;margin:0 auto}
+.welcome h1{font-family:var(--font-display);font-size:var(--fs-3xl);line-height:1.1}
+.otp{font-family:ui-monospace,Menlo,monospace;font-size:var(--fs-2xl);letter-spacing:.4em;text-align:center}
+
+/* LARGE TEXT MODE (>=150% text on a phone) */
+@container app (max-width:18em){
+  .demo-pill>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .dock{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .dock .lbl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .dock-i,.dock-q{min-height:3.75rem}
+  .listings{grid-template-columns:1fr}
+  .tiles{grid-template-columns:1fr}
+  .install{display:grid}
+  .install>.stack{padding-right:0}
+  .profile-top{flex-wrap:wrap}
+  .stats{flex-wrap:wrap;gap:var(--sp-3)}
+}
+/* ================= PROTOTYPE CHROME (not under evaluation; px on purpose) ================= */
+.proto-bar{position:fixed;left:50%;bottom:8px;transform:translateX(-50%);z-index:1000;display:flex;align-items:center;gap:6px;padding:6px 8px;background:#fff;color:#111;border-radius:999px;box-shadow:0 0 0 2px #ff2d92,0 10px 30px rgba(0,0,0,.45);font:600 12px/1 system-ui,sans-serif;white-space:nowrap;max-width:calc(100vw - 16px);overflow-x:auto}
+.proto-bar button,.proto-bar select,.proto-bar a{font:inherit;height:32px;border:1px solid #ccc;border-radius:999px;background:#f4f4f4;padding:0 10px;cursor:pointer;color:#111;display:inline-flex;align-items:center;text-decoration:none}
+.proto-bar .tag{background:#ff2d92;color:#fff;border-radius:999px;padding:4px 8px;font-weight:900;letter-spacing:.05em}
+.proto-bar input[type=range]{width:80px}
+.proto-bar label{display:flex;align-items:center;gap:4px}
+.tokens{position:fixed;top:0;right:0;bottom:64px;width:min(440px,100vw);z-index:999;background:#fff;color:#111;overflow:auto;box-shadow:-10px 0 30px rgba(0,0,0,.4);font:13px/1.45 system-ui,sans-serif;padding:14px 16px 24px}
+.tokens h2{font-size:15px;margin:16px 0 6px} .tokens table{width:100%;border-collapse:collapse;font-size:12px}
+.tokens td{padding:4px;border-bottom:1px solid #eee;vertical-align:middle}
+.tokens .sw{display:inline-block;width:16px;height:16px;border-radius:4px;border:1px solid rgba(0,0,0,.2);vertical-align:-3px;margin-right:4px}
+.tokens .pass{color:#0a6b2d;font-weight:800}.tokens .fail{color:#b00020;font-weight:800}.tokens .info{color:#555}
+.tokens .x{float:right;height:32px;padding:0 12px;border-radius:999px;border:1px solid #ccc;background:#f4f4f4;cursor:pointer}
+.tokens ul{padding-left:18px;margin:4px 0} .tokens code{background:#f1f1f1;padding:0 3px;border-radius:3px}
+
+
+/* ================= TRANSIT PROTOTYPE (ticket #67) ================= */
+.hdr-title.h1{font-family:var(--font-display);font-size:var(--fs-xl);font-weight:700}
+.tr{position:relative;padding-bottom:0!important;overflow:hidden!important;display:flex;flex-direction:column}
+.map-wrap{position:relative;background:var(--map-land);min-height:0}
+#map{position:absolute;inset:0}
+#map .maplibregl-canvas:focus-visible{outline:var(--focus-w) solid var(--focus);outline-offset:-3px}
+.map-wrap .ctrls{position:absolute;right:var(--sp-2);top:var(--sp-2);z-index:3;display:grid;gap:2px;background:var(--surface);border-radius:var(--r-sm);box-shadow:var(--shadow);overflow:hidden}
+.map-wrap .ctrls .icon-btn{border-radius:0;color:var(--ink)}
+.map-wrap .ctrls hr{margin:0;border:0;border-top:1px solid var(--line)}
+.map-wrap .legend-btn{position:absolute;left:var(--sp-2);top:var(--sp-2);z-index:3}
+.legend-card{position:absolute;left:var(--sp-2);top:calc(var(--sp-2) + var(--target) + var(--sp-2));z-index:3;background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);padding:var(--sp-3);display:grid;gap:var(--sp-2);font-size:var(--fs-xs);max-width:min(19rem,78%);max-height:70%;overflow:auto}
+.legend-card ul{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-1)}
+.legend-card li{display:grid;grid-template-columns:3rem minmax(0,1fr);align-items:center;gap:var(--sp-2);font-weight:700}
+.skip-map{position:absolute;left:var(--sp-2);top:-6rem;z-index:5;background:var(--ink);color:var(--bg);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-sm);font-weight:700}
+.skip-map:focus{top:var(--sp-2)}
+.maplibregl-ctrl-attrib{font-size:.8125rem!important;background:color-mix(in srgb,var(--surface) 92%,transparent)!important;color:var(--ink)!important}
+.maplibregl-ctrl-attrib a{color:var(--ink)!important}
+.map-fallback{position:absolute;inset:0;display:grid;place-items:center;padding:var(--sp-5);text-align:center;color:var(--muted);font-size:var(--fs-sm)}
+.feed-pill{position:absolute;left:var(--sp-2);top:calc(var(--sp-2) + var(--target) + var(--sp-2));z-index:3;background:var(--surface);border-radius:var(--r-pill);box-shadow:var(--shadow);padding:.2rem var(--sp-3);font-size:var(--fs-xs);font-weight:750;display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap}
+.dotlive{width:.55rem;height:.55rem;border-radius:50%;background:var(--ink);display:inline-block;flex:none}
+.dotest{width:.55rem;height:.55rem;border-radius:50%;border:1.5px dashed var(--muted);display:inline-block;flex:none}
+
+/* route badge: colour fill + auto ink/white text + 1.5px ink ring + dash strip */
+.rb{flex:none;display:inline-grid;grid-template-rows:1fr auto;min-width:2.6rem;height:2.25rem;border-radius:10px;overflow:hidden;border:1.5px solid var(--ink);font-weight:900;font-size:var(--fs-sm);letter-spacing:.02em;line-height:1;text-align:center}
+.rb>b{display:grid;place-items:center;padding:0 .35rem}
+.rb>i{height:5px;background:var(--surface)}
+.rb.sm{min-width:2.2rem;height:1.85rem;font-size:var(--fs-xs);border-radius:8px}
+.rb.sm>i{height:4px}
+.rb.off{opacity:.55}
+.dash-solid{background:linear-gradient(var(--rc),var(--rc)) center/100% 3px no-repeat,var(--surface)!important}
+.dash-dash{background:repeating-linear-gradient(90deg,var(--rc) 0 7px,transparent 7px 11px) center/100% 3px no-repeat,var(--surface)!important}
+.dash-dot{background:repeating-linear-gradient(90deg,var(--rc) 0 3px,transparent 3px 6px) center/100% 3px no-repeat,var(--surface)!important}
+.lsample{display:block;width:3rem;height:.9rem;border-radius:3px}
+
+/* sheet (A) */
+.sheet{background:var(--bg);display:flex;flex-direction:column;min-height:0;z-index:4}
+.sheet-h{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2)}
+.sheet-h h2{font-family:var(--font-display);font-size:var(--fs-xl)}
+.sheet-body{overflow:auto;min-height:0;padding:0 var(--sp-4) var(--sp-5);display:grid;gap:var(--sp-3);align-content:start;grid-template-columns:minmax(0,1fr);scroll-padding-block:1rem 8rem}
+.handle-btn{display:grid;place-items:center;width:100%;min-height:var(--target);background:none;border:0;cursor:pointer;padding:0;color:var(--muted);font-size:var(--fs-xs);font-weight:750;gap:2px}
+.handle-btn .handle{width:3rem}
+.peek{display:grid;gap:var(--sp-3);padding:0 var(--sp-4) var(--sp-3)}
+.lay-sheet .map-wrap{position:absolute;inset:0}
+.lay-sheet .sheet{position:absolute;left:0;right:0;bottom:0;border-radius:var(--r-card) var(--r-card) 0 0;box-shadow:0 -8px 30px rgba(40,25,5,.18);padding-bottom:6rem;max-height:calc(100% - 3rem)}
+.lay-sheet .sheet[data-snap="peek"] .sheet-body{display:none}
+.lay-sheet .sheet[data-snap="half"]{height:60%}
+.lay-sheet .sheet[data-snap="full"]{height:calc(100% - 3rem)}
+.lay-sheet .sheet[data-snap="half"] .peek .nextcard,.lay-sheet .sheet[data-snap="full"] .peek .nextcard{display:none}
+
+/* next-bus card */
+.nextcard{background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);padding:var(--sp-3) var(--sp-4);display:grid;gap:var(--sp-2)}
+.arr{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-1)}
+.arr li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:var(--sp-3);align-items:center;min-height:var(--target)}
+.arr .eta{font-family:var(--font-display);font-size:var(--fs-xl);font-weight:700;line-height:1;text-align:right;white-space:nowrap}
+.arr .eta small{font-family:var(--font-body);font-size:var(--fs-xs);font-weight:700;color:var(--muted)}
+.arr .sched .eta{color:var(--muted)}
+.arr .nm{display:grid;gap:1px;min-width:0}
+.arr .nm b{font-size:var(--fs-sm)}
+
+/* route rows */
+.rlist{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-2)}
+.rrow{background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);padding:var(--sp-2) var(--sp-3);display:grid;gap:var(--sp-2);border:2px solid transparent}
+.rrow.sel{border-color:var(--focus)}
+.rrow-h{display:flex;gap:var(--sp-3);align-items:center}
+.rrow-h button.expand{flex:1;min-width:0;text-align:left;background:none;border:0;padding:0;cursor:pointer;display:grid;gap:2px;min-height:3rem;align-content:center;color:var(--ink)}
+.rrow-h .nm{font-weight:800}
+.stoplist{list-style:none;margin:0;padding:0 0 0 1.25rem;display:grid;position:relative}
+.stoplist::before{content:"";position:absolute;left:.55rem;top:.9rem;bottom:.9rem;border-left:4px var(--ls,solid) var(--rc)}
+.stoplist li{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--sp-2);align-items:center;min-height:var(--target);padding-left:var(--sp-3)}
+.stoplist li::before{content:"";position:absolute;left:-1.05rem;top:50%;width:.85rem;height:.85rem;margin-top:-.43rem;border-radius:50%;background:var(--surface);border:2.5px solid var(--ink)}
+.stoplist li.bus::before{display:none}
+.stoplist li.bus{min-height:2.2rem}
+.stoplist .busmark{position:absolute;left:-1.55rem;top:50%;transform:translateY(-50%)}
+.stoplist button.sname{background:none;border:0;padding:0;text-align:left;cursor:pointer;font-weight:700;min-height:var(--target);color:var(--ink);font-size:var(--fs-sm)}
+.stoplist button.sname:hover{text-decoration:underline}
+.stoplist .eta-s{font-weight:800;font-size:var(--fs-sm);white-space:nowrap}
+.stoplist .eta-s.sched{color:var(--muted);font-weight:650}
+
+/* bus marker in lists */
+.busg{display:inline-grid;place-items:center;width:1.9rem;height:1.9rem;border-radius:50%;background:var(--surface);border:2px solid var(--ink);color:var(--ink)}
+.busg.stale{border-style:dashed;color:var(--muted);border-color:var(--muted)}
+
+/* Shuttle Notice: operator info, deliberately NOT the Alert look */
+.snotice{border:1.5px solid var(--line-strong);border-left:6px double var(--line-strong);border-radius:var(--r-sm);background:var(--surface);padding:var(--sp-2) var(--sp-3);display:grid;gap:2px;font-size:var(--fs-sm)}
+.snotice .src{font-size:var(--fs-xs);color:var(--muted);font-weight:700}
+.snotice summary{cursor:pointer;min-height:var(--target);display:flex;align-items:center;gap:var(--sp-2);font-weight:800;list-style:none;flex-wrap:wrap}
+.snotice summary::-webkit-details-marker{display:none}
+.alert-demo{border:3px solid var(--bad-fg);border-radius:var(--r-sm);background:var(--bad-bg);color:var(--bad-fg);padding:var(--sp-2) var(--sp-3);font-size:var(--fs-xs);font-weight:800}
+
+/* stop detail */
+.stopd{background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);padding:var(--sp-3) var(--sp-4);display:grid;gap:var(--sp-3);border:2px solid var(--focus)}
+.stopd h3{font-family:var(--font-display);font-size:var(--fs-xl);line-height:1.2}
+.repbtns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--sp-2)}
+.repbtns .btn{border-radius:var(--r-md);min-height:3.5rem;flex-direction:column;gap:2px;padding:var(--sp-1)}
+.repbtns .btn[aria-pressed="true"]{outline:3px solid var(--ink);outline-offset:1px}
+.pulses{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-1);font-size:var(--fs-sm)}
+.pulses li{display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap}
+.filters-r{min-height:calc(var(--target) + .5rem);display:flex;gap:var(--sp-2);overflow-x:auto;scrollbar-width:none;padding:2px 0 var(--sp-1)}
+.filters-r>*{flex:none}
+.rchip{min-height:var(--target);display:inline-flex;align-items:center;gap:var(--sp-1);padding:0 var(--sp-2) 0 var(--sp-1);border-radius:var(--r-pill);border:1.5px solid var(--line);background:var(--surface);cursor:pointer;font-weight:750;font-size:var(--fs-xs);color:var(--ink)}
+.rchip[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink)}
+.rchip .rb{height:1.75rem;min-width:2.1rem}
+
+/* B: departures board */
+.lay-board{overflow:auto!important;display:block}
+.lay-board .map-wrap{height:15rem;margin:var(--sp-3) var(--sp-4) 0;border-radius:var(--r-md);overflow:hidden;border:1.5px solid var(--line)}
+.lay-board .map-wrap.collapsed{height:auto;min-height:0;background:none;border:0}
+.lay-board .map-wrap.collapsed #map,.lay-board .map-wrap.collapsed .ctrls,.lay-board .map-wrap.collapsed .legend-btn,.lay-board .map-wrap.collapsed .feed-pill{display:none}
+.board{padding:var(--sp-3) var(--sp-4) 8rem;display:grid;gap:var(--sp-3);grid-template-columns:minmax(0,1fr)}
+.dep{background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);padding:var(--sp-2) var(--sp-3);display:grid;gap:var(--sp-1);border:2px solid transparent}
+.dep.sel{border-color:var(--focus)}
+.dep-h{display:flex;align-items:center;gap:var(--sp-2)}
+.dep-h button{flex:1;text-align:left;background:none;border:0;padding:0;cursor:pointer;min-height:var(--target);display:grid;align-content:center;color:var(--ink)}
+.dep-h b{font-size:var(--fs-body)}
+.deps{display:flex;gap:var(--sp-2);flex-wrap:wrap}
+.depc{display:inline-flex;align-items:center;gap:var(--sp-1);padding:2px var(--sp-2) 2px 2px;border-radius:var(--r-sm);background:var(--surface-2);font-weight:800;font-size:var(--fs-sm)}
+.depc.sched{font-weight:650;color:var(--muted);background:transparent;border:1.5px dashed var(--line-strong)}
+
+/* C: route strip */
+.lay-strip .map-wrap{flex:0 0 42%}
+.strip{flex:1;overflow:auto;min-height:0;padding:var(--sp-3) var(--sp-4) 7rem;display:grid;gap:var(--sp-3);align-content:start;grid-template-columns:minmax(0,1fr)}
+.rpick{min-height:calc(3.25rem + .5rem);display:flex;gap:var(--sp-2);overflow-x:auto;scrollbar-width:none;padding-bottom:var(--sp-1)}
+.rpick button{flex:none;min-height:3.25rem;padding:var(--sp-1);border-radius:var(--r-md);border:2px solid var(--line);background:var(--surface);cursor:pointer;display:grid;justify-items:center;gap:2px;font-size:.75rem;font-weight:750;color:var(--ink)}
+.rpick button[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink)}
+.strip .stoplist{padding-left:2rem}
+.strip .stoplist::before{left:1rem;border-left-width:6px}
+.strip .stoplist li::before{left:-1.4rem;width:1.1rem;height:1.1rem;margin-top:-.55rem;border-width:3px}
+.strip .stoplist .busmark{left:-2.05rem}
+
+/* desktop */
+@container app (min-width:1024px){
+  .shell{grid-template-columns:100%!important;grid-template-areas:"header" "main"!important}
+  .hdr .brand-m{display:inline-flex!important}
+  .tr{flex-direction:row}
+  .tr .map-wrap{position:relative!important;inset:auto!important;flex:1!important;height:auto!important;margin:0!important;border-radius:0!important;border:0!important}
+  .tr .sheet,.tr .board,.tr .strip{position:relative!important;width:27rem;flex:none;height:auto!important;border-radius:0!important;box-shadow:none;border-left:1px solid var(--line);padding-bottom:var(--sp-5)!important;max-height:none;background:var(--bg)!important;overflow:auto}
+  .tr .sheet .sheet-body{display:grid!important;overflow:visible}
+  .tr .handle-btn{display:none!important}
+  .tr .peek .nextcard{display:grid!important}
+  .lay-board{display:flex!important;overflow:hidden!important}
+  .lay-board .map-wrap.collapsed #map,.lay-board .map-wrap.collapsed .ctrls{display:block}
+}
+@container app (max-width:18em){.repbtns{grid-template-columns:1fr}.lay-sheet .sheet[data-snap="peek"]{max-height:72%;overflow:auto}}
+.toast{pointer-events:auto;display:flex;align-items:center;gap:var(--sp-3)}
+.toast .link{color:inherit;min-height:2rem}
+.app.cvd-protan{filter:url(#cvd-protan)} .app.cvd-deutan{filter:url(#cvd-deutan)} .app.cvd-tritan{filter:url(#cvd-tritan)} .app.cvd-achroma{filter:url(#cvd-achroma)}
+
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <filter id="cvd-protan"><feColorMatrix type="matrix" values="0.152 1.053 -0.205 0 0  0.115 0.786 0.099 0 0  -0.004 -0.048 1.052 0 0  0 0 0 1 0"/></filter>
+  <filter id="cvd-deutan"><feColorMatrix type="matrix" values="0.367 0.861 -0.228 0 0  0.280 0.673 0.047 0 0  -0.012 0.043 0.969 0 0  0 0 0 1 0"/></filter>
+  <filter id="cvd-tritan"><feColorMatrix type="matrix" values="1.256 -0.077 -0.179 0 0  -0.078 0.931 0.148 0 0  0.005 0.691 0.304 0 0  0 0 0 1 0"/></filter>
+  <filter id="cvd-achroma"><feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0"/></filter>
+</svg>
+
+<div class="stage" id="stage">
+  <div class="app" id="app">
+    <div id="shellRoot"></div>
+    <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+    <div class="sr" id="live" role="status" aria-live="polite"></div>
+  </div>
+</div>
+<div class="proto-bar" role="toolbar" aria-label="Prototype controls (not part of the design)">
+  <span class="tag">PROTOTYPE</span><b>#67 Transit</b>
+  <label>Layout <select id="ctlLayout"><option value="sheet">A · map + bottom sheet</option><option value="board">B · departures board</option><option value="strip">C · route strip</option></select></label>
+  <label>Feed <select id="ctlFeed"><option value="live">live (12 s)</option><option value="stale">GPS not updating</option><option value="offline">offline (static)</option></select></label>
+  <label>Speed <select id="ctlSpeed"><option value="1">1×</option><option value="10">10×</option></select></label>
+  <label>Theme <select id="ctlTheme"><option value="light">light</option><option value="dark">dark</option></select></label>
+  <label>Motion <select id="ctlMotion"><option value="system">OS setting</option><option value="reduce">reduce</option></select></label>
+  <label>Text <input type="range" id="ctlText" min="100" max="200" step="25"><output id="textOut"></output></label>
+  <label>Vision <select id="ctlCvd"><option value="">normal</option><option value="protan">protanopia</option><option value="deutan">deuteranopia</option><option value="tritan">tritanopia</option><option value="achroma">greyscale</option></select></label>
+  <label>Frame <select id="ctlFrame"><option value="phone">phone 390</option><option value="fluid">fluid (≥1024 = desktop)</option></select></label>
+  <button id="ctlNotes" aria-expanded="false">Patterns under test</button>
+  <a href="v2-parking.html">Parking (#47)</a>
+</div>
+<aside class="tokens" id="notes" hidden></aside>
+<script src="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
+<script>
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+
+/* ===================== DATA =====================
+   Real Passio route geometry + 35 stops (public/data/shuttle-routes.geojson, decimated) and real hours/stop order
+   (data/ksu-seed/shuttle-routes.json). Bus positions, ETAs, loads and stop reports are FAKE, simulated in memory. */
+const D={"routes":[{"code":"KM","name":"KM Kennesaw / Marietta","scope":"Both","id":"74760","hours":"Mon\u2013Sat 6:37 AM \u2013 11:10 PM","stops":["361","362","3884"],"line":[[-84.5826,34.03719],[-84.58258,34.03766],[-84.58274,34.0377],[-84.58277,34.03858],[-84.58274,34.03877],[-84.58263,34.03886],[-84.58254,34.03902],[-84.58254,34.03922],[-84.58254,34.03967],[-84.58254,34.03991],[-84.58253,34.04059],[-84.58253,34.04098],[-84.58256,34.04115],[-84.58267,34.04139],[-84.58274,34.0415],[-84.58281,34.04165],[-84.58305,34.04208],[-84.58288,34.04224],[-84.5825,34.04238],[-84.58233,34.04246],[-84.58212,34.04254],[-84.58186,34.04262],[-84.58172,34.04266],[-84.58155,34.04269],[-84.58135,34.04272],[-84.58107,34.04278],[-84.58107,34.04246],[-84.58107,34.04225],[-84.58105,34.04198],[-84.58101,34.04182],[-84.58054,34.04086],[-84.5803,34.04036],[-84.58009,34.03994],[-84.58003,34.03977],[-84.57997,34.03957],[-84.57984,34.03893],[-84.57979,34.03865],[-84.57974,34.03849],[-84.57962,34.03814],[-84.57945,34.03766],[-84.57939,34.03748],[-84.57933,34.03729],[-84.57929,34.03704],[-84.57954,34.03594],[-84.58041,34.03513],[-84.5805,34.03504],[-84.58065,34.03489],[-84.58076,34.03475],[-84.58083,34.03459],[-84.58086,34.03444],[-84.58086,34.03423],[-84.58075,34.0341],[-84.58065,34.03395],[-84.58055,34.03384],[-84.58046,34.03375],[-84.58019,34.03348],[-84.58009,34.03339],[-84.57998,34.03328],[-84.57979,34.03309],[-84.57961,34.03286],[-84.57937,34.03296],[-84.57921,34.03302],[-84.57904,34.03307],[-84.57886,34.03311],[-84.57863,34.03316],[-84.57846,34.03319],[-84.57834,34.03313],[-84.57827,34.03298],[-84.57799,34.03253],[-84.57743,34.03167],[-84.577,34.03099],[-84.57684,34.03074],[-84.57669,34.03048],[-84.57652,34.03012],[-84.57645,34.02996],[-84.57636,34.02973],[-84.57619,34.0293],[-84.57596,34.02873],[-84.57585,34.02849],[-84.57573,34.02824],[-84.57558,34.028],[-84.57542,34.02778],[-84.57531,34.02758],[-84.57513,34.02725],[-84.57493,34.02691],[-84.5747,34.02658],[-84.57446,34.02623],[-84.57419,34.02585],[-84.57377,34.0253],[-84.57346,34.02488],[-84.57337,34.02477],[-84.5727,34.02385],[-84.57251,34.02358],[-84.57233,34.02329],[-84.57201,34.02273],[-84.57184,34.02239],[-84.5717,34.02209],[-84.57158,34.02178],[-84.57146,34.02143],[-84.57135,34.0211],[-84.57126,34.02076],[-84.57116,34.0204],[-84.57109,34.0201],[-84.5707,34.0185],[-84.57044,34.01738],[-84.57008,34.0159],[-84.56994,34.01529],[-84.56942,34.01319],[-84.56933,34.01283],[-84.56923,34.01248],[-84.56912,34.01217],[-84.56902,34.01186],[-84.56891,34.01156],[-84.56879,34.01127],[-84.56865,34.01095],[-84.56852,34.01065],[-84.56836,34.01033],[-84.56817,34.00995],[-84.56802,34.00967],[-84.56785,34.00938],[-84.56773,34.0092],[-84.56496,34.00476],[-84.56465,34.00427],[-84.56437,34.0038],[-84.56405,34.00328],[-84.56332,34.00203],[-84.56291,34.0013],[-84.56143,33.99869],[-84.56125,33.99839],[-84.56105,33.99807],[-84.56092,33.99787],[-84.56064,33.99746],[-84.56041,33.99716],[-84.56016,33.99687],[-84.55992,33.99661],[-84.55967,33.99634],[-84.5594,33.99607],[-84.55926,33.99594],[-84.55912,33.99581],[-84.55885,33.99558],[-84.55856,33.99535],[-84.55828,33.99513],[-84.55797,33.99491],[-84.55764,33.99469],[-84.55732,33.99448],[-84.55619,33.99377],[-84.55425,33.9924],[-84.55397,33.99224],[-84.55371,33.9921],[-84.5535,33.99201],[-84.55326,33.99191],[-84.55236,33.99142],[-84.55147,33.99098],[-84.55103,33.99076],[-84.54945,33.98997],[-84.54876,33.98962],[-84.54845,33.98946],[-84.54831,33.98938],[-84.54816,33.9893],[-84.54788,33.98915],[-84.54764,33.989],[-84.54736,33.98884],[-84.54709,33.98866],[-84.54675,33.98844],[-84.54642,33.98821],[-84.54505,33.98714],[-84.54466,33.9868],[-84.54457,33.98671],[-84.54412,33.98626],[-84.54041,33.98255],[-84.53948,33.98163],[-84.53784,33.97998],[-84.53693,33.97907],[-84.53568,33.97781],[-84.53335,33.9754],[-84.53216,33.9742],[-84.53079,33.97282],[-84.53066,33.97268],[-84.52491,33.96668],[-84.52369,33.96542],[-84.52328,33.96498],[-84.52306,33.96476],[-84.52243,33.96411],[-84.52017,33.96177],[-84.51975,33.96135],[-84.51923,33.96084],[-84.51857,33.96011],[-84.51817,33.95964],[-84.51789,33.95928],[-84.51765,33.95892],[-84.51742,33.95854],[-84.51723,33.95816],[-84.51703,33.9577],[-84.51694,33.95747],[-84.51684,33.95716],[-84.51677,33.95688],[-84.51671,33.95659],[-84.51666,33.95635],[-84.51662,33.9561],[-84.51659,33.9557],[-84.51656,33.95516],[-84.51655,33.95471],[-84.51649,33.95187],[-84.51648,33.95107],[-84.51646,33.95079],[-84.51643,33.95057],[-84.51639,33.95028],[-84.5163,33.94992],[-84.51621,33.94962],[-84.51614,33.94944],[-84.51607,33.94928],[-84.51594,33.949],[-84.51575,33.94867],[-84.51554,33.94835],[-84.51523,33.94795],[-84.5149,33.9476],[-84.51462,33.94733],[-84.51427,33.94706],[-84.51396,33.94684],[-84.51382,33.94676],[-84.51323,33.94638],[-84.51235,33.94583],[-84.51203,33.94563],[-84.51152,33.94531],[-84.51069,33.9448],[-84.51,33.94434],[-84.50981,33.94411],[-84.50943,33.94385],[-84.50912,33.94362],[-84.50889,33.94346],[-84.50835,33.94312],[-84.50792,33.94284],[-84.50736,33.94247],[-84.50724,33.94237],[-84.50712,33.94226],[-84.50679,33.94188],[-84.5067,33.94178],[-84.50655,33.94162],[-84.50628,33.94138],[-84.50601,33.9412],[-84.50566,33.94097],[-84.50559,33.94081],[-84.50565,33.94066],[-84.50692,33.94],[-84.50711,33.9399],[-84.50729,33.93982],[-84.50747,33.93975],[-84.50765,33.93968],[-84.5078,33.93964],[-84.50794,33.9396],[-84.5081,33.93956],[-84.50828,33.93953],[-84.50854,33.9395],[-84.50872,33.93949],[-84.50891,33.93948],[-84.50912,33.93948],[-84.50938,33.9395],[-84.50964,33.93953],[-84.5099,33.93957],[-84.51014,33.93962],[-84.51039,33.93969],[-84.51063,33.93977],[-84.51083,33.93984],[-84.51109,33.93996],[-84.51135,33.94008],[-84.51161,33.9402],[-84.51228,33.94051],[-84.51256,33.94063],[-84.51297,33.94079],[-84.51321,33.94089],[-84.51346,33.94098],[-84.51394,33.94117],[-84.51576,33.94187],[-84.51627,33.94207],[-84.5166,33.94219],[-84.51691,33.94229],[-84.51707,33.94235],[-84.51734,33.9424],[-84.5176,33.94245],[-84.51788,33.94247],[-84.51813,33.94248],[-84.51837,33.94247],[-84.51859,33.94246],[-84.51875,33.94239],[-84.51882,33.94219],[-84.51881,33.94197],[-84.51881,33.94178],[-84.5188,33.94136],[-84.51878,33.94101],[-84.51899,33.94101],[-84.51916,33.94104],[-84.5194,33.9411],[-84.51958,33.94114],[-84.51978,33.94115],[-84.52003,33.94114],[-84.52076,33.94104],[-84.52114,33.941],[-84.52122,33.94087],[-84.52122,33.94068],[-84.52123,33.94024],[-84.52105,33.9403],[-84.52107,33.94049],[-84.52122,33.94062],[-84.52122,33.94087],[-84.52114,33.941],[-84.52079,33.94104],[-84.52016,33.94112],[-84.51992,33.94115],[-84.51968,33.94115],[-84.51949,33.94113],[-84.51929,33.94106],[-84.51911,33.94103],[-84.51893,33.94101],[-84.51872,33.94101],[-84.51871,33.94171],[-84.51871,33.94201],[-84.51873,33.94224],[-84.51832,33.94229],[-84.51804,33.94229],[-84.51785,33.94228],[-84.51753,33.94224],[-84.51723,33.94218],[-84.51706,33.94214],[-84.51669,33.94204],[-84.51647,33.94196],[-84.51564,33.94166],[-84.5155,33.9416],[-84.51253,33.94042],[-84.51216,33.94026],[-84.51193,33.94015],[-84.5114,33.93989],[-84.51117,33.93978],[-84.51094,33.93969],[-84.51071,33.9396],[-84.51047,33.93951],[-84.51023,33.93944],[-84.50996,33.93939],[-84.50969,33.93935],[-84.50952,33.93933],[-84.50914,33.9393],[-84.50887,33.9393],[-84.50859,33.93931],[-84.50832,33.93934],[-84.50805,33.93938],[-84.50775,33.93944],[-84.50758,33.93949],[-84.50739,33.93956],[-84.50722,33.93963],[-84.50709,33.93969],[-84.50669,33.93989],[-84.50563,33.94044],[-84.50525,33.94063],[-84.50497,33.94076],[-84.50397,33.94126],[-84.50366,33.94136],[-84.50349,33.94141],[-84.50323,33.94144],[-84.50303,33.94139],[-84.50289,33.94129],[-84.50283,33.94114],[-84.50288,33.94092],[-84.50299,33.94081],[-84.50315,33.94076],[-84.50334,33.94077],[-84.50355,33.94083],[-84.50381,33.94093],[-84.51148,33.94557],[-84.5116,33.94565],[-84.51343,33.9468],[-84.51372,33.94699],[-84.514,33.94717],[-84.51425,33.94736],[-84.51469,33.94775],[-84.51502,33.94811],[-84.51532,33.94849],[-84.51548,33.94872],[-84.51562,33.94897],[-84.51573,33.9492],[-84.51584,33.94942],[-84.51594,33.94967],[-84.51602,33.94991],[-84.51608,33.95015],[-84.51614,33.95041],[-84.51617,33.95064],[-84.5162,33.95093],[-84.51627,33.95422],[-84.51629,33.95535],[-84.51634,33.956],[-84.51637,33.95625],[-84.51641,33.95649],[-84.51645,33.95675],[-84.51657,33.9572],[-84.51668,33.95752],[-84.51679,33.95783],[-84.51692,33.95813],[-84.51705,33.95841],[-84.5172,33.95869],[-84.51728,33.95882],[-84.5175,33.95918],[-84.51767,33.95942],[-84.51785,33.95966],[-84.51815,33.96002],[-84.51847,33.96036],[-84.5195,33.96144],[-84.5199,33.96185],[-84.52189,33.96391],[-84.52411,33.96624],[-84.5247,33.96685],[-84.53041,33.97276],[-84.53056,33.9729],[-84.53441,33.97689],[-84.53554,33.97806],[-84.53694,33.9795],[-84.5375,33.98008],[-84.53879,33.98138],[-84.53893,33.98152],[-84.53928,33.98188],[-84.54016,33.98273],[-84.5403,33.98287],[-84.54173,33.98431],[-84.54313,33.98571],[-84.54454,33.98708],[-84.54491,33.98741],[-84.54529,33.98773],[-84.54628,33.98849],[-84.5467,33.98878],[-84.54698,33.98896],[-84.54724,33.98912],[-84.54752,33.98929],[-84.54766,33.98937],[-84.54795,33.98953],[-84.54825,33.98968],[-84.54911,33.99012],[-84.55086,33.99099],[-84.55133,33.99122],[-84.55188,33.99149],[-84.55243,33.99178],[-84.55298,33.99207],[-84.55357,33.9924],[-84.5542,33.99279],[-84.55718,33.99466],[-84.55748,33.99486],[-84.55778,33.99506],[-84.55807,33.99527],[-84.55836,33.9955],[-84.55864,33.99573],[-84.55881,33.99588],[-84.55891,33.99597],[-84.559,33.99606],[-84.55918,33.99622],[-84.55944,33.99648],[-84.55969,33.99674],[-84.55992,33.99701],[-84.56018,33.99731],[-84.56039,33.99759],[-84.5606,33.99787],[-84.5608,33.99817],[-84.561,33.9985],[-84.56191,34.0001],[-84.56201,34.00026],[-84.56215,34.00051],[-84.56317,34.00231],[-84.56379,34.00339],[-84.5641,34.00391],[-84.56471,34.00492],[-84.56493,34.00527],[-84.56643,34.0077],[-84.56659,34.00798],[-84.56676,34.00828],[-84.5669,34.00858],[-84.56705,34.0089],[-84.5672,34.00928],[-84.56734,34.00968],[-84.56744,34.01],[-84.56751,34.0103],[-84.56844,34.01413],[-84.5689,34.01607],[-84.56994,34.02039],[-84.57003,34.02071],[-84.57011,34.021],[-84.57032,34.02164],[-84.57045,34.02196],[-84.57057,34.02226],[-84.57087,34.02286],[-84.57105,34.02317],[-84.57123,34.02347],[-84.57145,34.0238],[-84.57167,34.02411],[-84.57278,34.02561],[-84.57314,34.02608],[-84.5746,34.02805],[-84.57492,34.02849],[-84.57503,34.02877],[-84.57515,34.02904],[-84.57528,34.02936],[-84.57538,34.02959],[-84.57549,34.02984],[-84.57556,34.03008],[-84.57559,34.03025],[-84.57561,34.03042],[-84.57563,34.0306],[-84.5757,34.03153],[-84.57572,34.03175],[-84.57578,34.03259],[-84.5758,34.03285],[-84.57585,34.03331],[-84.57591,34.03353],[-84.57596,34.03366],[-84.57603,34.03384],[-84.57954,34.03307],[-84.57971,34.033],[-84.57996,34.03288],[-84.5801,34.0328],[-84.5803,34.03268],[-84.58044,34.03258],[-84.58069,34.03243],[-84.58089,34.0323],[-84.58106,34.03219],[-84.58122,34.03208],[-84.58132,34.03218],[-84.58159,34.03241],[-84.58179,34.03256],[-84.5819,34.03266],[-84.58202,34.03277],[-84.58212,34.03288],[-84.58224,34.03307],[-84.58231,34.03321],[-84.58242,34.03344],[-84.5825,34.03365],[-84.58255,34.03384],[-84.58259,34.03404],[-84.5826,34.03426],[-84.5826,34.03458],[-84.5826,34.03513],[-84.58261,34.03548],[-84.58262,34.03593],[-84.58262,34.03645],[-84.58262,34.03668],[-84.58261,34.03685],[-84.58259,34.03704]]},{"code":"KL","name":"Kennesaw Loop","scope":"Kennesaw","id":"74761","hours":"Mon\u2013Fri 7:00 AM \u2013 10:00 PM","stops":["361","362","159737","223235"],"line":[[-84.58259,34.03726],[-84.58258,34.03755],[-84.58272,34.03766],[-84.58277,34.03782],[-84.58277,34.03822],[-84.58276,34.03868],[-84.58269,34.03884],[-84.58255,34.03889],[-84.58254,34.03922],[-84.58254,34.03941],[-84.58254,34.03986],[-84.58297,34.03991],[-84.58337,34.03992],[-84.58361,34.03992],[-84.58391,34.03992],[-84.58412,34.03991],[-84.58439,34.03987],[-84.58458,34.03984],[-84.58488,34.03976],[-84.58512,34.03967],[-84.58526,34.03961],[-84.58546,34.03952],[-84.58576,34.03936],[-84.58604,34.03935],[-84.58621,34.03937],[-84.58624,34.03982],[-84.5862,34.03998],[-84.58608,34.04021],[-84.58591,34.04036],[-84.5858,34.04044],[-84.58554,34.04058],[-84.58522,34.04074],[-84.58504,34.04083],[-84.58492,34.04091],[-84.58482,34.041],[-84.58471,34.04113],[-84.58461,34.04128],[-84.58451,34.04141],[-84.5844,34.04152],[-84.58425,34.04159],[-84.58408,34.04156],[-84.58408,34.04175],[-84.58421,34.04181],[-84.58432,34.04189],[-84.58434,34.04169],[-84.58443,34.04154],[-84.58451,34.04141],[-84.58461,34.04128],[-84.58471,34.04113],[-84.58479,34.04103],[-84.58492,34.04091],[-84.58504,34.04083],[-84.58522,34.04074],[-84.58554,34.04058],[-84.58578,34.04046],[-84.58591,34.04036],[-84.58608,34.04021],[-84.58615,34.04009],[-84.58623,34.03989],[-84.58629,34.03945],[-84.58642,34.03849],[-84.58644,34.03816],[-84.58644,34.03765],[-84.58645,34.03742],[-84.58645,34.03688],[-84.58645,34.03661],[-84.58644,34.03642],[-84.58626,34.03642],[-84.58617,34.03656],[-84.58603,34.03681],[-84.5859,34.03708],[-84.58579,34.03717],[-84.58549,34.03705],[-84.58529,34.03696],[-84.58513,34.03688],[-84.58493,34.03681],[-84.58479,34.03677],[-84.58473,34.03665],[-84.58473,34.03647],[-84.58474,34.036],[-84.58475,34.03549],[-84.58475,34.03529],[-84.58475,34.03489],[-84.58475,34.03463],[-84.58473,34.03439],[-84.58469,34.03422],[-84.58464,34.03404],[-84.58456,34.03383],[-84.58448,34.03365],[-84.58436,34.03346],[-84.58429,34.03335],[-84.58409,34.0331],[-84.58388,34.03289],[-84.58375,34.03279],[-84.58363,34.03296],[-84.58363,34.03314],[-84.58372,34.03328],[-84.58383,34.03338],[-84.58399,34.03342],[-84.58417,34.03339],[-84.58436,34.03346],[-84.58444,34.03359],[-84.58456,34.03383],[-84.58462,34.034],[-84.58468,34.03419],[-84.58472,34.03435],[-84.58475,34.03463],[-84.58475,34.03489],[-84.58475,34.03529],[-84.58475,34.03548],[-84.58472,34.03675],[-84.58456,34.03672],[-84.58439,34.03668],[-84.58421,34.03666],[-84.58403,34.03664],[-84.58384,34.03663],[-84.58302,34.03662],[-84.58274,34.03662],[-84.58261,34.03685],[-84.58259,34.03704],[-84.58259,34.03726]]},{"code":"ML","name":"Marietta Loop","scope":"Marietta","id":"74764","hours":"Mon\u2013Fri 7:00 AM \u2013 10:00 PM","stops":["223238","4301","6170","223239"],"line":[[-84.51847,33.93994],[-84.51835,33.93978],[-84.51825,33.93968],[-84.5181,33.9396],[-84.51794,33.93957],[-84.51763,33.93961],[-84.51741,33.93967],[-84.51698,33.93979],[-84.51681,33.93983],[-84.5166,33.93984],[-84.51639,33.93982],[-84.51625,33.93977],[-84.51612,33.9397],[-84.51601,33.93959],[-84.51593,33.93946],[-84.51589,33.9393],[-84.5159,33.93885],[-84.51591,33.93818],[-84.51595,33.93802],[-84.516,33.93786],[-84.51601,33.93765],[-84.51599,33.93748],[-84.516,33.93728],[-84.51603,33.9371],[-84.51598,33.93695],[-84.51587,33.93677],[-84.51578,33.93667],[-84.51617,33.93659],[-84.51694,33.93653],[-84.51753,33.93648],[-84.51778,33.93646],[-84.51798,33.93641],[-84.5181,33.93633],[-84.5183,33.93621],[-84.51899,33.93592],[-84.51916,33.93586],[-84.51932,33.93582],[-84.51951,33.93581],[-84.51967,33.93584],[-84.51987,33.93591],[-84.52001,33.93599],[-84.52023,33.93613],[-84.52036,33.93619],[-84.52059,33.93621],[-84.5208,33.93621],[-84.52096,33.93618],[-84.52132,33.93608],[-84.52203,33.93573],[-84.5222,33.9357],[-84.52243,33.93572],[-84.52258,33.93577],[-84.52317,33.93614],[-84.52345,33.93632],[-84.5236,33.93641],[-84.52372,33.93652],[-84.52379,33.93667],[-84.52379,33.93694],[-84.5239,33.9371],[-84.52409,33.93708],[-84.52469,33.93693],[-84.52484,33.93689],[-84.52498,33.93683],[-84.52506,33.9367],[-84.52506,33.93636],[-84.52508,33.93619],[-84.52514,33.93601],[-84.52499,33.93596],[-84.52514,33.93601],[-84.52508,33.93619],[-84.52506,33.93636],[-84.52507,33.93654],[-84.52504,33.93676],[-84.52493,33.93686],[-84.52469,33.93693],[-84.52414,33.93707],[-84.52397,33.9371],[-84.52379,33.9371],[-84.52372,33.9374],[-84.5236,33.93761],[-84.52352,33.93781],[-84.52351,33.93825],[-84.52354,33.93843],[-84.52353,33.93872],[-84.52352,33.93911],[-84.52344,33.93922],[-84.52289,33.93926],[-84.52252,33.93926],[-84.52238,33.93932],[-84.52221,33.93939],[-84.52204,33.93944],[-84.52191,33.93956],[-84.52177,33.9397],[-84.52144,33.9399],[-84.52133,33.94001],[-84.52125,33.94014],[-84.52122,33.94051],[-84.52122,33.94085],[-84.52114,33.941],[-84.52079,33.94104],[-84.52016,33.94112],[-84.52,33.94114],[-84.51983,33.94116],[-84.51958,33.94114],[-84.5194,33.9411],[-84.51923,33.94105],[-84.51905,33.94102],[-84.5188,33.94101],[-84.51879,33.94077],[-84.51879,33.9405],[-84.51875,33.94035],[-84.51867,33.94021],[-84.51849,33.93997]]},{"code":"BS","name":"Big Shanty Loop","scope":"Kennesaw","id":"74763","hours":"Mon\u2013Fri 7:00 AM \u2013 8:00 PM","stops":["361","362","2788","2790","223237","159452"],"line":[[-84.58259,34.03727],[-84.58258,34.03755],[-84.58272,34.03766],[-84.58277,34.03782],[-84.58277,34.03836],[-84.58276,34.03868],[-84.58269,34.03884],[-84.58255,34.03889],[-84.58254,34.03922],[-84.58254,34.03945],[-84.58254,34.03966],[-84.58254,34.03991],[-84.58253,34.04059],[-84.58253,34.04099],[-84.58256,34.04115],[-84.58267,34.04139],[-84.58274,34.0415],[-84.58281,34.04165],[-84.58305,34.04208],[-84.58288,34.04224],[-84.5825,34.04238],[-84.58233,34.04246],[-84.58212,34.04254],[-84.58186,34.04262],[-84.58172,34.04266],[-84.58155,34.04269],[-84.58135,34.04272],[-84.58121,34.04267],[-84.58112,34.04256],[-84.58107,34.04237],[-84.58107,34.04215],[-84.58105,34.04198],[-84.58101,34.04182],[-84.58094,34.04169],[-84.58087,34.04152],[-84.58061,34.04101],[-84.58035,34.04047],[-84.58026,34.04029],[-84.58009,34.03994],[-84.58003,34.03977],[-84.57997,34.03957],[-84.57979,34.03865],[-84.57974,34.03849],[-84.57962,34.03814],[-84.57945,34.03766],[-84.57939,34.03748],[-84.57933,34.03729],[-84.57929,34.03704],[-84.57929,34.03683],[-84.57931,34.03664],[-84.57937,34.03642],[-84.57906,34.03643],[-84.57877,34.03646],[-84.57857,34.03649],[-84.57719,34.03663],[-84.57561,34.03679],[-84.57536,34.03679],[-84.57518,34.03676],[-84.57505,34.03668],[-84.57496,34.03655],[-84.57498,34.03635],[-84.57502,34.03618],[-84.57506,34.03591],[-84.57507,34.03532],[-84.57507,34.03514],[-84.57502,34.03492],[-84.57497,34.03479],[-84.5749,34.03464],[-84.57481,34.0345],[-84.57467,34.03431],[-84.5745,34.03402],[-84.57441,34.03389],[-84.5742,34.03369],[-84.57384,34.03313],[-84.5737,34.03292],[-84.5733,34.03232],[-84.57284,34.03163],[-84.57253,34.03114],[-84.57244,34.031],[-84.57231,34.03078],[-84.57198,34.03028],[-84.5719,34.03015],[-84.57169,34.02987],[-84.57154,34.02972],[-84.57142,34.02961],[-84.57132,34.02953],[-84.57119,34.02946],[-84.57105,34.0294],[-84.57087,34.02934],[-84.5707,34.02931],[-84.57052,34.02929],[-84.57028,34.02928],[-84.56908,34.02923],[-84.56874,34.0282],[-84.56855,34.02806],[-84.56846,34.02794],[-84.56823,34.02763],[-84.56811,34.02745],[-84.5679,34.02752],[-84.56772,34.02759],[-84.56749,34.02766],[-84.56725,34.02771],[-84.56698,34.02775],[-84.56672,34.02776],[-84.56654,34.02775],[-84.56623,34.02773],[-84.5658,34.0277],[-84.56552,34.02771],[-84.56527,34.02772],[-84.565,34.02776],[-84.56473,34.02783],[-84.56452,34.02789],[-84.56445,34.02772],[-84.56437,34.02754],[-84.56432,34.02741],[-84.5643,34.02721],[-84.56432,34.0266],[-84.5644,34.02569],[-84.56448,34.02511],[-84.56437,34.02437],[-84.56567,34.02441],[-84.56586,34.0244],[-84.56608,34.02431],[-84.56625,34.02421],[-84.56641,34.02416],[-84.56663,34.02417],[-84.56718,34.02418],[-84.56748,34.02418],[-84.56769,34.02414],[-84.56766,34.02574],[-84.56766,34.02602],[-84.56768,34.02632],[-84.56771,34.02652],[-84.56776,34.02674],[-84.56786,34.02701],[-84.56792,34.02714],[-84.56802,34.02731],[-84.56811,34.02745],[-84.56841,34.02746],[-84.5689,34.02727],[-84.56928,34.02712],[-84.5695,34.02703],[-84.57,34.02684],[-84.57043,34.02668],[-84.57077,34.02656],[-84.57151,34.02632],[-84.57227,34.0261],[-84.57289,34.02592],[-84.57309,34.02586],[-84.57328,34.02581],[-84.57347,34.02575],[-84.57375,34.02567],[-84.57389,34.02563],[-84.5741,34.02557],[-84.57446,34.02546],[-84.57508,34.02528],[-84.57525,34.02523],[-84.57544,34.02517],[-84.57583,34.02506],[-84.5774,34.0246],[-84.5778,34.02448],[-84.57799,34.02443],[-84.5782,34.02436],[-84.57844,34.02428],[-84.57868,34.02419],[-84.57877,34.02431],[-84.57885,34.02448],[-84.57892,34.02464],[-84.57897,34.02477],[-84.57901,34.02491],[-84.57904,34.02524],[-84.57903,34.02557],[-84.57902,34.02588],[-84.57902,34.02616],[-84.57901,34.02665],[-84.57901,34.02692],[-84.579,34.02732],[-84.57901,34.02758],[-84.57907,34.0278],[-84.57913,34.02794],[-84.5792,34.02806],[-84.57937,34.02827],[-84.57949,34.02839],[-84.57961,34.02851],[-84.57971,34.02861],[-84.57985,34.02877],[-84.57994,34.02895],[-84.58001,34.02915],[-84.58003,34.02932],[-84.58002,34.02951],[-84.57991,34.03009],[-84.57991,34.0303],[-84.57995,34.03053],[-84.58001,34.03067],[-84.58011,34.03084],[-84.5802,34.03095],[-84.58035,34.03112],[-84.5806,34.0314],[-84.58079,34.03161],[-84.58091,34.03173],[-84.58105,34.03189],[-84.58122,34.03208],[-84.58132,34.03218],[-84.58159,34.03241],[-84.58179,34.03256],[-84.5819,34.03266],[-84.58202,34.03277],[-84.58211,34.03287],[-84.58224,34.03307],[-84.58231,34.03321],[-84.58242,34.03344],[-84.5825,34.03365],[-84.58255,34.03384],[-84.58259,34.03404],[-84.5826,34.03426],[-84.5826,34.03458],[-84.5826,34.03511],[-84.58261,34.03548],[-84.58262,34.03593],[-84.58262,34.03645],[-84.58262,34.03668],[-84.58261,34.03685],[-84.58259,34.03704],[-84.58259,34.03726]]},{"code":"WC","name":"West Campus","scope":"Kennesaw","id":"2995","hours":"Mon\u2013Fri 7:00 AM \u2013 9:00 PM","stops":["361","362","2100","2239"],"line":[[-84.58259,34.03727],[-84.58258,34.03746],[-84.58258,34.03766],[-84.58274,34.0377],[-84.58277,34.03814],[-84.58277,34.03861],[-84.58274,34.03877],[-84.58263,34.03886],[-84.58254,34.03902],[-84.58254,34.03922],[-84.58254,34.03941],[-84.58254,34.03991],[-84.58297,34.03991],[-84.58348,34.03992],[-84.5837,34.03992],[-84.58391,34.03992],[-84.58412,34.03991],[-84.58439,34.03987],[-84.58458,34.03984],[-84.58469,34.04005],[-84.58468,34.04077],[-84.58477,34.04087],[-84.58476,34.04107],[-84.58467,34.0412],[-84.58457,34.04133],[-84.58448,34.04146],[-84.58435,34.04156],[-84.58418,34.04158],[-84.58407,34.04165],[-84.58413,34.0418],[-84.5843,34.04177],[-84.58434,34.04163],[-84.58443,34.04154],[-84.58451,34.04141],[-84.58461,34.04128],[-84.58471,34.04113],[-84.58479,34.04103],[-84.58492,34.04091],[-84.58504,34.04083],[-84.58522,34.04074],[-84.58554,34.04058],[-84.58578,34.04046],[-84.58591,34.04036],[-84.58608,34.04021],[-84.58616,34.04008],[-84.58623,34.03989],[-84.58629,34.03945],[-84.58631,34.03927],[-84.58642,34.03849],[-84.58644,34.03816],[-84.58644,34.03765],[-84.58645,34.03742],[-84.58645,34.03661],[-84.58644,34.03639],[-84.58642,34.03622],[-84.5864,34.03606],[-84.58635,34.03579],[-84.58631,34.03565],[-84.58616,34.03505],[-84.58611,34.03488],[-84.58603,34.03462],[-84.58596,34.03439],[-84.5859,34.03418],[-84.58578,34.03389],[-84.58567,34.03365],[-84.58554,34.03341],[-84.58545,34.03325],[-84.58536,34.03311],[-84.58511,34.03271],[-84.58503,34.03261],[-84.58491,34.03245],[-84.58477,34.03228],[-84.58469,34.03217],[-84.5845,34.03194],[-84.58431,34.03172],[-84.58411,34.03149],[-84.58359,34.03089],[-84.58354,34.03075],[-84.5836,34.0306],[-84.58369,34.0305],[-84.58386,34.03037],[-84.58407,34.03028],[-84.58426,34.03023],[-84.58453,34.03018],[-84.58466,34.03013],[-84.58482,34.03001],[-84.58506,34.02975],[-84.5852,34.02967],[-84.58545,34.02976],[-84.58569,34.02982],[-84.58589,34.02984],[-84.58626,34.02987],[-84.58649,34.02987],[-84.58677,34.02984],[-84.58706,34.0298],[-84.58734,34.02977],[-84.58763,34.02974],[-84.58786,34.02973],[-84.58813,34.02972],[-84.58842,34.02971],[-84.58878,34.02969],[-84.58907,34.02966],[-84.58928,34.02961],[-84.58946,34.02958],[-84.58963,34.02951],[-84.58981,34.02941],[-84.58992,34.02934],[-84.59007,34.02926],[-84.59026,34.02924],[-84.59039,34.02932],[-84.59048,34.02943],[-84.59055,34.02956],[-84.59061,34.02969],[-84.59066,34.02986],[-84.59069,34.03004],[-84.59073,34.03059],[-84.59075,34.03169],[-84.59076,34.03205],[-84.59078,34.03225],[-84.59082,34.03243],[-84.59091,34.0327],[-84.59104,34.0331],[-84.59124,34.03368],[-84.5913,34.03387],[-84.59137,34.03407],[-84.59145,34.03426],[-84.59154,34.03445],[-84.59162,34.03459],[-84.59175,34.0348],[-84.59196,34.03507],[-84.59273,34.03603],[-84.59288,34.03622],[-84.59304,34.03642],[-84.59357,34.03708],[-84.59371,34.03726],[-84.5941,34.03775],[-84.5943,34.03797],[-84.59447,34.03812],[-84.59464,34.03824],[-84.59485,34.03842],[-84.59501,34.03854],[-84.59514,34.03864],[-84.59528,34.03874],[-84.59549,34.03887],[-84.59561,34.03894],[-84.59582,34.03906],[-84.59596,34.03914],[-84.59609,34.03921],[-84.59621,34.03928],[-84.59643,34.0394],[-84.59668,34.03954],[-84.59716,34.0398],[-84.59739,34.03993],[-84.59773,34.0401],[-84.59815,34.04033],[-84.59832,34.04042],[-84.59851,34.04051],[-84.5987,34.04059],[-84.59891,34.04066],[-84.59907,34.04071],[-84.59927,34.04075],[-84.59955,34.04077],[-84.59991,34.04078],[-84.60019,34.04078],[-84.60038,34.04079],[-84.60062,34.04079],[-84.60083,34.04081],[-84.60104,34.04082],[-84.60131,34.04084],[-84.60155,34.04085],[-84.60177,34.04086],[-84.60203,34.04087],[-84.60225,34.04087],[-84.60243,34.04087],[-84.60264,34.04086],[-84.6029,34.04085],[-84.60318,34.04084],[-84.60341,34.04085],[-84.60359,34.04089],[-84.60375,34.04095],[-84.60431,34.04118],[-84.6048,34.04143],[-84.60493,34.0415],[-84.60515,34.0416],[-84.60522,34.04173],[-84.60536,34.04179],[-84.60544,34.04168],[-84.60532,34.0416],[-84.60493,34.0415],[-84.6048,34.04143],[-84.60431,34.04118],[-84.60404,34.04107],[-84.60379,34.04097],[-84.60359,34.04089],[-84.60345,34.04085],[-84.60326,34.04084],[-84.6029,34.04085],[-84.60264,34.04086],[-84.60243,34.04087],[-84.60225,34.04087],[-84.60203,34.04087],[-84.60177,34.04086],[-84.60155,34.04085],[-84.60131,34.04084],[-84.60097,34.04082],[-84.60062,34.04079],[-84.60038,34.04079],[-84.60019,34.04078],[-84.59991,34.04078],[-84.59968,34.04078],[-84.59943,34.04076],[-84.5992,34.04074],[-84.59902,34.0407],[-84.59882,34.04063],[-84.59858,34.04054],[-84.59842,34.04047],[-84.59815,34.04033],[-84.59773,34.0401],[-84.59739,34.03993],[-84.59721,34.03983],[-84.59668,34.03954],[-84.59643,34.0394],[-84.59621,34.03928],[-84.59609,34.03921],[-84.59596,34.03914],[-84.59582,34.03906],[-84.59561,34.03894],[-84.59549,34.03887],[-84.59528,34.03874],[-84.59514,34.03864],[-84.59501,34.03854],[-84.59485,34.03842],[-84.59464,34.03824],[-84.59445,34.038],[-84.59427,34.03777],[-84.59387,34.03728],[-84.59366,34.03703],[-84.59338,34.03669],[-84.59297,34.03617],[-84.59288,34.03606],[-84.5927,34.03586],[-84.59217,34.03521],[-84.59209,34.0351],[-84.59189,34.03485],[-84.59181,34.03474],[-84.59164,34.03445],[-84.59157,34.03432],[-84.59148,34.03413],[-84.5914,34.03391],[-84.5913,34.03363],[-84.59112,34.03308],[-84.59093,34.03249],[-84.59088,34.03232],[-84.59084,34.03204],[-84.5908,34.03091],[-84.59078,34.03049],[-84.59076,34.03022],[-84.59073,34.02997],[-84.59068,34.02975],[-84.59062,34.02958],[-84.59054,34.0294],[-84.59052,34.02922],[-84.59055,34.02907],[-84.59048,34.02894],[-84.5903,34.02889],[-84.59018,34.02895],[-84.59008,34.02911],[-84.58998,34.02922],[-84.58983,34.02933],[-84.58959,34.02947],[-84.58945,34.02953],[-84.58928,34.02961],[-84.58907,34.02966],[-84.58878,34.02969],[-84.58855,34.0297],[-84.58813,34.02972],[-84.58786,34.02973],[-84.58763,34.02974],[-84.58734,34.02977],[-84.58706,34.0298],[-84.58677,34.02984],[-84.58659,34.02986],[-84.58626,34.02987],[-84.58603,34.02986],[-84.58575,34.0298],[-84.58559,34.02974],[-84.58541,34.02966],[-84.58526,34.0296],[-84.5851,34.02955],[-84.58502,34.02972],[-84.58495,34.02984],[-84.58484,34.02999],[-84.58474,34.03008],[-84.58461,34.03015],[-84.58426,34.03023],[-84.58406,34.03028],[-84.58386,34.03037],[-84.58372,34.03047],[-84.5836,34.0306],[-84.58354,34.03075],[-84.58359,34.03089],[-84.58411,34.03149],[-84.58429,34.0317],[-84.5845,34.03194],[-84.58469,34.03217],[-84.58477,34.03228],[-84.58491,34.03245],[-84.58503,34.03261],[-84.58535,34.0331],[-84.58545,34.03325],[-84.58553,34.03338],[-84.58562,34.03354],[-84.58578,34.03389],[-84.58588,34.03414],[-84.58596,34.03439],[-84.58608,34.03478],[-84.58616,34.03505],[-84.58631,34.03565],[-84.58635,34.03579],[-84.58638,34.03597],[-84.58641,34.03615],[-84.58638,34.03633],[-84.58626,34.03642],[-84.58617,34.03656],[-84.58603,34.03681],[-84.5859,34.03708],[-84.58577,34.03717],[-84.58549,34.03705],[-84.58523,34.03693],[-84.58502,34.03684],[-84.58486,34.03679],[-84.58472,34.03675],[-84.58456,34.03672],[-84.58439,34.03668],[-84.58421,34.03666],[-84.58403,34.03664],[-84.58384,34.03663],[-84.58269,34.03662],[-84.58261,34.03685],[-84.5826,34.03704],[-84.58259,34.03727]]},{"code":"CP","name":"Chastain Pointe / Arts","scope":"Kennesaw","id":"2998","hours":"Mon\u2013Fri 7:30 AM \u2013 7:00 PM","stops":["361","362","159736","363","2239"],"line":[[-84.58259,34.03717],[-84.58258,34.03755],[-84.58272,34.03766],[-84.58277,34.03782],[-84.58276,34.03868],[-84.58269,34.03884],[-84.58255,34.03889],[-84.58254,34.03922],[-84.58254,34.03966],[-84.58254,34.03991],[-84.58297,34.03991],[-84.58346,34.03992],[-84.5837,34.03992],[-84.58391,34.03992],[-84.58412,34.03991],[-84.58439,34.03987],[-84.58458,34.03984],[-84.58469,34.04005],[-84.58468,34.04077],[-84.58477,34.04087],[-84.58476,34.04107],[-84.58467,34.0412],[-84.58457,34.04133],[-84.58448,34.04146],[-84.58434,34.04156],[-84.58418,34.04158],[-84.58407,34.04165],[-84.58413,34.0418],[-84.5843,34.04177],[-84.58434,34.04163],[-84.58443,34.04154],[-84.58451,34.04141],[-84.58461,34.04128],[-84.58471,34.04113],[-84.58479,34.04103],[-84.58492,34.04091],[-84.58504,34.04083],[-84.58522,34.04074],[-84.58554,34.04058],[-84.58578,34.04046],[-84.58591,34.04036],[-84.58608,34.04021],[-84.58616,34.04008],[-84.58623,34.03989],[-84.58629,34.03945],[-84.58642,34.03849],[-84.58644,34.03816],[-84.58644,34.03765],[-84.58645,34.03742],[-84.58645,34.03688],[-84.58645,34.03661],[-84.58644,34.03642],[-84.58642,34.03622],[-84.58638,34.03597],[-84.58635,34.03579],[-84.58631,34.03565],[-84.58616,34.03505],[-84.58611,34.03488],[-84.58597,34.03441],[-84.5859,34.03418],[-84.58578,34.03389],[-84.58567,34.03365],[-84.58554,34.03341],[-84.58545,34.03325],[-84.58536,34.03311],[-84.58511,34.03271],[-84.58489,34.03268],[-84.58503,34.03261],[-84.58491,34.03245],[-84.58477,34.03228],[-84.58469,34.03217],[-84.5845,34.03194],[-84.58431,34.03172],[-84.58411,34.03149],[-84.58359,34.03089],[-84.58355,34.03074],[-84.5836,34.0306],[-84.58369,34.0305],[-84.58386,34.03037],[-84.58407,34.03028],[-84.58426,34.03023],[-84.58453,34.03018],[-84.58473,34.0301],[-84.58486,34.03004],[-84.58506,34.02975],[-84.5852,34.02967],[-84.58545,34.02976],[-84.58569,34.02982],[-84.58589,34.02984],[-84.58912,34.02965],[-84.58928,34.02961],[-84.58946,34.02958],[-84.58964,34.0295],[-84.58981,34.02941],[-84.58995,34.02933],[-84.59007,34.02926],[-84.59026,34.02924],[-84.59048,34.02921],[-84.59055,34.02907],[-84.59048,34.02894],[-84.5903,34.02889],[-84.59018,34.02895],[-84.59012,34.0291],[-84.5902,34.02921],[-84.59037,34.02925],[-84.59052,34.02917],[-84.59054,34.029],[-84.59044,34.02891],[-84.59024,34.02891],[-84.59014,34.029],[-84.59003,34.02917],[-84.58992,34.02928],[-84.58975,34.02939],[-84.58959,34.02947],[-84.58945,34.02953],[-84.58859,34.02972],[-84.58618,34.02986],[-84.58594,34.02985],[-84.58563,34.02975],[-84.58524,34.02962],[-84.58509,34.02956],[-84.58417,34.02925],[-84.58397,34.02919],[-84.58411,34.02886],[-84.58422,34.02863],[-84.58432,34.02841],[-84.58445,34.02813],[-84.58454,34.02794],[-84.58464,34.02776],[-84.58472,34.0276],[-84.5848,34.02747],[-84.58491,34.02731],[-84.58508,34.02706],[-84.58534,34.0272],[-84.58598,34.02789],[-84.58659,34.02854],[-84.58605,34.02955],[-84.58589,34.02984],[-84.58563,34.02975],[-84.58544,34.02971],[-84.58512,34.0296],[-84.58499,34.02969],[-84.58494,34.02984],[-84.58484,34.02999],[-84.58474,34.03009],[-84.58461,34.03015],[-84.58438,34.03021],[-84.58407,34.03028],[-84.58394,34.03033],[-84.58379,34.03042],[-84.5836,34.0306],[-84.58354,34.03075],[-84.58359,34.03089],[-84.58411,34.03149],[-84.58429,34.0317],[-84.5845,34.03194],[-84.58469,34.03217],[-84.58477,34.03228],[-84.58491,34.03245],[-84.58503,34.03261],[-84.58511,34.03271],[-84.58536,34.03311],[-84.58545,34.03325],[-84.58553,34.03338],[-84.58564,34.03358],[-84.58578,34.03389],[-84.58588,34.03414],[-84.58596,34.03439],[-84.58611,34.03488],[-84.58616,34.03505],[-84.58631,34.03565],[-84.58635,34.03579],[-84.58638,34.03597],[-84.58641,34.03614],[-84.58644,34.03642],[-84.58626,34.03642],[-84.58617,34.03656],[-84.58603,34.03681],[-84.5859,34.03708],[-84.58577,34.03717],[-84.58549,34.03705],[-84.58523,34.03693],[-84.58502,34.03684],[-84.58486,34.03679],[-84.58472,34.03675],[-84.58456,34.03672],[-84.58439,34.03668],[-84.58421,34.03666],[-84.58403,34.03664],[-84.58384,34.03663],[-84.58302,34.03662],[-84.58269,34.03662],[-84.58249,34.03727]]},{"code":"SS","name":"Skip Spann / Frey Road","scope":"Kennesaw","id":"50227","hours":"Mon\u2013Fri 7:30 AM \u2013 6:30 PM","stops":["5804","159734","910","2101"],"line":[[-84.58083,34.03971],[-84.58065,34.03973],[-84.5806,34.03993],[-84.5806,34.04016],[-84.58047,34.04021],[-84.58026,34.04029],[-84.58009,34.03994],[-84.58003,34.03977],[-84.57997,34.03957],[-84.57979,34.03865],[-84.57974,34.03849],[-84.57962,34.03814],[-84.57945,34.03766],[-84.57939,34.03748],[-84.57933,34.03729],[-84.57929,34.03704],[-84.57929,34.03683],[-84.57931,34.03664],[-84.57936,34.03646],[-84.57921,34.03642],[-84.57877,34.03646],[-84.57857,34.03649],[-84.57719,34.03663],[-84.57561,34.03679],[-84.57536,34.03679],[-84.57514,34.03677],[-84.57501,34.03671],[-84.57493,34.0366],[-84.57476,34.03656],[-84.5746,34.0366],[-84.57456,34.03676],[-84.57459,34.03692],[-84.57456,34.03711],[-84.57443,34.03731],[-84.57432,34.03746],[-84.57422,34.03758],[-84.5741,34.0377],[-84.57394,34.03786],[-84.57376,34.03803],[-84.57351,34.03829],[-84.57335,34.03846],[-84.57319,34.03864],[-84.57331,34.03872],[-84.57345,34.03883],[-84.57362,34.03898],[-84.57373,34.03911],[-84.57385,34.03927],[-84.57394,34.03942],[-84.57403,34.03961],[-84.57411,34.03987],[-84.57414,34.04009],[-84.57415,34.04043],[-84.57415,34.04069],[-84.57413,34.0413],[-84.57414,34.04153],[-84.57417,34.04176],[-84.5742,34.04191],[-84.57425,34.04212],[-84.57436,34.04242],[-84.57444,34.04261],[-84.57456,34.04283],[-84.57464,34.04296],[-84.57473,34.04309],[-84.57487,34.04327],[-84.57504,34.04347],[-84.57517,34.04364],[-84.57529,34.04377],[-84.57546,34.04393],[-84.57557,34.04401],[-84.57568,34.04408],[-84.57584,34.04416],[-84.57601,34.04424],[-84.57622,34.04433],[-84.5766,34.04448],[-84.57681,34.0446],[-84.57699,34.04474],[-84.57709,34.04484],[-84.57722,34.04505],[-84.57731,34.04528],[-84.57734,34.04543],[-84.5774,34.04579],[-84.57745,34.04598],[-84.57751,34.04611],[-84.57759,34.04623],[-84.57774,34.04639],[-84.57785,34.0465],[-84.57803,34.04662],[-84.57823,34.04671],[-84.57839,34.04675],[-84.57855,34.04678],[-84.57892,34.0468],[-84.5792,34.04678],[-84.57943,34.04676],[-84.57961,34.04671],[-84.57976,34.04665],[-84.57997,34.04656],[-84.5801,34.04651],[-84.58025,34.04648],[-84.58055,34.04645],[-84.58089,34.04645],[-84.581,34.04652],[-84.581,34.04676],[-84.581,34.047],[-84.58099,34.04741],[-84.58099,34.0477],[-84.581,34.04789],[-84.58099,34.04825],[-84.58101,34.04928],[-84.58186,34.04927],[-84.58184,34.04908],[-84.5813,34.04908],[-84.58129,34.04789],[-84.58095,34.04787],[-84.58099,34.0477],[-84.58099,34.04752],[-84.581,34.047],[-84.581,34.04676],[-84.581,34.04652],[-84.58101,34.04633],[-84.58061,34.04633],[-84.58031,34.04634],[-84.58014,34.04637],[-84.57989,34.04645],[-84.57957,34.04659],[-84.57943,34.04663],[-84.57915,34.04667],[-84.57876,34.04667],[-84.57849,34.04664],[-84.57826,34.04657],[-84.57812,34.04651],[-84.578,34.04644],[-84.5779,34.04635],[-84.57779,34.04625],[-84.5777,34.04613],[-84.57763,34.04601],[-84.57755,34.04577],[-84.5775,34.04547],[-84.57747,34.0453],[-84.57742,34.04513],[-84.57736,34.045],[-84.57728,34.04487],[-84.5772,34.04476],[-84.57709,34.04464],[-84.57695,34.04453],[-84.57679,34.04443],[-84.57662,34.04436],[-84.57629,34.04421],[-84.57603,34.0441],[-84.5758,34.044],[-84.57563,34.04389],[-84.57548,34.04376],[-84.57533,34.0436],[-84.57515,34.04337],[-84.57506,34.04326],[-84.57497,34.04315],[-84.5748,34.04292],[-84.57469,34.04274],[-84.57459,34.04255],[-84.57451,34.04237],[-84.57444,34.04217],[-84.57437,34.04198],[-84.57433,34.04179],[-84.5743,34.04155],[-84.57429,34.04133],[-84.57431,34.04034],[-84.57429,34.03999],[-84.57426,34.03983],[-84.57421,34.03967],[-84.57415,34.03951],[-84.57408,34.03936],[-84.57399,34.03921],[-84.57388,34.03907],[-84.57376,34.03892],[-84.57365,34.03881],[-84.57355,34.03872],[-84.57336,34.03858],[-84.57424,34.03767],[-84.57437,34.03751],[-84.57446,34.03739],[-84.57456,34.03726],[-84.57465,34.03711],[-84.57476,34.03698],[-84.5749,34.03688],[-84.57511,34.03685],[-84.57526,34.03688],[-84.57549,34.0369],[-84.57721,34.03673],[-84.57768,34.03668],[-84.57829,34.03662],[-84.57858,34.03659],[-84.57879,34.03657],[-84.57898,34.0366],[-84.57908,34.03668],[-84.57914,34.03681],[-84.57914,34.03705],[-84.5792,34.0374],[-84.57925,34.03757],[-84.57933,34.03777],[-84.57949,34.03823],[-84.57961,34.03858],[-84.57979,34.03942],[-84.57984,34.03963],[-84.5799,34.03985],[-84.58003,34.04014],[-84.58011,34.04034],[-84.5803,34.04036],[-84.58051,34.0403],[-84.58069,34.04027],[-84.58088,34.04028],[-84.581,34.0402],[-84.5811,34.04005],[-84.58112,34.03984],[-84.58101,34.03972],[-84.58075,34.03971]]},{"code":"EC","name":"Economy Route","scope":"Kennesaw","id":"74762","hours":"Mon\u2013Fri 7:00 AM \u2013 9:30 PM","stops":["5806","159736","363","223236","366"],"line":[[-84.58441,34.03668],[-84.58472,34.03675],[-84.58473,34.03647],[-84.58474,34.036],[-84.58475,34.03549],[-84.58475,34.03529],[-84.58475,34.03489],[-84.58475,34.03463],[-84.58473,34.03439],[-84.58469,34.03422],[-84.58464,34.03404],[-84.58456,34.03383],[-84.58448,34.03365],[-84.58436,34.03346],[-84.58429,34.03335],[-84.5842,34.03324],[-84.58409,34.0331],[-84.58388,34.03289],[-84.58375,34.03279],[-84.58362,34.03269],[-84.58338,34.03259],[-84.58314,34.03257],[-84.58287,34.03261],[-84.58274,34.03266],[-84.58261,34.03273],[-84.58227,34.03288],[-84.58207,34.03282],[-84.58196,34.03272],[-84.58181,34.03259],[-84.58159,34.03241],[-84.58132,34.03218],[-84.58122,34.03208],[-84.58144,34.03194],[-84.58174,34.03174],[-84.58206,34.03153],[-84.5822,34.03144],[-84.58234,34.03135],[-84.5825,34.03124],[-84.58267,34.03113],[-84.58285,34.03099],[-84.58295,34.03091],[-84.58304,34.03082],[-84.58316,34.0307],[-84.58327,34.03057],[-84.58341,34.03041],[-84.58353,34.03024],[-84.58363,34.03008],[-84.58376,34.02983],[-84.58383,34.02968],[-84.58389,34.02953],[-84.58395,34.02941],[-84.58397,34.02919],[-84.58411,34.02886],[-84.58422,34.02863],[-84.58432,34.02841],[-84.58445,34.02813],[-84.58454,34.02794],[-84.58464,34.02776],[-84.58472,34.0276],[-84.5848,34.02747],[-84.58491,34.02731],[-84.58508,34.02706],[-84.58534,34.0272],[-84.58551,34.02739],[-84.58589,34.02787],[-84.58626,34.0282],[-84.58646,34.0284],[-84.58594,34.02947],[-84.58594,34.02966],[-84.58589,34.02984],[-84.58563,34.02975],[-84.58524,34.02962],[-84.58509,34.02956],[-84.58417,34.02925],[-84.58397,34.02919],[-84.5838,34.02913],[-84.58366,34.02909],[-84.58337,34.029],[-84.58307,34.02892],[-84.58285,34.02886],[-84.58266,34.02881],[-84.58246,34.02875],[-84.58232,34.02869],[-84.58216,34.02859],[-84.58206,34.0285],[-84.58198,34.0284],[-84.58188,34.02823],[-84.58183,34.02806],[-84.58182,34.02785],[-84.58186,34.02763],[-84.58194,34.02726],[-84.58199,34.02706],[-84.58207,34.02669],[-84.58212,34.02645],[-84.58218,34.02616],[-84.58198,34.02615],[-84.58151,34.0261],[-84.58125,34.02607],[-84.58105,34.02604],[-84.58066,34.02604],[-84.58041,34.02604],[-84.58044,34.02621],[-84.58123,34.02622],[-84.58144,34.02609],[-84.58187,34.02614],[-84.58204,34.02615],[-84.582,34.02635],[-84.58179,34.02732],[-84.58175,34.02752],[-84.58169,34.02776],[-84.58168,34.02799],[-84.58095,34.02826],[-84.58098,34.0285],[-84.58107,34.02863],[-84.58141,34.02901],[-84.58148,34.02918],[-84.58139,34.0293],[-84.58202,34.02999],[-84.58211,34.03013],[-84.58136,34.03069],[-84.58042,34.0312],[-84.5806,34.0314],[-84.58079,34.03161],[-84.58091,34.03173],[-84.58105,34.03189],[-84.58122,34.03208],[-84.58132,34.03218],[-84.58159,34.03241],[-84.58177,34.03254],[-84.5819,34.03266],[-84.58202,34.03277],[-84.58211,34.03287],[-84.58224,34.03307],[-84.58231,34.03321],[-84.58242,34.03344],[-84.5825,34.03365],[-84.58255,34.03384],[-84.58259,34.03404],[-84.5826,34.03426],[-84.5826,34.03458],[-84.5826,34.03511],[-84.58261,34.03548],[-84.58262,34.03593],[-84.58262,34.03645],[-84.58269,34.03662],[-84.58287,34.03662],[-84.58353,34.03663],[-84.58374,34.03663],[-84.58394,34.03663],[-84.58412,34.03665],[-84.5843,34.03667]]},{"code":"SH","name":"Shuttle Parking Route","scope":"Kennesaw","id":"71987","hours":"Mon\u2013Fri 7:00 AM \u2013 9:30 PM","stops":["916","3881","2788","361","362"],"line":[[-84.57356,34.03157],[-84.57318,34.03121],[-84.57307,34.0311],[-84.57309,34.03085],[-84.57311,34.03069],[-84.5732,34.03054],[-84.5732,34.03017],[-84.57321,34.02989],[-84.57317,34.02962],[-84.57232,34.02989],[-84.57186,34.03006],[-84.57169,34.02987],[-84.57154,34.02972],[-84.57142,34.02961],[-84.57132,34.02953],[-84.57119,34.02946],[-84.57105,34.0294],[-84.57087,34.02934],[-84.5707,34.02931],[-84.57052,34.02929],[-84.57028,34.02928],[-84.57006,34.02928],[-84.56988,34.02927],[-84.56916,34.02925],[-84.56902,34.02907],[-84.56898,34.02879],[-84.56894,34.02865],[-84.56889,34.02849],[-84.56881,34.02831],[-84.56869,34.02812],[-84.56855,34.02806],[-84.56847,34.02794],[-84.56822,34.02761],[-84.56841,34.02746],[-84.5689,34.02727],[-84.56928,34.02712],[-84.5695,34.02703],[-84.57,34.02684],[-84.57043,34.02668],[-84.57077,34.02656],[-84.57151,34.02632],[-84.57227,34.0261],[-84.57289,34.02592],[-84.57309,34.02586],[-84.57328,34.02581],[-84.57347,34.02575],[-84.57366,34.02569],[-84.57389,34.02563],[-84.5741,34.02557],[-84.57446,34.02546],[-84.57509,34.02528],[-84.57525,34.02523],[-84.57547,34.02517],[-84.57583,34.02506],[-84.5774,34.0246],[-84.5778,34.02449],[-84.57799,34.02443],[-84.5782,34.02436],[-84.57844,34.02428],[-84.57866,34.0242],[-84.57879,34.02431],[-84.57887,34.02448],[-84.57893,34.02464],[-84.57901,34.02492],[-84.57898,34.0259],[-84.57898,34.02617],[-84.57897,34.02651],[-84.57894,34.02692],[-84.57896,34.02733],[-84.57901,34.0277],[-84.57913,34.02795],[-84.57921,34.02809],[-84.57937,34.02827],[-84.57949,34.02839],[-84.57961,34.02851],[-84.57971,34.02861],[-84.57985,34.02877],[-84.57994,34.02895],[-84.58001,34.02915],[-84.58003,34.02932],[-84.58002,34.02953],[-84.57991,34.03009],[-84.57991,34.0303],[-84.57995,34.03053],[-84.58001,34.03067],[-84.58011,34.03084],[-84.5802,34.03095],[-84.58035,34.03112],[-84.5806,34.0314],[-84.58079,34.03161],[-84.58091,34.03173],[-84.58106,34.0319],[-84.58122,34.03208],[-84.58132,34.03218],[-84.58159,34.03241],[-84.58179,34.03256],[-84.5819,34.03266],[-84.58202,34.03277],[-84.58212,34.03288],[-84.58225,34.03309],[-84.58231,34.03321],[-84.58242,34.03344],[-84.5825,34.03365],[-84.58255,34.03384],[-84.58259,34.03404],[-84.5826,34.03429],[-84.5826,34.03458],[-84.5826,34.03511],[-84.58261,34.03548],[-84.58262,34.03593],[-84.58262,34.03619],[-84.58262,34.03645],[-84.58262,34.03668],[-84.58261,34.03685],[-84.5826,34.03704],[-84.58259,34.03726],[-84.58254,34.03941],[-84.58254,34.03967],[-84.58254,34.03991],[-84.58253,34.04059],[-84.58253,34.04099],[-84.58256,34.04115],[-84.58267,34.04139],[-84.58274,34.0415],[-84.58281,34.04165],[-84.58305,34.04208],[-84.58288,34.04224],[-84.5825,34.04238],[-84.58233,34.04246],[-84.58212,34.04254],[-84.58186,34.04262],[-84.58172,34.04266],[-84.58155,34.04269],[-84.58135,34.04272],[-84.58121,34.04267],[-84.58112,34.04256],[-84.58107,34.04237],[-84.58107,34.04215],[-84.58105,34.04198],[-84.58101,34.04182],[-84.58094,34.04169],[-84.58087,34.04152],[-84.58061,34.04101],[-84.5803,34.04036],[-84.58009,34.03994],[-84.58003,34.03977],[-84.57997,34.03957],[-84.57979,34.03865],[-84.57974,34.03849],[-84.57962,34.03814],[-84.57945,34.03766],[-84.57939,34.03748],[-84.57933,34.03729],[-84.57929,34.03704],[-84.57929,34.03683],[-84.57931,34.03664],[-84.57937,34.03642],[-84.57906,34.03643],[-84.57877,34.03646],[-84.57857,34.03649],[-84.57719,34.03663],[-84.57561,34.03679],[-84.57536,34.03679],[-84.57518,34.03676],[-84.57505,34.03668],[-84.57495,34.03656],[-84.57498,34.03635],[-84.57502,34.03618],[-84.57506,34.03591],[-84.57507,34.03532],[-84.57507,34.03514],[-84.57502,34.03492],[-84.57497,34.03479],[-84.5749,34.03464],[-84.57481,34.0345],[-84.57459,34.03421],[-84.57443,34.03405],[-84.5742,34.03369],[-84.57395,34.0333],[-84.57384,34.03313],[-84.5737,34.03292],[-84.57406,34.03275],[-84.57376,34.03232],[-84.57387,34.03218],[-84.57377,34.03208],[-84.57396,34.03194],[-84.57355,34.03156]]},{"code":"KS","name":"Kennesaw Shopping","scope":"Kennesaw","id":"75303","hours":"Fri\u2013Sun 11:00 AM \u2013 7:00 PM","stops":["159737","6516","195839","915","6225"],"line":[[-84.58405,34.04168],[-84.58413,34.0418],[-84.5843,34.04177],[-84.58434,34.04163],[-84.58443,34.04154],[-84.58451,34.04141],[-84.58461,34.04128],[-84.58471,34.04113],[-84.58479,34.04103],[-84.58492,34.04091],[-84.58504,34.04083],[-84.58522,34.04074],[-84.58554,34.04058],[-84.58578,34.04046],[-84.58591,34.04036],[-84.58608,34.04021],[-84.58616,34.04008],[-84.58623,34.03989],[-84.58629,34.03945],[-84.58642,34.03849],[-84.58644,34.03816],[-84.58644,34.03765],[-84.58645,34.03742],[-84.58645,34.03688],[-84.58645,34.03661],[-84.58644,34.03642],[-84.58626,34.03642],[-84.58617,34.03656],[-84.58606,34.03674],[-84.5859,34.03708],[-84.58579,34.03717],[-84.58549,34.03705],[-84.58523,34.03693],[-84.58502,34.03684],[-84.58486,34.03679],[-84.58472,34.03675],[-84.58473,34.03647],[-84.58474,34.036],[-84.58475,34.03549],[-84.58475,34.03529],[-84.58475,34.03489],[-84.58475,34.03463],[-84.58473,34.03439],[-84.58469,34.03422],[-84.58464,34.03404],[-84.58456,34.03383],[-84.58448,34.03365],[-84.58436,34.03346],[-84.58429,34.03335],[-84.58409,34.0331],[-84.58388,34.03289],[-84.58375,34.03279],[-84.58362,34.03269],[-84.58349,34.03262],[-84.58328,34.03258],[-84.583,34.03258],[-84.58274,34.03266],[-84.58261,34.03273],[-84.58227,34.03288],[-84.58207,34.03282],[-84.58196,34.03272],[-84.58181,34.03259],[-84.58162,34.03243],[-84.58132,34.03218],[-84.58122,34.03208],[-84.58112,34.03197],[-84.58081,34.03216],[-84.58064,34.03227],[-84.58048,34.03237],[-84.58033,34.03246],[-84.58018,34.03256],[-84.57992,34.0327],[-84.57967,34.03269],[-84.57943,34.03261],[-84.57929,34.03241],[-84.57919,34.03226],[-84.5791,34.03212],[-84.579,34.03195],[-84.57887,34.03172],[-84.57862,34.03129],[-84.57846,34.03103],[-84.57837,34.03087],[-84.57817,34.03053],[-84.57797,34.03025],[-84.5777,34.02986],[-84.57712,34.02905],[-84.5767,34.0285],[-84.57644,34.02813],[-84.57621,34.0278],[-84.57606,34.02757],[-84.57588,34.02723],[-84.57572,34.0268],[-84.57567,34.02667],[-84.57532,34.02547],[-84.57525,34.02523],[-84.57517,34.02499],[-84.57506,34.0246],[-84.57501,34.02445],[-84.57495,34.02424],[-84.57488,34.024],[-84.57484,34.02384],[-84.57481,34.02361],[-84.57482,34.02342],[-84.57488,34.02315],[-84.57494,34.023],[-84.57505,34.02281],[-84.57524,34.02257],[-84.57532,34.02247],[-84.57542,34.02234],[-84.5755,34.0222],[-84.57558,34.02203],[-84.57564,34.02184],[-84.57567,34.02153],[-84.57566,34.02126],[-84.57565,34.02064],[-84.57564,34.02021],[-84.57562,34.01984],[-84.57561,34.01966],[-84.57559,34.01947],[-84.57553,34.01924],[-84.57544,34.019],[-84.57533,34.0187],[-84.57527,34.01854],[-84.57522,34.01832],[-84.5752,34.01814],[-84.57521,34.01793],[-84.57525,34.01776],[-84.57529,34.01761],[-84.57541,34.01739],[-84.57549,34.01723],[-84.57559,34.01709],[-84.57573,34.01687],[-84.57588,34.01665],[-84.57621,34.01623],[-84.57663,34.0157],[-84.577,34.01525],[-84.57718,34.01503],[-84.57726,34.01492],[-84.57739,34.01471],[-84.57748,34.01449],[-84.57752,34.01433],[-84.57754,34.01416],[-84.57755,34.0137],[-84.57755,34.01332],[-84.57756,34.01235],[-84.57756,34.01196],[-84.57757,34.01169],[-84.57757,34.01147],[-84.5773,34.01147],[-84.577,34.01147],[-84.57684,34.01152],[-84.57628,34.01151],[-84.57548,34.0115],[-84.57527,34.01149],[-84.57492,34.01148],[-84.57468,34.01147],[-84.57443,34.01144],[-84.57424,34.01141],[-84.57407,34.01136],[-84.57389,34.01131],[-84.57373,34.01125],[-84.57356,34.01118],[-84.5734,34.01111],[-84.57325,34.01102],[-84.57314,34.01095],[-84.57299,34.01086],[-84.57277,34.01068],[-84.57265,34.01058],[-84.57251,34.01041],[-84.5724,34.01028],[-84.57229,34.01013],[-84.5722,34.00998],[-84.57211,34.00982],[-84.57198,34.00956],[-84.57175,34.009],[-84.57168,34.00887],[-84.5716,34.00873],[-84.57153,34.00862],[-84.57137,34.0084],[-84.57115,34.00813],[-84.57095,34.00788],[-84.57082,34.00796],[-84.57065,34.00805],[-84.57033,34.00824],[-84.56943,34.00875],[-84.56898,34.00901],[-84.56885,34.00908],[-84.56863,34.00921],[-84.56805,34.00952],[-84.56793,34.00959],[-84.56764,34.00974],[-84.56746,34.00984],[-84.56671,34.01033],[-84.56656,34.01043],[-84.56644,34.01051],[-84.56626,34.01063],[-84.56571,34.01095],[-84.56523,34.01123],[-84.56488,34.01146],[-84.56464,34.01162],[-84.56446,34.01175],[-84.56434,34.01183],[-84.56451,34.01199],[-84.5647,34.01218],[-84.56504,34.0125],[-84.56544,34.01287],[-84.56577,34.01319],[-84.56587,34.01329],[-84.56605,34.01346],[-84.56647,34.01386],[-84.5667,34.01408],[-84.5668,34.01417],[-84.56693,34.0143],[-84.56708,34.01444],[-84.56738,34.01473],[-84.56757,34.0149],[-84.56767,34.01502],[-84.56776,34.01514],[-84.56786,34.01528],[-84.56793,34.0154],[-84.568,34.01557],[-84.56805,34.0157],[-84.56809,34.01585],[-84.56835,34.0169],[-84.56841,34.01718],[-84.56849,34.01752],[-84.56853,34.0177],[-84.56854,34.01787],[-84.56854,34.01817],[-84.56851,34.01841],[-84.56847,34.01863],[-84.56842,34.01879],[-84.56837,34.01894],[-84.56831,34.01909],[-84.56824,34.01922],[-84.56812,34.01944],[-84.56788,34.01986],[-84.56782,34.01998],[-84.56774,34.02022],[-84.56771,34.02042],[-84.56775,34.02057],[-84.56749,34.02056],[-84.56728,34.02058],[-84.56689,34.02075],[-84.56636,34.02099],[-84.56622,34.02104],[-84.56608,34.02108],[-84.56535,34.02124],[-84.56525,34.02092],[-84.56515,34.02057],[-84.56549,34.02049],[-84.56544,34.02031],[-84.5651,34.01908],[-84.56494,34.01853],[-84.56487,34.0184],[-84.5642,34.01856],[-84.56473,34.02044],[-84.56477,34.02059],[-84.56515,34.02057],[-84.56525,34.02092],[-84.56532,34.02116],[-84.56538,34.02132],[-84.56547,34.02163],[-84.56551,34.02178],[-84.56557,34.02196],[-84.56561,34.02212],[-84.56558,34.02239],[-84.56552,34.02254],[-84.56541,34.02269],[-84.56526,34.02282],[-84.56512,34.02292],[-84.56495,34.02303],[-84.56467,34.02319],[-84.56453,34.02329],[-84.56445,34.02341],[-84.56442,34.02363],[-84.56439,34.02437],[-84.56438,34.02487],[-84.56436,34.02559],[-84.56435,34.02582],[-84.56432,34.0265],[-84.5643,34.02721],[-84.56432,34.02741],[-84.56437,34.02754],[-84.56445,34.02772],[-84.56452,34.02789],[-84.56423,34.02799],[-84.56309,34.02837],[-84.56265,34.02851],[-84.56246,34.02857],[-84.5619,34.02876],[-84.56119,34.029],[-84.56101,34.02906],[-84.56081,34.02912],[-84.56052,34.0292],[-84.56031,34.02925],[-84.56008,34.02928],[-84.55981,34.02929],[-84.55953,34.02927],[-84.55936,34.02925],[-84.55881,34.02916],[-84.55798,34.02904],[-84.55764,34.029],[-84.55711,34.02892],[-84.55694,34.0289],[-84.55712,34.02796],[-84.55716,34.02773],[-84.55716,34.02741],[-84.55713,34.02722],[-84.55708,34.02704],[-84.557,34.02684],[-84.5569,34.02668],[-84.55679,34.02652],[-84.55668,34.02638],[-84.55649,34.02621],[-84.55629,34.02606],[-84.55607,34.02593],[-84.55593,34.02585],[-84.55539,34.02554],[-84.55413,34.02482],[-84.55383,34.02464],[-84.55365,34.02454],[-84.55347,34.02444],[-84.55328,34.02432],[-84.55307,34.02416],[-84.55289,34.02401],[-84.55273,34.02383],[-84.55258,34.02365],[-84.55245,34.02345],[-84.55235,34.02325],[-84.55226,34.02305],[-84.5522,34.02283],[-84.55215,34.0226],[-84.55214,34.02241],[-84.55215,34.02216],[-84.55218,34.02198],[-84.55228,34.02173],[-84.55236,34.02157],[-84.55246,34.02142],[-84.55261,34.02125],[-84.55275,34.02109],[-84.55297,34.02085],[-84.55307,34.02074],[-84.55318,34.02062],[-84.55333,34.02042],[-84.55342,34.02024],[-84.55349,34.02008],[-84.55356,34.01988],[-84.55361,34.01973],[-84.5537,34.01946],[-84.55391,34.0195],[-84.55417,34.01954],[-84.55453,34.01955],[-84.55459,34.01972],[-84.55462,34.02],[-84.5548,34.02],[-84.5548,34.02021],[-84.55503,34.02025],[-84.55557,34.02027],[-84.55607,34.02028],[-84.55629,34.0203],[-84.5563,34.02117],[-84.55478,34.02096],[-84.55479,34.02063],[-84.5548,34.02026],[-84.5548,34.02008],[-84.5548,34.0199],[-84.55481,34.01956],[-84.55453,34.01942],[-84.55426,34.01942],[-84.55361,34.01929],[-84.55356,34.01943],[-84.55342,34.01988],[-84.55336,34.02004],[-84.55329,34.0202],[-84.55323,34.02032],[-84.55315,34.02044],[-84.55307,34.02056],[-84.55296,34.02068],[-84.55259,34.02108],[-84.55241,34.02127],[-84.5523,34.02142],[-84.55221,34.02156],[-84.55214,34.0217],[-84.55207,34.02188],[-84.55203,34.02206],[-84.55201,34.02227],[-84.552,34.02246],[-84.55203,34.02272],[-84.55207,34.02293],[-84.55214,34.02314],[-84.55225,34.02339],[-84.55237,34.02359],[-84.55254,34.02383],[-84.55267,34.02399],[-84.55286,34.02417],[-84.55307,34.02434],[-84.5533,34.02449],[-84.55354,34.02463],[-84.55454,34.02521],[-84.55609,34.0261],[-84.5562,34.02617],[-84.55647,34.02637],[-84.55656,34.02646],[-84.55664,34.02656],[-84.55674,34.0267],[-84.55683,34.02685],[-84.55692,34.02705],[-84.55699,34.02727],[-84.55701,34.02743],[-84.55701,34.02763],[-84.55699,34.02783],[-84.55677,34.02888],[-84.55982,34.0294],[-84.56,34.02939],[-84.56026,34.02936],[-84.56052,34.02929],[-84.56075,34.02923],[-84.56103,34.02915],[-84.56134,34.02906],[-84.56195,34.02887],[-84.5637,34.02829],[-84.56385,34.02824],[-84.56457,34.028],[-84.56472,34.02795],[-84.56496,34.02789],[-84.56522,34.02784],[-84.56548,34.02782],[-84.56575,34.02782],[-84.56601,34.02783],[-84.56655,34.02787],[-84.56678,34.02787],[-84.56704,34.02786],[-84.56732,34.02782],[-84.56756,34.02776],[-84.56781,34.02769],[-84.56794,34.02764],[-84.56818,34.02755],[-84.56841,34.02746],[-84.5689,34.02727],[-84.56928,34.02712],[-84.5695,34.02703],[-84.57,34.02684],[-84.57043,34.02668],[-84.57077,34.02656],[-84.57151,34.02632],[-84.57227,34.0261],[-84.57289,34.02592],[-84.57309,34.02586],[-84.57328,34.02581],[-84.57347,34.02575],[-84.57375,34.02567],[-84.57389,34.02563],[-84.5741,34.02557],[-84.57446,34.02546],[-84.57497,34.02531],[-84.57525,34.02523],[-84.57529,34.02537],[-84.57565,34.02663],[-84.57572,34.0268],[-84.57588,34.02723],[-84.57605,34.02755],[-84.57621,34.0278],[-84.57644,34.02813],[-84.5767,34.0285],[-84.5771,34.02903],[-84.5777,34.02986],[-84.57797,34.03025],[-84.57817,34.03053],[-84.57833,34.03079],[-84.57846,34.03103],[-84.57862,34.03129],[-84.57887,34.03172],[-84.57898,34.03193],[-84.5791,34.03212],[-84.57919,34.03226],[-84.57929,34.03241],[-84.57937,34.03252],[-84.57952,34.03274],[-84.57961,34.03286],[-84.57971,34.033],[-84.57984,34.03294],[-84.57996,34.03288],[-84.5801,34.0328],[-84.5803,34.03268],[-84.5805,34.03255],[-84.58069,34.03243],[-84.58089,34.0323],[-84.58106,34.03219],[-84.58122,34.03208],[-84.58144,34.03194],[-84.58174,34.03174],[-84.58206,34.03153],[-84.58234,34.03135],[-84.5825,34.03124],[-84.58267,34.03113],[-84.58285,34.03099],[-84.58296,34.03089],[-84.58316,34.0307],[-84.58327,34.03057],[-84.58341,34.03041],[-84.58353,34.03024],[-84.58363,34.03008],[-84.58376,34.02983],[-84.58383,34.02968],[-84.58389,34.02953],[-84.58395,34.02941],[-84.58411,34.02932],[-84.58449,34.02945],[-84.58454,34.02962],[-84.58481,34.02974],[-84.58473,34.02992],[-84.58473,34.0301],[-84.58453,34.03018],[-84.58438,34.03021],[-84.58407,34.03028],[-84.58394,34.03033],[-84.58379,34.03042],[-84.5836,34.0306],[-84.58354,34.03075],[-84.58359,34.03089],[-84.58411,34.03149],[-84.58429,34.0317],[-84.5845,34.03194],[-84.58469,34.03217],[-84.58477,34.03228],[-84.58491,34.03245],[-84.58503,34.03261],[-84.58511,34.03271],[-84.58564,34.03358],[-84.58578,34.03389],[-84.58588,34.03414],[-84.58596,34.03439],[-84.58611,34.03488],[-84.58616,34.03505],[-84.58631,34.03565],[-84.58635,34.03579],[-84.58638,34.03597],[-84.58641,34.03614],[-84.58644,34.03642],[-84.58645,34.03661],[-84.58645,34.03688],[-84.58645,34.03742],[-84.58644,34.03765],[-84.58644,34.03816],[-84.58643,34.03836],[-84.58631,34.0393],[-84.58624,34.03982],[-84.5862,34.03998],[-84.58611,34.04017],[-84.58591,34.04036],[-84.58578,34.04046],[-84.58554,34.04058],[-84.58522,34.04074],[-84.58504,34.04083],[-84.58492,34.04091],[-84.58482,34.041],[-84.58471,34.04113],[-84.58461,34.04128],[-84.58451,34.04141],[-84.5844,34.04152],[-84.58425,34.04159],[-84.58405,34.04168]]},{"code":"MS","name":"Marietta Shopping","scope":"Marietta","id":"64025","hours":"Fri\u2013Sun 11:00 AM \u2013 7:00 PM","stops":["159739","4300","4301","6224","198812","198813"],"line":[[-84.51879,33.94083],[-84.51879,33.9406],[-84.51878,33.94042],[-84.51871,33.94028],[-84.5186,33.94011],[-84.51849,33.93997],[-84.51835,33.93978],[-84.51825,33.93968],[-84.5181,33.9396],[-84.51794,33.93957],[-84.51751,33.93965],[-84.51698,33.93979],[-84.51681,33.93983],[-84.5166,33.93984],[-84.51639,33.93982],[-84.51625,33.93977],[-84.51612,33.9397],[-84.51601,33.93959],[-84.51593,33.93946],[-84.51589,33.9393],[-84.5159,33.93885],[-84.51591,33.93818],[-84.51595,33.93802],[-84.516,33.93786],[-84.51601,33.93765],[-84.51599,33.93748],[-84.516,33.93728],[-84.51603,33.9371],[-84.51598,33.93695],[-84.51587,33.93677],[-84.51578,33.93667],[-84.51617,33.93659],[-84.51694,33.93653],[-84.51716,33.93651],[-84.51753,33.93648],[-84.51778,33.93646],[-84.51798,33.93641],[-84.5181,33.93633],[-84.5183,33.93621],[-84.51899,33.93592],[-84.51916,33.93586],[-84.51932,33.93582],[-84.51951,33.93581],[-84.51967,33.93584],[-84.51987,33.93591],[-84.52001,33.93599],[-84.52023,33.93613],[-84.52036,33.93619],[-84.52059,33.93621],[-84.5208,33.93621],[-84.52096,33.93618],[-84.52132,33.93608],[-84.52152,33.936],[-84.52185,33.93581],[-84.52201,33.93574],[-84.5222,33.9357],[-84.52243,33.93572],[-84.52258,33.93577],[-84.52317,33.93614],[-84.52345,33.93632],[-84.5236,33.93641],[-84.52372,33.93652],[-84.52379,33.93667],[-84.52379,33.93694],[-84.52379,33.93715],[-84.52372,33.9374],[-84.5236,33.93761],[-84.52352,33.93781],[-84.52351,33.93825],[-84.52354,33.93843],[-84.52353,33.93872],[-84.52352,33.93911],[-84.52344,33.93922],[-84.52289,33.93926],[-84.52252,33.93926],[-84.52238,33.93932],[-84.52221,33.93939],[-84.52204,33.93944],[-84.52191,33.93956],[-84.52177,33.9397],[-84.52144,33.9399],[-84.52129,33.94005],[-84.52124,33.9402],[-84.52122,33.94051],[-84.52122,33.94087],[-84.52133,33.94099],[-84.52151,33.941],[-84.52163,33.94108],[-84.5221,33.94183],[-84.52193,33.9419],[-84.52171,33.94198],[-84.52147,33.94206],[-84.52121,33.94212],[-84.52096,33.94218],[-84.5208,33.94221],[-84.52048,33.9422],[-84.52024,33.94223],[-84.51998,33.94225],[-84.51974,33.94226],[-84.51952,33.94226],[-84.51924,33.94227],[-84.51892,33.94228],[-84.51851,33.94229],[-84.51832,33.94229],[-84.51804,33.94229],[-84.51785,33.94228],[-84.51753,33.94224],[-84.51723,33.94218],[-84.51692,33.94211],[-84.51669,33.94204],[-84.51647,33.94196],[-84.51601,33.94179],[-84.51564,33.94166],[-84.51558,33.94154],[-84.51537,33.94114],[-84.51528,33.94098],[-84.51516,33.94075],[-84.51508,33.94059],[-84.51496,33.94036],[-84.51484,33.94015],[-84.51475,33.93998],[-84.51464,33.93978],[-84.51457,33.93964],[-84.51444,33.9394],[-84.51434,33.93922],[-84.51425,33.93906],[-84.51406,33.9387],[-84.51399,33.93856],[-84.51387,33.93835],[-84.51381,33.93822],[-84.51371,33.93805],[-84.51362,33.93787],[-84.51354,33.93774],[-84.51345,33.93757],[-84.51335,33.93739],[-84.51325,33.93722],[-84.51319,33.9371],[-84.51309,33.93691],[-84.51294,33.93663],[-84.51279,33.93636],[-84.51268,33.93615],[-84.51261,33.93602],[-84.51248,33.93579],[-84.51237,33.93557],[-84.51228,33.93541],[-84.51218,33.93522],[-84.51209,33.93506],[-84.51203,33.93494],[-84.51192,33.93474],[-84.51175,33.93442],[-84.51164,33.93422],[-84.51138,33.93374],[-84.51115,33.93332],[-84.51104,33.9331],[-84.51088,33.93281],[-84.51076,33.93259],[-84.5107,33.93247],[-84.51056,33.93221],[-84.51042,33.93195],[-84.51032,33.93176],[-84.51013,33.93141],[-84.50995,33.93106],[-84.50982,33.93082],[-84.50968,33.93056],[-84.50957,33.93036],[-84.50939,33.93001],[-84.50926,33.92977],[-84.5091,33.92949],[-84.50893,33.92918],[-84.50879,33.92891],[-84.50871,33.92876],[-84.50859,33.92853],[-84.50841,33.92821],[-84.50801,33.92745],[-84.50781,33.92707],[-84.50772,33.92691],[-84.5076,33.9267],[-84.50749,33.92648],[-84.5073,33.92612],[-84.5071,33.92577],[-84.50677,33.92513],[-84.50669,33.925],[-84.50658,33.92479],[-84.50624,33.92417],[-84.50611,33.92393],[-84.50602,33.92377],[-84.50591,33.92356],[-84.50573,33.92326],[-84.5056,33.92304],[-84.5055,33.9228],[-84.50538,33.92261],[-84.50513,33.92223],[-84.50488,33.92187],[-84.50472,33.92177],[-84.50462,33.92164],[-84.50448,33.92147],[-84.50432,33.92126],[-84.50413,33.92104],[-84.50402,33.92092],[-84.50374,33.9206],[-84.50363,33.92048],[-84.50354,33.92039],[-84.50345,33.92028],[-84.50324,33.92005],[-84.50309,33.91989],[-84.50295,33.91972],[-84.50264,33.9194],[-84.50249,33.91924],[-84.50229,33.91901],[-84.50186,33.91854],[-84.5014,33.91805],[-84.50121,33.91785],[-84.50107,33.9177],[-84.50089,33.91751],[-84.50046,33.91705],[-84.50016,33.91672],[-84.49956,33.91606],[-84.49945,33.91595],[-84.49896,33.91543],[-84.4985,33.91492],[-84.49806,33.91445],[-84.49789,33.91427],[-84.49765,33.91401],[-84.49749,33.91384],[-84.49719,33.91351],[-84.4971,33.91341],[-84.49675,33.91303],[-84.49643,33.91269],[-84.49623,33.91248],[-84.49598,33.91221],[-84.49576,33.91197],[-84.49562,33.91182],[-84.49548,33.91167],[-84.49538,33.91156],[-84.49527,33.91143],[-84.49505,33.9112],[-84.49482,33.91095],[-84.49454,33.91065],[-84.49426,33.91035],[-84.49413,33.91021],[-84.49401,33.91007],[-84.4938,33.90985],[-84.49358,33.90961],[-84.49328,33.90928],[-84.49318,33.90917],[-84.4929,33.90888],[-84.49281,33.90878],[-84.49263,33.90859],[-84.49241,33.90835],[-84.49228,33.9082],[-84.4921,33.90801],[-84.49194,33.90784],[-84.49171,33.90759],[-84.49154,33.9074],[-84.49134,33.90719],[-84.49123,33.90707],[-84.49106,33.90688],[-84.49067,33.90647],[-84.49054,33.90632],[-84.49021,33.90596],[-84.48999,33.90573],[-84.4899,33.90563],[-84.48971,33.90544],[-84.48939,33.90509],[-84.48934,33.90495],[-84.48917,33.90475],[-84.48901,33.90457],[-84.48892,33.90447],[-84.48872,33.90424],[-84.48856,33.90406],[-84.48843,33.90391],[-84.48823,33.90369],[-84.48787,33.90331],[-84.48766,33.90308],[-84.48752,33.90293],[-84.48742,33.90281],[-84.48732,33.90271],[-84.4872,33.90258],[-84.48706,33.90243],[-84.48684,33.9022],[-84.48674,33.90208],[-84.48661,33.90194],[-84.48639,33.90171],[-84.48624,33.90155],[-84.48595,33.90135],[-84.48576,33.90114],[-84.48562,33.901],[-84.48543,33.90079],[-84.4853,33.90065],[-84.48513,33.90047],[-84.48491,33.90023],[-84.48474,33.90004],[-84.48459,33.89988],[-84.48437,33.89965],[-84.48402,33.89927],[-84.48391,33.89916],[-84.48374,33.89897],[-84.48346,33.89867],[-84.48321,33.8984],[-84.48256,33.89769],[-84.4824,33.89752],[-84.48215,33.89724],[-84.48175,33.89682],[-84.48144,33.89649],[-84.48072,33.8957],[-84.48059,33.89556],[-84.48038,33.89534],[-84.48029,33.89524],[-84.4802,33.89514],[-84.47997,33.89489],[-84.47988,33.8948],[-84.47968,33.89458],[-84.47952,33.8944],[-84.47889,33.89373],[-84.47859,33.8934],[-84.47835,33.89314],[-84.47846,33.89306],[-84.47861,33.89299],[-84.47872,33.89291],[-84.47884,33.89278],[-84.4789,33.89265],[-84.47891,33.89243],[-84.47882,33.89228],[-84.47873,33.89218],[-84.47855,33.89197],[-84.4784,33.8918],[-84.47828,33.89166],[-84.47816,33.89152],[-84.47807,33.89141],[-84.47795,33.89127],[-84.4778,33.89111],[-84.47768,33.89097],[-84.47755,33.89082],[-84.47726,33.89048],[-84.47705,33.89046],[-84.4767,33.89069],[-84.47646,33.89085],[-84.47631,33.89094],[-84.47655,33.8912],[-84.47677,33.89143],[-84.47734,33.89205],[-84.47755,33.89227],[-84.47769,33.89243],[-84.47786,33.89261],[-84.478,33.89276],[-84.4783,33.89308],[-84.47859,33.8934],[-84.47884,33.89367],[-84.47952,33.8944],[-84.47966,33.89455],[-84.47983,33.89474],[-84.47993,33.89485],[-84.48013,33.89507],[-84.48033,33.89528],[-84.48052,33.89549],[-84.48137,33.89641],[-84.48175,33.89682],[-84.48208,33.89717],[-84.4824,33.89752],[-84.48256,33.89769],[-84.48321,33.8984],[-84.48346,33.89867],[-84.48366,33.89888],[-84.48389,33.89913],[-84.48402,33.89927],[-84.48437,33.89965],[-84.48459,33.89988],[-84.48474,33.90004],[-84.48489,33.90021],[-84.48513,33.90047],[-84.4853,33.90065],[-84.48543,33.90079],[-84.48562,33.901],[-84.48576,33.90114],[-84.48595,33.90135],[-84.48608,33.90163],[-84.4863,33.90188],[-84.48661,33.90222],[-84.48682,33.90244],[-84.48705,33.90269],[-84.48714,33.90279],[-84.48724,33.90289],[-84.48746,33.90313],[-84.48755,33.90323],[-84.48766,33.90335],[-84.48794,33.90365],[-84.48855,33.90428],[-84.48886,33.9046],[-84.48924,33.90502],[-84.48939,33.90509],[-84.48971,33.90544],[-84.4899,33.90563],[-84.48999,33.90573],[-84.49021,33.90596],[-84.49054,33.90632],[-84.49067,33.90647],[-84.49102,33.90684],[-84.49123,33.90707],[-84.49134,33.90719],[-84.49149,33.90735],[-84.49171,33.90759],[-84.49194,33.90784],[-84.49206,33.90797],[-84.4922,33.90812],[-84.49203,33.90817],[-84.49149,33.90851],[-84.49142,33.90865],[-84.49125,33.90862],[-84.49084,33.90887],[-84.49072,33.90894],[-84.49023,33.90914],[-84.4893,33.90972],[-84.48939,33.90986],[-84.48951,33.90999],[-84.4896,33.91008],[-84.49042,33.90962],[-84.49051,33.90948],[-84.49088,33.90912],[-84.49125,33.90889],[-84.49135,33.90881],[-84.49142,33.90865],[-84.49158,33.90855],[-84.49195,33.90832],[-84.49211,33.9083],[-84.4923,33.90832],[-84.49263,33.90859],[-84.49281,33.90878],[-84.4929,33.90888],[-84.49318,33.90917],[-84.49328,33.90928],[-84.49353,33.90955],[-84.49374,33.90978],[-84.49401,33.91007],[-84.49412,33.91019],[-84.49426,33.91035],[-84.4945,33.9106],[-84.49482,33.91095],[-84.495,33.91115],[-84.4952,33.91136],[-84.49538,33.91156],[-84.49548,33.91167],[-84.49562,33.91182],[-84.49576,33.91197],[-84.49592,33.91215],[-84.49618,33.91242],[-84.49643,33.91269],[-84.49667,33.91294],[-84.49704,33.91335],[-84.49719,33.91351],[-84.49749,33.91384],[-84.49765,33.91401],[-84.49789,33.91427],[-84.49806,33.91445],[-84.4985,33.91492],[-84.4989,33.91537],[-84.49956,33.91606],[-84.50016,33.91672],[-84.50046,33.91705],[-84.50089,33.91751],[-84.50107,33.9177],[-84.50121,33.91785],[-84.5014,33.91805],[-84.50186,33.91854],[-84.50229,33.91901],[-84.50249,33.91924],[-84.50264,33.9194],[-84.50295,33.91972],[-84.50309,33.91989],[-84.5032,33.92001],[-84.50345,33.92028],[-84.50354,33.92039],[-84.50363,33.92048],[-84.50374,33.9206],[-84.50402,33.92092],[-84.50413,33.92104],[-84.50432,33.92126],[-84.50446,33.92144],[-84.50462,33.92164],[-84.50472,33.92177],[-84.50476,33.92192],[-84.50488,33.92206],[-84.50503,33.92226],[-84.50529,33.92264],[-84.50541,33.92284],[-84.50554,33.92293],[-84.50572,33.92325],[-84.50585,33.92347],[-84.50602,33.92377],[-84.50611,33.92393],[-84.50624,33.92417],[-84.50658,33.92479],[-84.50669,33.925],[-84.50677,33.92513],[-84.5071,33.92577],[-84.50726,33.92605],[-84.50749,33.92648],[-84.5076,33.9267],[-84.50772,33.92691],[-84.50781,33.92707],[-84.50801,33.92745],[-84.50841,33.92821],[-84.50858,33.92851],[-84.50871,33.92876],[-84.50879,33.92891],[-84.50888,33.92908],[-84.50908,33.92945],[-84.50926,33.92977],[-84.50939,33.93001],[-84.50951,33.93024],[-84.50965,33.93051],[-84.50978,33.93076],[-84.50995,33.93106],[-84.51013,33.93141],[-84.51032,33.93176],[-84.51042,33.93195],[-84.51056,33.93221],[-84.5107,33.93247],[-84.51076,33.93259],[-84.51088,33.93281],[-84.51098,33.933],[-84.51112,33.93325],[-84.51138,33.93374],[-84.51164,33.93422],[-84.51175,33.93442],[-84.51192,33.93474],[-84.51203,33.93494],[-84.51209,33.93506],[-84.51218,33.93522],[-84.51228,33.93541],[-84.51237,33.93557],[-84.51248,33.93579],[-84.51261,33.93602],[-84.51268,33.93615],[-84.51279,33.93636],[-84.51288,33.93653],[-84.51304,33.93683],[-84.51316,33.93704],[-84.51325,33.93722],[-84.51335,33.93739],[-84.51345,33.93757],[-84.51354,33.93774],[-84.51362,33.93787],[-84.51371,33.93805],[-84.51381,33.93822],[-84.51387,33.93835],[-84.51399,33.93856],[-84.51406,33.9387],[-84.51424,33.93902],[-84.51434,33.93922],[-84.51444,33.9394],[-84.51452,33.93955],[-84.51464,33.93978],[-84.51471,33.93991],[-84.51479,33.94006],[-84.51496,33.94036],[-84.51502,33.94048],[-84.51516,33.94075],[-84.51528,33.94098],[-84.51535,33.94111],[-84.51553,33.94145],[-84.51564,33.94166],[-84.51576,33.94187],[-84.51602,33.94197],[-84.51627,33.94207],[-84.5166,33.94219],[-84.51691,33.94229],[-84.51707,33.94235],[-84.51734,33.9424],[-84.5176,33.94245],[-84.51788,33.94247],[-84.51813,33.94248],[-84.51837,33.94247],[-84.51859,33.94246],[-84.51875,33.94239],[-84.51882,33.94219],[-84.51881,33.94197],[-84.51881,33.94178],[-84.51881,33.94108],[-84.51879,33.94085]]}],"stops":[{"id":"361","name":"Rec Center","campus":"Kennesaw","c":[-84.58254,34.03726]},{"id":"362","name":"The Commons","campus":"Kennesaw","c":[-84.58248,34.03941]},{"id":"363","name":"Dance School","campus":"Kennesaw","c":[-84.58601,34.02949]},{"id":"366","name":"Town Point","campus":"Kennesaw","c":[-84.58212,34.03012]},{"id":"910","name":"The Nest","campus":"Kennesaw","c":[-84.58101,34.04803]},{"id":"915","name":"Town Center Mall","campus":"Kennesaw","c":[-84.56468,34.01838]},{"id":"916","name":"KSU Center","campus":"Kennesaw","c":[-84.5735,34.0316]},{"id":"2100","name":"West 22","campus":"Kennesaw","c":[-84.60543,34.04172]},{"id":"2101","name":"The Blake","campus":"Kennesaw","c":[-84.57585,34.03687]},{"id":"2239","name":"South Residential","campus":"Kennesaw","c":[-84.58501,34.03268]},{"id":"2788","name":"Busbee Park-N-Ride","campus":"Kennesaw","c":[-84.57006,34.0292]},{"id":"2790","name":"Copper Social","campus":"Kennesaw","c":[-84.56434,34.0266]},{"id":"3881","name":"3305 Busbee","campus":"Kennesaw","c":[-84.57293,34.02968]},{"id":"3884","name":"Joe Mack Wilson Student Center","campus":"Marietta","c":[-84.52073,33.94105]},{"id":"4300","name":"Courtyard Apartments","campus":"Marietta","c":[-84.5177,33.93958]},{"id":"4301","name":"Hornet Village","campus":"Marietta","c":[-84.52143,33.93615]},{"id":"5804","name":"Education Bldg","campus":"Kennesaw","c":[-84.58077,34.03982]},{"id":"5806","name":"Math and Sciences","campus":"Kennesaw","c":[-84.58441,34.03668]},{"id":"6170","name":"University Columns","campus":"Marietta","c":[-84.525,33.93579]},{"id":"6224","name":"Commons Apartments","campus":"Marietta","c":[-84.51718,33.93673]},{"id":"6225","name":"Wal-mart Kennesaw","campus":"Kennesaw","c":[-84.5564,34.02031]},{"id":"6516","name":"Austin Residence Complex","campus":"Kennesaw","c":[-84.58429,34.0332]},{"id":"159452","name":"SOVA","campus":"Kennesaw","c":[-84.56448,34.02511]},{"id":"159734","name":"The Retreat","campus":"Kennesaw","c":[-84.57391,34.04031]},{"id":"159736","name":"Art School","campus":"Kennesaw","c":[-84.58588,34.02787]},{"id":"159737","name":"North Residential","campus":"Kennesaw","c":[-84.58422,34.0415]},{"id":"159739","name":"Administration Building","campus":"Marietta","c":[-84.51883,33.94085]},{"id":"195839","name":"Barrett Pavilion","campus":"Kennesaw","c":[-84.57323,34.01087]},{"id":"198812","name":"PROVIDENCE SQUARE SHOPPING CENTER","campus":"Marietta","c":[-84.47718,33.89039]},{"id":"198813","name":"WALMART","campus":"Marietta","c":[-84.48933,33.90975]},{"id":"223235","name":"Summit Complex","campus":"Kennesaw","c":[-84.58467,34.03432]},{"id":"223236","name":"Gutenberg","campus":"Kennesaw","c":[-84.58081,34.02607]},{"id":"223237","name":"Parliament- Copper Social","campus":"Kennesaw","c":[-84.5644,34.02569]},{"id":"223238","name":"Shore Center","campus":"Marietta","c":[-84.51849,33.93992]},{"id":"223239","name":"Hornet Hub","campus":"Marietta","c":[-84.52207,33.9394]}]};
+/* Route identity under test: CODE text is the primary channel, then LINE PATTERN (solid / dashed / dotted),
+   then an Okabe–Ito-derived colour. No two routes on the same Campus share colour+pattern. KM keeps KSU gold. */
+const RS={
+ KM:{c:'#FDBB30',d:'#FDBB30',dash:'solid',w:1.35},
+ KL:{c:'#0072B2',d:'#4EA3E0',dash:'solid'},
+ ML:{c:'#0072B2',d:'#4EA3E0',dash:'solid'},
+ BS:{c:'#009E73',d:'#2FC495',dash:'solid'},
+ WC:{c:'#D55E00',d:'#FF7A33',dash:'solid'},
+ CP:{c:'#CC79A7',d:'#E39BC4',dash:'solid'},
+ SS:{c:'#0072B2',d:'#4EA3E0',dash:'dash'},
+ EC:{c:'#E69F00',d:'#E69F00',dash:'dash'},
+ SH:{c:'#D55E00',d:'#FF7A33',dash:'dash'},
+ KS:{c:'#009E73',d:'#2FC495',dash:'dot'},
+ MS:{c:'#CC79A7',d:'#E39BC4',dash:'dot'},
+};
+const DASHN={solid:'solid line',dash:'dashed line',dot:'dotted line'};
+const ROUTES=D.routes.map(r=>({...r,...RS[r.code]}));
+const byCode=Object.fromEntries(ROUTES.map(r=>[r.code,r]));
+const STOPS=D.stops; const byStop=Object.fromEntries(STOPS.map(s=>[s.id,s]));
+const NOW_LABEL='Tue 2:10 PM';
+const notRunning=r=>/^Fri–Sun/.test(r.hours); // demo clock is Tuesday afternoon
+const NOTICES=[{id:'n1',routes:['KM'],title:'KM using Cobb Pkwy (US-41) alternate routing',body:'KM Kennesaw / Marietta buses are using Cobb Pkwy (US-41) during afternoon I-75 peak traffic. Expect 5–10 extra minutes.',posted:'1:32 PM'},
+ {id:'n2',routes:['CP','EC'],title:'Art School stop temporarily moved',body:'The Art School stop is temporarily at the Dance School pull-off during construction.',posted:'Mon 8:05 AM'}];
+
+/* geometry */
+function meters(a,b){const R=6371e3,t=Math.PI/180,dl=(b[1]-a[1])*t,dg=(b[0]-a[0])*t;const x=Math.sin(dl/2)**2+Math.cos(a[1]*t)*Math.cos(b[1]*t)*Math.sin(dg/2)**2;return 2*R*Math.asin(Math.sqrt(x));}
+ROUTES.forEach(r=>{r.cum=[0];for(let i=1;i<r.line.length;i++)r.cum.push(r.cum[i-1]+meters(r.line[i-1],r.line[i]));r.L=r.cum[r.cum.length-1];
+  r.sAt={};r.stops.forEach(id=>{const s=byStop[id];let bi=0,bd=1e9;r.line.forEach((p,i)=>{const d=meters(p,s.c);if(d<bd){bd=d;bi=i;}});r.sAt[id]=r.cum[bi];});
+  r.stopsOrdered=r.stops.slice().sort((a,b)=>r.sAt[a]-r.sAt[b]);});
+function pointAt(r,s){s=((s%r.L)+r.L)%r.L;let i=r.cum.findIndex(c=>c>=s);if(i<=0)i=1;const a=r.line[i-1],b=r.line[i],f=(s-r.cum[i-1])/((r.cum[i]-r.cum[i-1])||1);
+  const p=[a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f];const hd=(Math.atan2((b[0]-a[0])*Math.cos(a[1]*Math.PI/180),b[1]-a[1])*180/Math.PI+360)%360;return {p,hd};}
+const campusOf=r=>r.scope;
+const SPEED=6.2; // m/s incl. dwell
+let busN=401;const BUSES=[];
+ROUTES.forEach((r,i)=>{if(notRunning(r))return;const n=r.code==='KM'?2:1;for(let k=0;k<n;k++)BUSES.push({id:'bob-'+(busN++),route:r.code,s:(r.L*((i*.37+k/n)%1)),load:['Seats open','Some seats','Standing room'][(i+k)%3],fix:Date.now(),prev:null});});
+function etaMin(r,stopId){const bs=BUSES.filter(b=>b.route===r.code);if(!bs.length)return null;const ss=r.sAt[stopId];
+  return Math.max(0,Math.round(Math.min(...bs.map(b=>(((ss-b.s)%r.L)+r.L)%r.L))/SPEED/60));}
+const HEADWAY={KM:20,KL:10,ML:12,BS:15,WC:15,CP:20,SS:20,EC:12,SH:10,KS:30,MS:30};
+
+/* ===================== STATE ===================== */
+const qs=new URLSearchParams(location.search);
+const S={layout:qs.get('layout')||'sheet',theme:'light',motion:'system',text:100,cvd:'',frame:'phone',feed:'live',speed:1,
+  campus:'Kennesaw',snap:'peek',route:null,stop:null,watch:'361',only:null,legend:false,notes:false,mapOpen:true,
+  reports:{'362':[{k:'long',ago:4,n:2}],'2788':[{k:'full',ago:9,n:1,route:'BS'}]},mine:null,lastSay:0,lastFetch:Date.now()};
+const reduced=()=>S.motion==='reduce'||(S.motion==='system'&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+const live=()=>S.feed==='live';
+const inCampus=r=>S.campus==='All KSU'||r.scope===S.campus||r.scope==='Both';
+const routesShown=()=>ROUTES.filter(inCampus);
+const stopsShown=()=>{const ids=new Set();routesShown().filter(r=>!S.only||r.code===S.only).forEach(r=>r.stops.forEach(i=>ids.add(i)));
+  return STOPS.filter(s=>ids.has(s.id)&&(S.campus==='All KSU'||s.campus===S.campus||ROUTES.some(r=>r.scope==='Both'&&r.stops.includes(s.id)&&S.campus!=='Marietta'&&s.campus==='Kennesaw')||(S.campus==='Marietta'&&s.campus==='Marietta')));};
+const routesAt=id=>ROUTES.filter(r=>r.stops.includes(id)&&inCampus(r));
+const REP={clear:['No line','Stop clear'],long:['Long line','Long line'],full:['Passed full','Bus passed full']};
+
+/* ===================== COLOUR / BADGES ===================== */
+const lum=h=>{const n=parseInt(h.slice(1),16),c=[n>>16&255,n>>8&255,n&255].map(v=>{v/=255;return v<=.03928?v/12.92:((v+.055)/1.055)**2.4;});return .2126*c[0]+.7152*c[1]+.0722*c[2];};
+const ratio=(a,b)=>{const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
+const rcol=r=>S.theme==='dark'?r.d:r.c;
+const onCol=c=>ratio(c,'#1F1A14')>=ratio(c,'#FFFFFF')?'#1F1A14':'#FFFFFF';
+const badge=(r,sm)=>{const c=rcol(r);return `<span class="rb ${sm?'sm':''} ${notRunning(r)?'off':''}" style="--rc:${c};background:${c};color:${onCol(c)}" aria-hidden="true"><b>${r.code}</b><i class="dash-${r.dash}"></i></span>`;};
+const rName=r=>`${r.code} ${r.name.replace(new RegExp('^'+r.code+' '),'')}`;
+
+/* ===================== ICONS ===================== */
+const P={pin:'<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',plus:'<path d="M12 5v14M5 12h14"/>',minus:'<path d="M5 12h14"/>',
+ x:'<path d="M18 6 6 18M6 6l12 12"/>',chev:'<path d="m6 9 6 6 6-6"/>',up:'<path d="m18 15-6-6-6 6"/>',locate:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/>',
+ map:'<path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/>',info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+ home:'<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',rss:'<path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>',
+ bag:'<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>',chat:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+ owl:'<path d="M5 9c0-3.5 3-6 7-6s7 2.5 7 6v6a7 7 0 0 1-14 0Z"/><circle cx="9" cy="10.5" r="2"/><circle cx="15" cy="10.5" r="2"/><path d="m11 14.5 1 1.2 1-1.2"/><path d="M5 5 7 7M19 5l-2 2"/>',
+ bus:'<rect x="4" y="3" width="16" height="15" rx="2"/><path d="M4 11h16M8 3v8M16 3v8"/><circle cx="8" cy="18" r="1.5"/><circle cx="16" cy="18" r="1.5"/>',
+ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',zap:'<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',star:'<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',
+ clear:'<path d="M20 6 9 17l-5-5"/>',long:'<circle cx="6" cy="8" r="2"/><circle cx="12" cy="8" r="2"/><circle cx="18" cy="8" r="2"/><path d="M4 20v-4a2 2 0 0 1 4 0v4M10 20v-4a2 2 0 0 1 4 0v4M16 20v-4a2 2 0 0 1 4 0v4"/>',
+ full:'<rect x="4" y="3" width="16" height="15" rx="2"/><path d="M4 11h16"/><path d="m9 6 6 0" /><path d="M2 21 22 1"/>',notice:'<path d="M4 4h16v12H5.2L4 17.2z"/><path d="M8 8h8M8 12h5"/>',
+ star2:'<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'};
+const ic=(n,s=20)=>`<svg class="i" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${P[n]||''}</svg>`;
+
+/* ===================== COPY HELPERS ===================== */
+const ago=()=>Math.round((Date.now()-S.lastFetch)/1000);
+function feedPill(){if(S.feed==='offline')return `<span class="dotest"></span>Offline · routes &amp; stops only`;
+  if(!live())return `<span class="dotest"></span>Bus GPS not updating · last ${Math.max(1,Math.round(ago()/60))} min ago`;
+  return `<span class="dotlive"></span>Live GPS · Passio · <span id="agoTxt" class="num">${ago()}</span> s ago`;}
+function arrivalText(r,stopId){
+  if(notRunning(r))return {t:'Not today',sub:'Runs Fri–Sun',sched:true,sr:`${rName(r)} does not run today. It runs Friday to Sunday, 11 AM to 7 PM.`};
+  const m=live()?etaMin(r,stopId):null;
+  if(m==null)return {t:`~${HEADWAY[r.code]}`,sub:'min · schedule',sched:true,sr:`${rName(r)}: no live bus position. Scheduled about every ${HEADWAY[r.code]} minutes.`};
+  return {t:m<=1?'Now':`${m}`,sub:m<=1?'arriving':'min · live',sched:false,sr:`${rName(r)}: ${m<=1?'arriving now':m+' minutes'}, live GPS.`};
+}
+const noticesFor=code=>NOTICES.filter(n=>n.routes.includes(code));
+function noticeEl(n,open){return `<details class="snotice" ${open?'open':''}><summary>${ic('notice',18)}<span>${esc(n.title)}</span></summary><p>${esc(n.body)}</p><span class="src">Shuttle Notice · from Big Owl Bus via Passio GO · posted ${esc(n.posted)} · not a KSU safety Alert</span></details>`;}
+function repList(id){const rs=(S.reports[id]||[]).filter(x=>x.ago<15);if(!rs.length)return `<p class="meta">No stop reports in the last 15 min.</p>`;
+  return `<ul class="pulses">${rs.map(x=>`<li>${ic(x.k,18)}<b>${REP[x.k][1]}</b>${x.route?` <span class="meta">(${x.route})</span>`:''}<span class="meta">· ${x.mine?'you · just now':`${x.n} Student${x.n>1?'s':''} · ${x.ago} min ago`}</span>${x.mine?` <button class="link" data-a="undoRep" data-x="${id}">Undo</button>`:''}</li>`).join('')}</ul>`;}
+
+/* ===================== RENDER PIECES ===================== */
+const mapHost=document.createElement('div');mapHost.id='map';
+let map=null,lastTrigger=null;
+const DOCK=[['now','Now','home'],['feed','Feed','rss'],null,['marketplace','Market','bag'],['chats','Chats','chat']];
+const listTarget=()=>S.layout==='board'?'#board-h':S.layout==='strip'?'#strip-h':'#routes-h';
+function header(){
+  return `<header class="hdr"><div class="hdr-row"><a class="brand brand-m" href="#" aria-label="KSUX home"><span class="dot"></span>KSUX</a><span class="hdr-title h1" style="text-align:center">Transit</span><button class="demo-pill" type="button">${ic('zap',16)}<span>Demo</span></button></div>
+  <div class="campus-chips" role="group" aria-label="Campus for transit">${['Kennesaw','Marietta','All KSU'].map(c=>`<button id="cmp-${c.replace(' ','')}" data-a="campus" data-x="${c}" aria-pressed="${S.campus===c}">${S.campus===c?ic('pin',16):''}${c}</button>`).join('')}</div></header>`;
+}
+function legend(){
+  const rs=routesShown();
+  return `<div class="legend-card" id="legendCard"><b>Routes</b><ul>${rs.map(r=>`<li><span class="lsample dash-${r.dash}" style="--rc:${rcol(r)};border:1px solid var(--line)"></span><span>${badge(r,true)} ${esc(r.name)} · ${DASHN[r.dash]}</span></li>`).join('')}</ul>
+   <b>Buses</b><ul><li><span class="busg">${ic('bus',16)}</span><span>Live GPS (updates every 12 s). The point shows direction. Code under it.</span></li><li><span class="busg stale">${ic('bus',16)}</span><span>Dashed and faded: no update for 36 s+. Shows its last spot.</span></li></ul>
+   <b>Stops</b><ul><li><span class="busg" style="width:1rem;height:1rem;border-width:2.5px"></span><span>Stop. Name shows when zoomed in. Blue ring = selected.</span></li></ul>
+   <span class="meta">Every route, stop and bus is also in the list below, in the same order.</span></div>`;
+}
+function mapFrame(){
+  const collapsed=S.layout==='board'&&!S.mapOpen;
+  return `<section class="map-wrap ${collapsed?'collapsed':''}" aria-label="Shuttle map">
+   <a class="skip-map" href="${listTarget()}">Skip map, go to the ${S.layout==='board'?'stop':'route'} list</a>
+   ${S.layout==='board'?`<button class="btn" id="mapToggle" data-a="mapToggle" aria-expanded="${S.mapOpen}" style="${collapsed?'':'position:absolute;left:calc(var(--sp-2) + 6rem);top:var(--sp-2);z-index:3'}">${ic('map',16)}${S.mapOpen?'Hide map':'Show map'}</button>`:''}
+   <div id="mapSlot"></div>
+   <p class="feed-pill" id="feedPill">${feedPill()}</p>
+   <button class="btn legend-btn" id="legendBtn" data-a="legend" aria-expanded="${S.legend}" aria-controls="legendCard">${ic('info',18)}Key</button>
+   ${S.legend?legend():''}
+   <div class="ctrls" role="group" aria-label="Map controls"><button class="icon-btn" id="zin" data-a="zoom" data-x="1" aria-label="Zoom in">${ic('plus',20)}</button><hr><button class="icon-btn" id="zout" data-a="zoom" data-x="-1" aria-label="Zoom out">${ic('minus',20)}</button><hr><button class="icon-btn" id="recenter" data-a="recenter" aria-label="Back to ${esc(S.campus)} routes">${ic('locate',20)}</button></div>
+  </section>`;
+}
+function watchCard(){
+  const s=byStop[S.watch];if(!s)return '';const rs=routesAt(s.id).sort((a,b)=>(etaMin(a,s.id)??99)-(etaMin(b,s.id)??99));
+  return `<div class="nextcard"><div class="spread"><span class="kicker" style="color:var(--muted)">${ic('star',14)}Your stop</span><button class="link" data-a="pickWatch" id="pickWatch">Change</button></div>
+   <button class="link" style="font-family:var(--font-display);font-size:var(--fs-lg);text-decoration:none;color:var(--ink)" data-a="stop" data-x="${s.id}" id="wc-${s.id}">${esc(s.name)}</button>
+   <ul class="arr">${rs.slice(0,3).map(r=>{const a=arrivalText(r,s.id);return `<li class="${a.sched?'sched':''}">${badge(r,true)}<span class="nm"><b>${esc(r.name)}</b><span class="meta">${a.sched?'<span class="dotest"></span> ':'<span class="dotlive"></span> '}${esc(a.sub)}</span></span><span class="eta num" aria-hidden="true">${a.t}</span><span class="sr">${esc(a.sr)}</span></li>`;}).join('')}</ul></div>`;
+}
+function stopDetail(id,scope){
+  const s=byStop[id];if(!s)return '';const rs=routesAt(id);const mine=S.mine&&S.mine.stop===id?S.mine.k:null;
+  return `<section class="stopd" aria-labelledby="sd-h-${scope}">
+   <div class="spread"><h3 id="sd-h-${scope}" tabindex="-1">${esc(s.name)}</h3><button class="icon-btn" data-a="closeStop" aria-label="Close stop ${esc(s.name)}">${ic('x')}</button></div>
+   <p class="meta">${s.campus} · stop ${esc(s.id)} · ${rs.length} route${rs.length>1?'s':''}</p>
+   <ul class="arr">${rs.map(r=>{const a=arrivalText(r,id);return `<li class="${a.sched?'sched':''}">${badge(r,true)}<span class="nm"><b>${esc(r.name)}</b><span class="meta">${a.sched?'<span class="dotest"></span> ':'<span class="dotlive"></span> '}${esc(a.sub)}</span></span><span class="eta num" aria-hidden="true">${a.t}</span><span class="sr">${esc(a.sr)}</span></li>`;}).join('')}</ul>
+   ${rs.flatMap(r=>noticesFor(r.code)).filter((n,i,a)=>a.indexOf(n)===i).map(n=>noticeEl(n,false)).join('')}
+   <fieldset><legend>At this stop right now? Tapping posts a stop report for 15 min.</legend><div class="repbtns">${Object.keys(REP).map(k=>`<button class="btn" id="rep-${scope}-${k}" data-a="report" data-x="${id}:${k}" aria-pressed="${mine===k}">${ic(k,20)}<span>${REP[k][0]}</span></button>`).join('')}</div></fieldset>
+   <div><b class="lbl">Stop reports · last 15 min</b>${repList(id)}</div>
+   <p class="meta">Anonymous to other Students. Fades after 15 min. Not sent to Big Owl Bus or KSU Parking &amp; Transportation.</p>
+   <div class="row"><button class="btn" id="watch-${scope}" data-a="watch" data-x="${id}" aria-pressed="${S.watch===id}">${ic('star',16)}${S.watch===id?'Your stop':'Make this your stop'}</button><button class="btn" id="som-${scope}" data-a="showStop" data-x="${id}">${ic('map',16)}Show on map</button></div>
+  </section>`;
+}
+function busesOn(r){return BUSES.filter(b=>b.route===r.code);}
+function stopLine(r,scope){
+  // stops in route order with buses placed between them
+  const ord=r.stopsOrdered,items=[];const bs=busesOn(r);
+  ord.forEach((id,i)=>{const s0=r.sAt[id],s1=i+1<ord.length?r.sAt[ord[i+1]]:r.L+r.sAt[ord[0]];
+    items.push({stop:id});bs.forEach(b=>{const bsn=b.s<s0?b.s+r.L:b.s;if(bsn>=s0&&bsn<s1)items.push({bus:b,next:ord[(i+1)%ord.length]});});});
+  return `<ol class="stoplist" style="--rc:${rcol(r)};--ls:${r.dash==='solid'?'solid':r.dash==='dash'?'dashed':'dotted'}" aria-label="${esc(rName(r))} stops in order">${items.map(it=>{
+    if(it.bus){const st=!live()||S.feed==='offline';if(S.feed==='offline')return '';return `<li class="bus"><span class="busmark"><span class="busg ${st?'stale':''}">${ic('bus',16)}</span></span><span class="meta">${st?'Last seen':'Bus'} heading to ${esc(byStop[it.next].name)} · ${esc(it.bus.load)}${st?' · position not updating':''}</span></li>`;}
+    const a=arrivalText(r,it.stop),rp=(S.reports[it.stop]||[]).filter(x=>x.ago<15);
+    return `<li><span><button class="sname" id="sn-${scope}-${r.code}-${it.stop}" data-a="stop" data-x="${it.stop}">${esc(byStop[it.stop].name)}</button>${rp.length?` <span class="chip outline">${ic(rp[0].k,14)}${REP[rp[0].k][1]}</span>`:''}</span><span class="eta-s num ${a.sched?'sched':''}" aria-label="${esc(a.sr)}">${a.sched?a.t+' '+a.sub.replace(' · ',' '):a.t==='Now'?'Now':a.t+' min'}</span></li>`;}).join('')}</ol>`;
+}
+function routeRow(r){
+  const open=S.route===r.code,ns=noticesFor(r.code),bs=busesOn(r);
+  const status=notRunning(r)?'Not running today':S.feed==='offline'?'Hours only (offline)':live()?`${bs.length} bus${bs.length>1?'es':''} live`:`${bs.length} bus${bs.length>1?'es':''} · position not updating`;
+  return `<li class="rrow ${open?'sel':''}" id="rt-${r.code}"><div class="rrow-h">${badge(r)}
+   <button class="expand" id="rx-${r.code}" data-a="route" data-x="${r.code}" aria-expanded="${open}" aria-controls="rd-${r.code}"><span class="nm">${esc(r.name)}</span><span class="meta">${esc(status)} · ${esc(r.hours)}</span>
+    ${ns.length?`<span class="meta">${ic('notice',14)} ${ns.length} Shuttle Notice</span>`:''}<span class="sr">${DASHN[r.dash]} on the map.</span></button>${ic(open?'up':'chev',18)}</div>
+   ${open?`<div class="stack" id="rd-${r.code}">${ns.map(n=>noticeEl(n,true)).join('')}${notRunning(r)?'<p class="note">Runs Friday–Sunday, 11 AM – 7 PM. Stops are shown for planning.</p>':''}${stopLine(r,'a')}
+     <div class="row"><button class="btn" id="only-${r.code}" data-a="only" data-x="${r.code}" aria-pressed="${S.only===r.code}">${ic('map',16)}${S.only===r.code?'Showing only '+r.code:'Show only '+r.code+' on map'}</button></div></div>`:''}</li>`;
+}
+function routeChips(){return `<div class="filters-r" role="group" aria-label="Show on map">${[null,...routesShown().map(r=>r.code)].map(c=>`<button class="rchip" id="oc-${c||'all'}" data-a="only" data-x="${c||''}" aria-pressed="${S.only===c}">${c?badge(byCode[c],true)+'<span class="sr">'+esc(byCode[c].name)+'</span>':'<span style="padding:0 var(--sp-2)">All routes</span>'}</button>`).join('')}</div>`;}
+
+/* ---- Layout A: map + bottom sheet ---- */
+function layA(){
+  const lab={peek:'Show routes',half:'Show all routes',full:'Show more map'}[S.snap];const rs=routesShown();
+  const nc=NOTICES.filter(n=>n.routes.some(c=>rs.includes(byCode[c]))).length;
+  return mapFrame()+`<section class="sheet" data-snap="${S.snap}" aria-labelledby="routes-h">
+   <button class="handle-btn" id="handle" data-a="snap" aria-expanded="${S.snap!=='peek'}" aria-controls="routeList"><span class="handle"></span><span>${S.snap==='full'?ic('chev',16):ic('up',16)}${lab}</span></button>
+   <div class="peek">${S.stop&&S.snap==='peek'?'':watchCard()}${nc&&S.snap==='peek'?`<button class="link" id="ncount" data-a="snapHalf">${ic('notice',16)} ${nc} Shuttle Notice${nc>1?'s':''} on ${S.campus==='All KSU'?'KSU':esc(S.campus)} routes</button>`:''}</div>
+   <div class="sheet-body" id="routeList">${S.stop?stopDetail(S.stop,'a'):''}
+    <div class="sheet-h"><h2 id="routes-h" tabindex="-1">${rs.length} routes</h2><span class="meta">${esc(NOW_LABEL)}</span></div>
+    ${routeChips()}
+    <ul class="rlist">${rs.map(routeRow).join('')}</ul></div>
+   ${S.stop&&S.snap==='peek'?`<div class="peek">${stopDetail(S.stop,'p')}</div>`:''}</section>`;
+}
+/* ---- Layout B: departures board (stop-first) ---- */
+function layB(){
+  const ss=stopsShown().slice().sort((a,b)=>(a.id===S.watch?-1:b.id===S.watch?1:0)||a.name.localeCompare(b.name));
+  return mapFrame()+`<section class="board" aria-labelledby="board-h"><div class="sheet-h"><h2 id="board-h" tabindex="-1">Departures · ${ss.length} stops</h2><span class="meta">${esc(NOW_LABEL)}</span></div>
+   ${routeChips()}
+   ${NOTICES.filter(n=>n.routes.some(c=>inCampus(byCode[c]))).map(n=>noticeEl(n,false)).join('')}
+   <ul class="rlist">${ss.map(s=>{const rs=routesAt(s.id).filter(r=>!S.only||r.code===S.only);if(!rs.length)return '';const sel=S.stop===s.id;
+     return `<li class="dep ${sel?'sel':''}" id="st-${s.id}"><div class="dep-h">${s.id===S.watch?ic('star',18):''}<button id="bx-${s.id}" data-a="stop" data-x="${s.id}" aria-expanded="${sel}"><b>${esc(s.name)}</b>${S.campus==='All KSU'?`<span class="meta">${s.campus}</span>`:''}</button>${(S.reports[s.id]||[]).filter(x=>x.ago<15).map(x=>`<span class="chip outline">${ic(x.k,14)}${REP[x.k][1]}</span>`).join('')}</div>
+      <div class="deps">${rs.map(r=>{const a=arrivalText(r,s.id);return `<span class="depc ${a.sched?'sched':''}">${badge(r,true)}<span aria-hidden="true">${a.t}${a.sched?'':a.t==='Now'?'':' min'}</span><span class="sr">${esc(a.sr)}</span></span>`;}).join('')}</div>
+      ${sel?stopDetail(s.id,'b'):''}</li>`;}).join('')}</ul></section>`;
+}
+/* ---- Layout C: route strip (route-first line diagram) ---- */
+function layC(){
+  const rs=routesShown();const r=byCode[S.route]&&inCampus(byCode[S.route])?byCode[S.route]:rs[0];S.route=r.code;
+  return mapFrame()+`<section class="strip" aria-labelledby="strip-h"><div class="rpick" role="group" aria-label="Choose a route">${rs.map(x=>`<button id="rp-${x.code}" data-a="pickRoute" data-x="${x.code}" aria-pressed="${x===r}">${badge(x,true)}<span>${esc(x.name.split(' ')[0]==='KM'?'Intercampus':x.name.split(/ \/ | /)[0])}</span></button>`).join('')}</div>
+   <div class="spread"><h2 id="strip-h" tabindex="-1" style="font-family:var(--font-display);font-size:var(--fs-xl)">${esc(r.name)}</h2>${badge(r)}</div>
+   <p class="meta">${esc(r.hours)} · ${notRunning(r)?'not running today':live()?busesOn(r).length+' live':'positions not updating'} · ${DASHN[r.dash]} on the map</p>
+   ${noticesFor(r.code).map(n=>noticeEl(n,true)).join('')}
+   ${S.stop&&r.stops.includes(S.stop)?stopDetail(S.stop,'c'):''}
+   ${stopLine(r,'c')}</section>`;
+}
+function dock(){return `<nav class="dock" aria-label="Primary">${DOCK.map(d=>d?`<a href="#" class="dock-i">${ic(d[2],22)}<span class="lbl">${d[1]}</span></a>`:`<button class="dock-q">${ic('owl',22)}<span class="lbl">Ask Scrappy</span></button>`).join('')}</nav>`;}
+function render(opt={}){
+  const app=$('#app');app.dataset.theme=S.theme;app.dataset.motion=S.motion;app.className='app'+(S.cvd?' cvd-'+S.cvd:'');
+  $('#stage').dataset.frame=S.frame;document.documentElement.style.fontSize=S.text+'%';$('#textOut').textContent=S.text+'%';
+  const fid=opt.focus||(document.activeElement&&document.activeElement.id&&$('#shellRoot').contains(document.activeElement)?'#'+document.activeElement.id:null);
+  const sc=$('.sheet-body,.board,.strip')?.scrollTop;
+  const body=S.layout==='board'?layB():S.layout==='strip'?layC():layA();
+  $('#shellRoot').innerHTML=`<a class="skip" href="${listTarget()}">Skip to ${S.layout==='board'?'stop':'route'} list</a><div class="shell">${header()}
+   <main class="main tr lay-${S.layout}" id="main"><h1 class="sr" id="main-h" tabindex="-1">Transit</h1>${body}</main></div>${dock()}`;
+  $('#mapSlot').replaceWith(mapHost);
+  if(sc!=null&&$('.sheet-body,.board,.strip'))$('.sheet-body,.board,.strip').scrollTop=sc;
+  if(fid){const el=document.querySelector(fid);if(el)el.focus({preventScroll:!!opt.keepScroll});}
+  if(map){requestAnimationFrame(()=>map.resize());syncMap();}
+  renderNotes();
+}
+
+/* ===================== MAPLIBRE ===================== */
+const css=v=>getComputedStyle($('#app')).getPropertyValue(v).trim();
+const styleUrl=()=>`https://tiles.openfreemap.org/styles/${S.theme==='dark'?'dark':'positron'}`;
+function canvasImg(w,h,draw,ratio=2){const c=document.createElement('canvas');c.width=w*ratio;c.height=h*ratio;const x=c.getContext('2d');x.scale(ratio,ratio);draw(x);return {width:c.width,height:c.height,data:x.getImageData(0,0,c.width,c.height).data};}
+function images(){
+  const surf=css('--surface'),ink=css('--ink'),mut=css('--muted'),out={};
+  const busPath=(x,cx,cy)=>{x.beginPath();x.roundRect(cx-6,cy-7,12,12,2);x.moveTo(cx-6,cy-1);x.lineTo(cx+6,cy-1);x.stroke();x.beginPath();x.arc(cx-3,cy+6,1.4,0,7);x.arc(cx+3,cy+6,1.4,0,7);x.fill();};
+  out['bus-live']=canvasImg(34,34,x=>{x.fillStyle=surf;x.beginPath();x.arc(17,17,13,0,7);x.fill();x.strokeStyle=ink;x.lineWidth=2.5;x.stroke();x.strokeStyle=ink;x.fillStyle=ink;x.lineWidth=1.8;busPath(x,17,16);});
+  out['bus-stale']=canvasImg(34,34,x=>{x.globalAlpha=.85;x.fillStyle=surf;x.beginPath();x.arc(17,17,13,0,7);x.fill();x.strokeStyle=mut;x.lineWidth=2.2;x.setLineDash([3.5,2.5]);x.stroke();x.setLineDash([]);x.strokeStyle=mut;x.fillStyle=mut;x.lineWidth=1.8;busPath(x,17,16);});
+  // heading wedge: drawn at the top of a 48px box so rotating the box points it
+  out['heading']=canvasImg(48,48,x=>{x.fillStyle=ink;x.strokeStyle=surf;x.lineWidth=1.5;x.beginPath();x.moveTo(24,0.5);x.lineTo(31,10);x.lineTo(17,10);x.closePath();x.fill();x.stroke();});
+  return out;
+}
+function routeGeo(){return {type:'FeatureCollection',features:routesShown().map(r=>({type:'Feature',geometry:{type:'LineString',coordinates:r.line},
+  properties:{code:r.code,color:rcol(r),dash:r.dash,w:r.w||1,dim:(S.only&&S.only!==r.code)?1:0,sel:S.route===r.code?1:0,off:notRunning(r)?1:0}}))};}
+function stopGeo(){return {type:'FeatureCollection',features:stopsShown().map(s=>{const rp=(S.reports[s.id]||[]).filter(x=>x.ago<15);
+  return {type:'Feature',geometry:{type:'Point',coordinates:s.c},properties:{id:s.id,name:s.name+(rp.length?' · '+REP[rp[0].k][1].toLowerCase():''),sel:S.stop===s.id?1:0}};})};}
+function busGeo(){if(S.feed==='offline')return {type:'FeatureCollection',features:[]};
+  return {type:'FeatureCollection',features:BUSES.filter(b=>inCampus(byCode[b.route])&&(!S.only||S.only===b.route)).map(b=>{const r=byCode[b.route];const {p,hd}=pointAt(r,b.shown??b.s);
+  return {type:'Feature',geometry:{type:'Point',coordinates:p},properties:{id:b.id,code:b.route,hd,stale:live()?0:1}};})};}
+function addLayers(){
+  for(const [k,v] of Object.entries(images())){if(map.hasImage(k))map.removeImage(k);map.addImage(k,v,{pixelRatio:2});}
+  const ink=css('--ink'),focus=css('--focus'),surf=css('--surface');
+  map.addSource('routes',{type:'geojson',data:routeGeo()});map.addSource('stops',{type:'geojson',data:stopGeo()});map.addSource('buses',{type:'geojson',data:busGeo()});
+  const op=['case',['==',['get','dim'],1],.18,['==',['get','off'],1],.45,1];
+  map.addLayer({id:'r-casing',type:'line',source:'routes',layout:{'line-join':'round','line-cap':'round'},paint:{'line-color':surf,'line-width':['*',['get','w'],9],'line-opacity':['case',['==',['get','dim'],1],.15,.95]}});
+  map.addLayer({id:'r-sel',type:'line',source:'routes',filter:['==',['get','sel'],1],layout:{'line-join':'round'},paint:{'line-color':focus,'line-width':12,'line-opacity':.45}});
+  for(const [d,arr] of [['solid',null],['dash',[2.2,1.4]],['dot',[0.6,1.1]]]){
+    map.addLayer({id:'r-'+d,type:'line',source:'routes',filter:['==',['get','dash'],d],layout:{'line-join':'round','line-cap':d==='dot'?'round':'butt'},
+      paint:{'line-color':['get','color'],'line-width':['*',['get','w'],d==='dot'?5:4.5],'line-opacity':op,...(arr?{'line-dasharray':arr}:{})}});}
+  map.addLayer({id:'r-code',type:'symbol',source:'routes',minzoom:13.6,layout:{'symbol-placement':'line','symbol-spacing':220,'text-field':['get','code'],'text-font':['Noto Sans Bold'],'text-size':12*S.text/100,'text-keep-upright':true},
+    paint:{'text-color':ink,'text-halo-color':surf,'text-halo-width':2.5,'text-opacity':['case',['==',['get','dim'],1],0,1]}});
+  map.addLayer({id:'s-sel',type:'circle',source:'stops',filter:['==',['get','sel'],1],paint:{'circle-radius':13,'circle-color':'rgba(0,0,0,0)','circle-stroke-color':focus,'circle-stroke-width':4}});
+  map.addLayer({id:'s-dot',type:'circle',source:'stops',paint:{'circle-radius':['interpolate',['linear'],['zoom'],12,3.5,16,7],'circle-color':surf,'circle-stroke-color':ink,'circle-stroke-width':2.5}});
+  map.addLayer({id:'s-lbl',type:'symbol',source:'stops',minzoom:15.2,layout:{'text-field':['get','name'],'text-font':['Noto Sans Regular'],'text-size':12.5*S.text/100,'text-offset':[0,1.1],'text-anchor':'top','text-optional':true,'text-max-width':9},
+    paint:{'text-color':ink,'text-halo-color':surf,'text-halo-width':2}});
+  map.addLayer({id:'b-hd',type:'symbol',source:'buses',filter:['==',['get','stale'],0],layout:{'icon-image':'heading','icon-rotate':['get','hd'],'icon-rotation-alignment':'map','icon-allow-overlap':true,'icon-ignore-placement':true}});
+  map.addLayer({id:'b-icon',type:'symbol',source:'buses',layout:{'icon-image':['case',['==',['get','stale'],1],'bus-stale','bus-live'],'icon-allow-overlap':true,'icon-ignore-placement':true,
+    'text-field':['get','code'],'text-font':['Noto Sans Bold'],'text-size':12*S.text/100,'text-offset':[0,1.45],'text-anchor':'top','text-allow-overlap':true},
+    paint:{'text-color':ink,'text-halo-color':surf,'text-halo-width':2.5}});
+  map.on('click','s-dot',e=>{const f=e.features[0];if(f)selectStop(f.properties.id,'map');});
+  map.on('click','b-icon',e=>{const f=e.features[0];if(f)selectBus(f.properties.id);});
+  map.on('click',e=>{if(map.queryRenderedFeatures(e.point,{layers:['s-dot','b-icon']}).length)return;const f=map.queryRenderedFeatures([[e.point.x-8,e.point.y-8],[e.point.x+8,e.point.y+8]],{layers:['r-solid','r-dash','r-dot']})[0];if(f)selectRoute(f.properties.code);});
+  for(const id of ['s-dot','b-icon','r-solid','r-dash','r-dot']){map.on('mouseenter',id,()=>map.getCanvas().style.cursor='pointer');map.on('mouseleave',id,()=>map.getCanvas().style.cursor='');}
+}
+function syncMap(){if(!map||!map.isStyleLoaded()||!map.getSource('routes'))return;map.getSource('routes').setData(routeGeo());map.getSource('stops').setData(stopGeo());map.getSource('buses').setData(busGeo());
+  for(const [l,s] of [['r-code',12],['s-lbl',12.5],['b-icon',12]])if(map.getLayer(l))map.setLayoutProperty(l,'text-size',s*S.text/100);}
+function initMap(){
+  if(!window.maplibregl){mapHost.innerHTML='<p class="map-fallback">Map unavailable (offline or blocked). Every route and stop is in the list.</p>';return;}
+  map=new maplibregl.Map({container:mapHost,style:styleUrl(),center:[-84.578,34.034],zoom:14,attributionControl:false,dragRotate:false,pitchWithRotate:false,touchPitch:false,maxZoom:18.5,minZoom:9.5});
+  map.touchZoomRotate.disableRotation();map.keyboard.disableRotation();
+  map.addControl(new maplibregl.AttributionControl({compact:true,customAttribution:'Routes &amp; stops: Passio GO / Big Owl Bus'}),'bottom-right');
+  map.on('style.load',addLayers);map.once('load',()=>fitCampus(true));
+  map.getCanvas().setAttribute('aria-label','Shuttle map. Arrow keys pan, plus and minus zoom. Bus positions are not read out; the list has every route, stop and bus.');
+}
+const motionOpts=()=>reduced()?{duration:0}:{duration:500};
+function sheetPad(){const r=mapHost.getBoundingClientRect(),sh=$('.lay-sheet .sheet');return sh&&r.width<1000?Math.min(sh.getBoundingClientRect().height,r.height*.6):24;}
+function fitCampus(instant){if(!map)return;const rs=routesShown().filter(r=>!S.only||r.code===S.only).filter(r=>S.campus!=='Kennesaw'||r.code!=='KM'||S.only==='KM');
+  const pts=rs.length?rs.flatMap(r=>r.line):routesShown()[0].line;
+  const pts2=S.campus==='Kennesaw'&&S.only!=='KM'?pts.filter(p=>p[1]>34.0):S.campus==='Marietta'&&S.only!=='KM'?pts.filter(p=>p[1]<33.97):pts;
+  let b=new maplibregl.LngLatBounds(pts2[0],pts2[0]);pts2.forEach(p=>b.extend(p));
+  map.fitBounds(b,{padding:{top:56,left:24,right:64,bottom:sheetPad()+24},maxZoom:16.5,...(instant?{duration:0}:motionOpts())});}
+function flyTo(c){if(!map)return;map.easeTo({center:c,zoom:Math.max(map.getZoom(),16),...motionOpts(),padding:{bottom:sheetPad(),top:0,left:0,right:0}});}
+function say(m){const r=$('#live');r.textContent='';setTimeout(()=>r.textContent=m,30);}
+function toast(msg,undo){const t=document.createElement('div');t.className='toast';t.innerHTML=`<span>${esc(msg)}</span>${undo?`<button class="link" data-a="undoRep" data-x="${undo}">Undo</button>`:''}`;$('#toasts').append(t);setTimeout(()=>t.remove(),undo?6500:3600);}
+
+/* ===================== SELECTION (list ↔ map parity) ===================== */
+function stopSummary(id){const rs=routesAt(id);const first=rs.map(r=>({r,a:arrivalText(r,id)}))[0];return `${byStop[id].name} selected. ${rs.length} route${rs.length>1?'s':''}. ${first?first.a.sr:''}`;}
+function selectStop(id,from){S.stop=id;if(S.layout==='sheet'&&S.snap==='peek'&&from==='map')S.snap='peek';
+  if(S.layout==='strip'&&!byCode[S.route]?.stops.includes(id))S.route=routesAt(id)[0]?.code;
+  const sc=S.layout==='board'?'b':S.layout==='strip'?'c':(S.snap==='peek'?'p':'a');render({focus:`#sd-h-${sc}`});
+  $(`#sd-h-${sc}`)?.scrollIntoView({block:'nearest',behavior:reduced()?'auto':'smooth'});if(from==='map')say(stopSummary(id));}
+function selectRoute(code){S.route=code;if(S.layout==='sheet'&&S.snap==='peek')S.snap='half';render({focus:S.layout==='strip'?'#rp-'+code:'#rx-'+code});
+  $('#rt-'+code)?.scrollIntoView({block:'nearest'});const r=byCode[code];say(`${rName(r)} selected. ${DASHN[r.dash]}. ${noticesFor(code).length?noticesFor(code).length+' Shuttle Notice.':''}`);}
+function selectBus(id){const b=BUSES.find(x=>x.id===id),r=byCode[b.route];const {p}=pointAt(r,b.s);
+  let next=r.stopsOrdered.find(s=>r.sAt[s]>b.s)||r.stopsOrdered[0];
+  S.route=r.code;if(S.layout==='sheet'&&S.snap==='peek')S.snap='half';render({focus:S.layout==='strip'?'#rp-'+r.code:'#rx-'+r.code});
+  say(`${r.code} bus heading to ${byStop[next].name}. ${b.load}. ${live()?'Updated '+ago()+' seconds ago.':'Position not updating.'}`);}
+
+/* ===================== LIVE SIMULATION (Passio every 12 s) ===================== */
+let anim=null;
+function tick(){
+  if(S.feed!=='live')return;S.lastFetch=Date.now();
+  BUSES.forEach(b=>{b.from=b.shown??b.s;b.s=(b.s+SPEED*12*S.speed)%byCode[b.route].L;});
+  const prevEta=S.watch?routesAt(S.watch).map(r=>etaMin(r,S.watch)):[];
+  if(anim)cancelAnimationFrame(anim);
+  if(reduced()){BUSES.forEach(b=>b.shown=b.s);syncMap();}
+  else{const t0=performance.now();const step=t=>{const f=Math.min(1,(t-t0)/900);BUSES.forEach(b=>{const L=byCode[b.route].L;let d=b.s-b.from;if(d<0)d+=L;b.shown=b.from+d*f;});
+    if(map&&map.getSource('buses'))map.getSource('buses').setData(busGeo());if(f<1)anim=requestAnimationFrame(step);};anim=requestAnimationFrame(step);}
+  render({keepScroll:true});
+  // Announce policy under test: nothing for movement; one polite message when YOUR stop's next bus crosses ≤2 min, max 1/min.
+  if(S.watch){const now=routesAt(S.watch).map(r=>({r,m:etaMin(r,S.watch)}));now.forEach((x,i)=>{if(x.m!=null&&x.m<=2&&(prevEta[i]==null||prevEta[i]>2)&&Date.now()-S.lastSay>60000){S.lastSay=Date.now();
+    say(`${x.r.code} arriving at ${byStop[S.watch].name} in about ${Math.max(1,x.m)} minute${x.m>1?'s':''}.`);}});}
+}
+setInterval(()=>{const el=$('#agoTxt');if(el)el.textContent=ago();},1000);
+let tickT=null;const restartTick=()=>{clearInterval(tickT);tickT=setInterval(tick,12000/Math.max(1,S.speed));};
+
+/* ===================== ACTIONS ===================== */
+const A={
+ campus:(el,x)=>{S.campus=x;S.stop=null;S.only=null;if(S.route&&!inCampus(byCode[S.route]))S.route=null;
+   if(!stopsShown().some(s=>s.id===S.watch))S.watch=(stopsShown()[0]||{}).id;render({focus:'#cmp-'+x.replace(' ','')});fitCampus();},
+ zoom:(el,x)=>{if(!map)return;(+x>0?map.zoomIn:map.zoomOut).call(map,motionOpts());},
+ recenter:()=>{fitCampus();say(`Map back to ${S.campus} routes`);},
+ legend:()=>{S.legend=!S.legend;render({focus:'#legendBtn'});},
+ snap:()=>{S.snap={peek:'half',half:'full',full:'peek'}[S.snap];render({focus:'#handle'});},
+ snapHalf:()=>{S.snap='half';S.route=NOTICES[0].routes[0];render({focus:'#rx-'+S.route});},
+ route:(el,x)=>{S.route=S.route===x?null:x;render({focus:'#rx-'+x});},
+ pickRoute:(el,x)=>{S.route=x;S.stop=null;render({focus:'#rp-'+x});S.only=x;syncMap();fitCampus();S.only=null;syncMap();},
+ only:(el,x)=>{S.only=x||null;render({focus:'#'+(el.id)});syncMap();fitCampus();say(x?`Map shows only ${rName(byCode[x])}`:'Map shows all routes');},
+ stop:(el,x)=>{if(S.stop===x&&S.layout==='board'){S.stop=null;render({focus:'#bx-'+x});return;}selectStop(x,'list');flyTo(byStop[x].c);},
+ closeStop:()=>{const id=S.stop;S.stop=null;render({focus:S.layout==='board'?'#bx-'+id:listTarget()});},
+ showStop:(el,x)=>{if(S.layout==='sheet')S.snap='peek';if(S.layout==='board')S.mapOpen=true;render({focus:'#zin'});flyTo(byStop[x].c);say(`${byStop[x].name} shown on the map with a blue ring.`);},
+ watch:(el,x)=>{S.watch=x;render({focus:'#'+el.id});toast(`${byStop[x].name} is your stop. It shows first on Transit and on Now.`);},
+ pickWatch:()=>{S.snap='half';toast('Open any stop and tap “Make this your stop”.');render({focus:'#routes-h'});},
+ report:(el,x)=>{const [id,k]=x.split(':');const rs=S.reports[id]=(S.reports[id]||[]).filter(r=>!r.mine);rs.unshift({k,ago:0,n:1,mine:true});S.mine={stop:id,k};
+   toast(`Stop report posted at ${byStop[id].name}: ${REP[k][1]}. Shows for 15 min.`,id);render({focus:'#'+el.id});syncMap();},
+ undoRep:(el,x)=>{S.reports[x]=(S.reports[x]||[]).filter(r=>!r.mine);S.mine=null;toast('Stop report removed.');render();syncMap();},
+ mapToggle:()=>{S.mapOpen=!S.mapOpen;render({focus:'#mapToggle'});setTimeout(()=>map&&map.resize(),0);},
+};
+document.addEventListener('click',e=>{const el=e.target.closest('[data-a]');if(!el||!el.closest('#app'))return;if(el.tagName==='A')e.preventDefault();const f=A[el.dataset.a];if(f){e.preventDefault();f(el,el.dataset.x);}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.legend){S.legend=false;render({focus:'#legendBtn'});}});
+
+/* ===================== PROTOTYPE BAR ===================== */
+const bind=(id,k,num,after)=>{const el=$(id);el.value=S[k];el.oninput=el.onchange=()=>{S[k]=num?+el.value:el.value;render();after&&after();};};
+bind('#ctlLayout','layout',false,()=>{const u=new URL(location);u.searchParams.set('layout',S.layout);history.replaceState(null,'',u);setTimeout(()=>{map&&map.resize();fitCampus(true);},30);});
+bind('#ctlTheme','theme',false,()=>{if(map)map.setStyle(styleUrl(),{diff:false});});
+bind('#ctlMotion','motion');bind('#ctlText','text',true);bind('#ctlCvd','cvd');bind('#ctlFrame','frame',false,()=>setTimeout(()=>{map&&map.resize();fitCampus(true);},50));
+bind('#ctlFeed','feed',false,()=>{syncMap();say(S.feed==='live'?'Live bus positions resumed.':S.feed==='stale'?'Bus positions are not updating. Times now show the schedule.':'Offline. Routes and stops only.');});
+bind('#ctlSpeed','speed',true,restartTick);
+$('#ctlNotes').onclick=()=>{S.notes=!S.notes;$('#notes').hidden=!S.notes;$('#ctlNotes').setAttribute('aria-expanded',S.notes);};
+function renderNotes(){if(!S.notes&&$('#notes').innerHTML)return;
+  const rows=ROUTES.map(r=>{const c=rcol(r),t=onCol(c),bg=S.theme==='dark'?'#211D17':'#FFFFFF',cr=ratio(c,t),lr=ratio(c,bg);
+    return `<tr><td>${badge(r,true)}</td><td>${r.name}</td><td>${DASHN[r.dash]}</td><td><span class="sw" style="background:${c}"></span>${c}</td><td class="${cr>=4.5?'pass':'fail'}">${cr.toFixed(1)}:1</td><td class="${lr>=3?'pass':'info'}">${lr.toFixed(1)}:1${lr<3?' (casing)':''}</td></tr>`;}).join('');
+  $('#notes').innerHTML=`<button class="x" onclick="$('#ctlNotes').click()">Close</button><h2>#67 Transit: what to react to</h2>
+<ol>
+<li><b>Layout</b>: <b>A</b> map + bottom sheet (Parking's winner): peek = “Your stop” next 3 arrivals; half/full = route list with each route's stop line. <b>B</b> Departures board: stop-first list of arrivals per stop, collapsible map card. <b>C</b> Route strip: pick one route, see a vertical line diagram of its stops with the buses placed between them. Desktop: map + 27rem side panel for all three.</li>
+<li><b>Route identity</b>: code text first (on badges, along every line at zoom ≥13.6, under every bus), then line pattern (solid / dashed / dotted), then Okabe–Ito colour. KM keeps KSU gold and a thicker line. Badge text picks ink or white by contrast. Try Vision → greyscale.</li>
+<li><b>Buses</b>: bus glyph in a ring + heading wedge + route code. Stale (no Passio update for 36 s = 3 polls, or feed down) = dashed faded ring, no wedge, and every time flips to “~N min · schedule” with a dashed dot. Bar → Feed.</li>
+<li><b>Announcements</b>: bus movement is never announced. One polite message when <i>your stop's</i> next bus crosses ≤2 min, max once a minute, plus feed state changes. Map/bus taps announce what was selected. Bar → Speed 10× to hear it.</li>
+<li><b>Reduced motion</b>: buses jump on each 12 s update (no glide); camera jumps. No pause toggle (#54: essential motion).</li>
+<li><b>Stops</b>: tap a stop (map or list) → stop card: live/scheduled arrivals per route, Shuttle Notices for those routes, 3-tap stop report (No line / Long line / Passed full, 15 min, Undo), last-15-min reports, “Make this your stop”, “Show on map”. <b>No Clout</b> shown for stop reports (not in #52).</li>
+<li><b>Shuttle Notice</b>: neutral card, grey double rule, notice icon, source line “Shuttle Notice · from Big Owl Bus via Passio GO · not a KSU safety Alert”. Never red, never a banner, never on /safety, only attached to its routes. Compare:<div class="alert-demo" style="margin-top:6px">OFFICIAL ALERT look (for contrast, /safety only): red border, red tint, “Official Alert · KSU Police”.</div></li>
+<li><b>Shared CampusGeoMap</b>: same component as Parking (layers: lots | routes | stops | buses; mode live | static). Feed → offline shows the static commuter view: routes + stops + hours, no buses, no times.</li>
+</ol>
+<h2>Route colours (${S.theme})</h2><table><tr><td></td><td>Route</td><td>Pattern</td><td>Colour</td><td>Badge text</td><td>Line vs map bg</td></tr>${rows}</table>
+<p class="info">Lines below 3:1 against the base map rely on the ${S.theme==='dark'?'dark':'white'} casing + pattern + code labels (1.4.11 graphical object = casing-outlined line).</p>`;}
+$('#notes').hidden=true;
+restartTick();render();initMap();
+
+</script>
+</body>
+</html>
