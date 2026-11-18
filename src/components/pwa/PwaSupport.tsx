@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Download, RefreshCw, Share, X } from "lucide-react";
 import { useViewerClient } from "@/lib/viewerClient";
 
@@ -10,6 +10,8 @@ export function ServiceWorkerManager() {
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(
     null
   );
+
+  const reloadOnActivation = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
@@ -43,7 +45,20 @@ export function ServiceWorkerManager() {
       });
 
     const onControllerChange = () => {
-      window.location.reload();
+      if (reloadOnActivation.current) {
+        window.location.reload();
+        return;
+      }
+      setWaitingWorker(null);
+      // Prime the new worker with bundles loaded before it claimed this page,
+      // without interrupting an in-progress editor or import.
+      const loadedBundles = new Set(performance.getEntriesByType("resource").map(({ name }) => name));
+      for (const name of loadedBundles) {
+        const url = new URL(name);
+        if (url.origin === window.location.origin && url.pathname.startsWith("/_next/static/")) {
+          void fetch(url).catch(() => {});
+        }
+      }
     };
     navigator.serviceWorker.addEventListener(
       "controllerchange",
@@ -65,7 +80,10 @@ export function ServiceWorkerManager() {
     <button
       type="button"
       data-testid="sw-update-reload-pill"
-      onClick={() => waitingWorker.postMessage({ type: "SKIP_WAITING" })}
+      onClick={() => {
+        reloadOnActivation.current = true;
+        waitingWorker.postMessage({ type: "SKIP_WAITING" });
+      }}
       className="fixed bottom-20 right-4 z-50 inline-flex items-center gap-2 rounded-full border-2 border-[#FDBB30] bg-[#111317] px-4 py-2 text-xs font-extrabold text-[#FDBB30] shadow-xl lg:bottom-5"
     >
       <RefreshCw className="h-3.5 w-3.5" />

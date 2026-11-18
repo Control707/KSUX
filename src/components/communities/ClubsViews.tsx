@@ -32,6 +32,7 @@ export function ClubsDirectoryView() {
     clubKindFilter: kindFilter || undefined,
   });
 
+  const coverage = useViewerQuery(api.communities.getClubDirectoryCoverage, {});
   const toggleJoin = useViewerMutation(api.communities.toggleJoinClub);
   const createCommunityClub = useViewerMutation(
     api.communities.createCommunityClub
@@ -65,7 +66,9 @@ export function ClubsDirectoryView() {
               KSU Clubs &amp; Campus Departments
             </h1>
             <p className="text-xs text-[#5E6675]">
-              544 active Engage organizations + grassroots Community Clubs ·{" "}
+              <a href="https://owllife.kennesaw.edu/" target="_blank" rel="noopener noreferrer" className="font-bold text-[#1E3A8A] underline">
+                Open the official Owl Life directory
+              </a>{" · "}
               <Link href="/events" className="font-bold text-[#1E3A8A] underline">
                 Browse Events Calendar →
               </Link>
@@ -81,6 +84,13 @@ export function ClubsDirectoryView() {
           </button>
         </div>
 
+        {coverage && (
+          <p role="status" className="mt-2 text-sm text-[#5E6675]">
+            {coverage === "demo" ? "Judge Demo Mode shows sample Clubs."
+              : coverage === "partial" ? "KSUX covers part of the official Club directory for the selected Campus."
+              : "Institutional Club data is unavailable for the selected Campus. You can still browse Community Clubs."}
+          </p>
+        )}
         <div className="mt-3 flex flex-wrap gap-2">
           <div className="flex min-w-56 flex-1 items-center gap-2 rounded-xl border border-[#E4E7EE] bg-[#F9FAFC] px-3 py-2">
             <Search className="h-4 w-4 text-[#5E6675]" />
@@ -88,7 +98,8 @@ export function ClubsDirectoryView() {
               type="text"
               value={queryText}
               onChange={(e) => setQueryText(e.target.value)}
-              placeholder="Search 544 KSU Clubs (ACM, Robotics, Motorsports, Music)..."
+              aria-label="Search Clubs"
+              placeholder="Search Clubs by name or topic"
               className="w-full bg-transparent text-xs font-semibold text-[#111317] focus:outline-none"
             />
           </div>
@@ -152,6 +163,7 @@ export function ClubsDirectoryView() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {clubs?.length === 0 && <p className="text-sm text-[#5E6675]">No Clubs match these filters.</p>}
         {(clubs ?? []).map((club) => (
           <div
             key={String(club._id)}

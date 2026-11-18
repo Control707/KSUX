@@ -49,6 +49,8 @@ it("resolves active CSA appointments and expires the roster row and action snaps
   }));
   const summary = () => t.query(api.shell.shellSummary, { sessionToken: moderator.sessionToken });
   expect((await summary()).viewer).toMatchObject({ isModerator: true, isCsa: true, isMaintainer: false });
+  await expect(t.query(api.moderation.getCampusFeedHealth, { sessionToken: moderator.sessionToken }))
+    .rejects.toThrow(/maintainer access/);
   await t.run(({ db }) => db.patch(appointment, { revokedAt: now, purgeAt: now }));
   await t.mutation(internal.housekeeping.executePurgeBatch, { now, deletedFileKeys: [] });
   expect(await t.run(({ db }) => db.get(appointment))).toBeNull();

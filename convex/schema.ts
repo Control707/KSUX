@@ -612,6 +612,8 @@ export default defineSchema({
 
   feedSyncState: defineTable({
     sourceKey: v.string(),
+    lastOutcome: v.optional(v.union(v.literal("accepted"), v.literal("partial"), v.literal("failed"))),
+    lastAcceptedCount: v.optional(v.number()),
     lastSuccessAt: v.optional(v.number()),
     lastAttemptAt: v.optional(v.number()),
     consecutiveFailures: v.number(),
@@ -953,6 +955,28 @@ export default defineSchema({
   })
     .index("by_student_term", ["workspaceKey", "studentId", "termCode"])
     .index("by_student_hub", ["workspaceKey", "studentId", "courseHubId"]),
+
+  privateScheduleTerms: defineTable({
+    workspaceKey: v.string(),
+    studentId: v.id("students"),
+    termCode: v.string(),
+    entries: v.array(v.object({
+      key: v.string(),
+      sectionId: v.optional(v.id("courseSections")),
+      title: v.string(),
+      days: v.array(v.string()),
+      startMinutes: v.number(),
+      endMinutes: v.optional(v.number()),
+      location: v.optional(v.string()),
+    })),
+    personalDeadlines: v.array(v.object({
+      uid: v.string(),
+      title: v.string(),
+      dueAt: v.number(),
+      courseCode: v.optional(v.string()),
+      location: v.optional(v.string()),
+    })),
+  }).index("by_student_term", ["workspaceKey", "studentId", "termCode"]),
 
   shuttleRoutes: defineTable({
     passioRouteId: v.string(),

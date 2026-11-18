@@ -135,6 +135,7 @@ export const applyShuttleSyncInternal = internalMutation({
       .withIndex("by_source", (q) => q.eq("sourceKey", "passio_shuttle"))
       .unique();
 
+    if (state?.lastAttemptAt !== undefined && state.lastAttemptAt > args.now) return;
     if (args.status === "failed") {
       const patch = evaluateFailureStatePatch(
         state ?? { consecutiveFailures: 0, activeRecordCount: 0 },
@@ -176,6 +177,8 @@ export const applyShuttleSyncInternal = internalMutation({
       backoffUntil: undefined,
       lastPayloadHash: allStreamsAvailable ? args.payloadHash : state?.lastPayloadHash,
       activeRecordCount: streamPatch.vehicles.length,
+      lastAcceptedCount: allStreamsAvailable ? streamPatch.vehicles.length : state?.lastAcceptedCount,
+      lastOutcome: allStreamsAvailable ? "accepted" as const : "partial" as const,
       lastError: allStreamsAvailable ? undefined : "Part of the Passio response was unavailable",
     };
     if (state) await ctx.db.patch(state._id, syncPatch);
@@ -196,6 +199,7 @@ export const applyDiningSyncInternal = internalMutation({
     stream: v.union(v.literal("hours"), v.literal("menus")),
     payloadHash: v.optional(v.string()),
     failureReason: v.optional(v.string()),
+    partial: v.optional(v.boolean()),
     hours: v.optional(v.array(v.object({ slug: v.string(), hoursScheduleJson: v.string() }))),
     menus: v.optional(v.array(v.object({
       slug: v.string(), todayMenuDateET: v.string(), tomorrowMenuDateET: v.string(),
@@ -210,7 +214,7 @@ export const applyDiningSyncInternal = internalMutation({
     const rows = args.stream === "hours" ? args.hours ?? [] : args.menus ?? [];
     if (args.failureReason || !rows.length) {
       const patch = evaluateFailureStatePatch(state ?? { consecutiveFailures: 0, activeRecordCount: 0 },
-        args.now, args.failureReason ?? "No validated dining results");
+        args.now, args.failureReason ?? "No validated dining results", args.partial ? "partial" : "failed");
       if (state) await db.patch(state._id, patch);
       else await db.insert("feedSyncState", {
         sourceKey, ...patch, activeRecordCount: 0, consecutiveFailures: patch.consecutiveFailures ?? 1,
@@ -237,14 +241,18 @@ export const applyDiningSyncInternal = internalMutation({
       }
       updated++;
     }
+    const complete = updated > 0 && updated === rows.length
+      && updated >= (state?.activeRecordCount ?? 0) && !args.partial;
     const next = {
-      lastSuccessAt: updated ? args.now : state?.lastSuccessAt,
+      lastSuccessAt: complete ? args.now : state?.lastSuccessAt,
       lastAttemptAt: args.now,
-      lastPayloadHash: args.payloadHash,
-      activeRecordCount: updated,
+      lastPayloadHash: complete ? args.payloadHash : state?.lastPayloadHash,
+      activeRecordCount: complete ? updated : state?.activeRecordCount ?? 0,
+      lastAcceptedCount: complete ? updated : state?.lastAcceptedCount,
+      lastOutcome: complete ? "accepted" as const : "partial" as const,
       consecutiveFailures: 0,
       backoffUntil: undefined,
-      lastError: undefined,
+      lastError: complete ? undefined : "Dining results did not cover all previously accepted venues",
     };
     if (state) await db.patch(state._id, next);
     else await db.insert("feedSyncState", { sourceKey, ...next });
@@ -322,18 +330,23 @@ export const runScheduledDiningSync = internalAction({
     try {
       const venues = await ctx.runQuery(internal.sync.transitDiningSync.listDiningVenuesForSync, {});
       const hours = stream === "hours" ? await fetchOfficialDiningHours(venues) : undefined;
-      const menus = stream === "menus" ? await fetchNutrisliceMenus(
-        await fetchNutrisliceDirectory(), new Set(venues.map((venue) => venue.slug)), now
-      ) : undefined;
+      const slugs = new Set(venues.map((venue) => venue.slug));
+      const menuSchools = stream === "menus" ? (await fetchNutrisliceDirectory())
+        .filter((school) => slugs.has(school.slug) && school.types.length > 0) : [];
+      const menus = stream === "menus" ? await fetchNutrisliceMenus(menuSchools, slugs, now) : undefined;
       const payload = hours ?? menus ?? [];
+      const partial = menus !== undefined && menus.length < menuSchools.length;
       if (isSuddenDropOrEmpty(state?.activeRecordCount ?? 0, payload.length)) {
-        throw new Error("Dining results failed the coverage check");
+        await ctx.runMutation(internal.sync.transitDiningSync.applyDiningSyncInternal, {
+          now, stream, partial: true, failureReason: "Dining results failed the coverage check",
+        });
+        return { status: "failed_or_aborted" };
       }
       const payloadHash = await computePayloadHash(payload);
       await ctx.runMutation(internal.sync.transitDiningSync.applyDiningSyncInternal, {
-        now, stream, payloadHash, hours, menus,
+        now, stream, payloadHash, hours, menus, partial,
       });
-      return { status: payloadHash === state?.lastPayloadHash ? "noop_unchanged" : "updated" };
+      return { status: partial ? "incomplete_coverage" : payloadHash === state?.lastPayloadHash ? "noop_unchanged" : "updated" };
     } catch (error) {
       await ctx.runMutation(internal.sync.transitDiningSync.applyDiningSyncInternal, {
         now, stream, failureReason: error instanceof Error ? error.message : "Dining request failed",

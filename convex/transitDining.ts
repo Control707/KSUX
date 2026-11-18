@@ -284,6 +284,12 @@ export const listDiningVenues = viewerQuery({
             : null,
           openStatus,
           hoursAreFixture: venue.isFixtureHours ?? false,
+          hoursFreshness: venue.lastHoursSyncAt === undefined || venue.isFixtureHours
+            ? null : formatStalenessBadge(venue.lastHoursSyncAt, now, 26 * 60 * 60_000),
+          menuFreshness: venue.lastMenuSyncAt === undefined || venue.isFixtureMenu
+            ? null : formatStalenessBadge(venue.lastMenuSyncAt, now, TWENTY_FOUR_HOURS_MS),
+          hasTodayMenu: venue.todayMenuDateET === todayET || venue.tomorrowMenuDateET === todayET,
+          hasTomorrowMenu: venue.todayMenuDateET === tomorrowET || venue.tomorrowMenuDateET === tomorrowET,
           lineStatus,
           menuIsFixture: venue.isFixtureMenu ?? false,
           todayStations: parseStations(menuFor(todayET, venue.todayMenuJson)),
