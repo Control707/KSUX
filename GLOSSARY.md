@@ -136,6 +136,10 @@ _Avoid_: SOS button, panic button
 Points a verified Student earns for corroborated, low-stakes logistics contributions such as Parking Reports, Line Checks, Study Room vibes, and completed handoffs; it never measures reliability and is never earned from or shown on safety content.
 _Avoid_: Points, karma, reputation, trust score
 
+**Leaderboard**:
+The weekly, per-Campus ranking of Students by Clout earned that week, which Students can opt out of appearing on.
+_Avoid_: Ranking, hall of fame, scoreboard
+
 ### Campus AI
 
 **Scrappy**:
