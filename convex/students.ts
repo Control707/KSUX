@@ -455,10 +455,11 @@ export const toggleFollow = viewerMutation({
 export async function closeStudentArtifactsAndMedia(
   ctx: MutationCtx,
   workspaceKey: string,
-  studentId: Id<"students">
+  studentId: Id<"students">,
+  deletePrivateSchedule = false,
 ): Promise<number> {
   const batchSize = 25;
-  const [sessions, pushes, postBatches, listingBatches, hostedSessions, reports, mediaBatches] = await Promise.all([
+  const [sessions, pushes, postBatches, listingBatches, hostedSessions, reports, mediaBatches, privateSchedules] = await Promise.all([
     ctx.db.query("studentSessions").withIndex("by_student", (q) => q.eq("studentId", studentId)).take(batchSize),
     ctx.db.query("pushSubscriptions").withIndex("by_student", (q) => q.eq("studentId", studentId)).take(batchSize),
     Promise.all((["visible", "under_review"] as const).map((status) => ctx.db.query("posts")
@@ -474,7 +475,10 @@ export async function closeStudentArtifactsAndMedia(
     Promise.all((["pending", "attached"] as const).map((status) => ctx.db.query("mediaAssets")
       .withIndex("by_owner_status", (q) => q.eq("workspaceKey", workspaceKey).eq("ownerStudentId", studentId)
         .eq("status", status)).take(batchSize))),
+    deletePrivateSchedule ? ctx.db.query("privateScheduleTerms").withIndex("by_student_term", (q) =>
+      q.eq("workspaceKey", workspaceKey).eq("studentId", studentId)).take(batchSize) : Promise.resolve([]),
   ]);
+  for (const schedule of privateSchedules) await ctx.db.delete(schedule._id);
   for (const s of sessions) await ctx.db.delete(s._id);
   for (const p of pushes) await ctx.db.delete(p._id);
   for (const p of postBatches.flat()) {
@@ -498,7 +502,7 @@ export async function closeStudentArtifactsAndMedia(
   const media = mediaBatches.flat();
   for (const asset of media) await queueMediaDeletion(ctx, asset);
 
-  const batches = [sessions, pushes, ...postBatches, ...listingBatches, hostedSessions, reports, ...mediaBatches];
+  const batches = [sessions, pushes, ...postBatches, ...listingBatches, hostedSessions, reports, ...mediaBatches, privateSchedules];
   if (batches.some((batch) => batch.length === batchSize)) {
     await ctx.scheduler.runAfter(0, internal.students.continueStudentCleanup, { workspaceKey, studentId });
   }
@@ -510,7 +514,7 @@ export const continueStudentCleanup = internalMutation({
   handler: async (ctx, args) => {
     const student = await ctx.db.get(args.studentId);
     if (student?.workspaceKey === args.workspaceKey && student.accountStatus !== "active") {
-      await closeStudentArtifactsAndMedia(ctx, args.workspaceKey, student._id);
+      await closeStudentArtifactsAndMedia(ctx, args.workspaceKey, student._id, student.accountStatus === "deleted");
     }
   },
 });
@@ -530,7 +534,7 @@ export const deleteMyProfile = verifiedStudentMutation({
       expiresAt: now + THIRTY_DAYS_MS,
     });
 
-    const purgedAssetCount = await closeStudentArtifactsAndMedia(ctx, "prod", actor._id);
+    const purgedAssetCount = await closeStudentArtifactsAndMedia(ctx, "prod", actor._id, true);
 
     // Scrub stored canonicalEmail and release live handle slot to handleReservations (30d) while retaining tombstone row
     const tombstoneHandle = `deleted_${String(actor._id).slice(-10).toLowerCase()}`;
