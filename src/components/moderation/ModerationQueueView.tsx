@@ -18,6 +18,8 @@ import {
 } from "@/lib/viewerClient";
 import { KsuPoliceEmergencyCallout } from "@/components/shared/ReportTrigger";
 
+import { V2LaunchOps } from "./V2LaunchOps";
+
 export function ModerationQueueView() {
   const { auth } = useViewerClient();
   const summary = useViewerQuery(api.shell.shellSummary, {});
@@ -76,6 +78,8 @@ export function ModerationQueueView() {
           </div>
         </div>
       </div>
+
+      {isModerator && auth.status === "student" && <V2LaunchOps />}
 
       <KsuPoliceEmergencyCallout />
 

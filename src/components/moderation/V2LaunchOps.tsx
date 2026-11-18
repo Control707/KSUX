@@ -1,0 +1,38 @@
+"use client";
+
+import { api } from "@convex/_generated/api";
+import { useViewerQuery } from "@/lib/viewerClient";
+
+const percent = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 1 });
+const megabytes = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
+
+export function V2LaunchOps() {
+  const data = useViewerQuery(api.moderation.getV2LaunchOps, {});
+  if (!data) return null;
+  const { gate, io } = data;
+  return (
+    <section className="space-y-3 rounded-xl border bg-white p-4" aria-labelledby="v2-launch-ops">
+      <h2 id="v2-launch-ops" className="font-bold">V2 launch readiness</h2>
+      <p>Incident posting {gate.postingEnabled ? "enabled" : "disabled"}. {gate.moderatorCount} eligible appointed Moderators. Operations checklist {gate.opsChecklistDone ? "complete" : "pending"}. Production switch {gate.requested ? "on" : "off"}.</p>
+      <h3 className="font-semibold">Projected monthly database I/O</h3>
+      {!io ? <p>No valid usage measurement has been recorded.</p> : (
+        <>
+          <p role="status">
+            {percent.format(io.projectedBytes / io.monthlyBudgetBytes)} of the 1 GB budget.
+            {io.band === "over_70" ? " At or above 70%." : io.band === "over_50" ? " At or above 50%." : " Below 50%."}
+            {io.stale && " Measurement is stale."}
+          </p>
+          <p>Based on {io.sampleDays} measured days ending {new Date(io.measuredAt).toISOString().slice(0, 10)}.</p>
+          <dl className="grid grid-cols-[1fr_auto] gap-2">
+            {io.shapes.map((shape) => (
+              <div key={shape.key} className="contents">
+                <dt>{shape.label}</dt>
+                <dd>{megabytes.format(shape.projectedBytes / 1_000_000)} MB</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
+    </section>
+  );
+}
