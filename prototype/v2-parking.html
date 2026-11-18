@@ -1,0 +1,885 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PROTOTYPE · KSUX v2 · Parking screen &amp; parking map</title>
+<!--
+  THROWAWAY PROTOTYPE. Branch prototype/v2-parking, never merged.
+  Ticket #47 "Prototype redesigned parking screen and parking map" (Map #35: KSUX v2).
+  Builds on Direction C (Campus Brief) from prototype/v2-shell (tokens + components copied verbatim below).
+  Real MapLibre GL JS 5.5 + OpenFreeMap positron/dark, real KSU lot polygons (public/data/parking-lots.geojson,
+  72 lots, embedded). Fullness values are fake demo data. Everything is in memory; reload resets.
+  Three layouts under test (?layout=sheet|list|tabs, or the prototype bar):
+    sheet = full-bleed map + bottom sheet list (one-hand reach),
+    list  = list-first with a map card (the v2-shell first pass),
+    tabs  = Map | List segmented switch, each full height.
+  Encoding under test on the map: tier hatch fill (same pattern as the fill bar) + glyph pin (○ ◐ ◕ ●) + lot code,
+  dashed outline = estimate, solid = live Student reports.
+-->
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.css">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html{font-size:100%;-webkit-text-size-adjust:100%}
+body{margin:0;background:#26282d;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.stage{height:calc(100dvh - 64px);display:flex;align-items:center;justify-content:center;padding:12px}
+.stage[data-frame="fluid"]{padding:0}
+.stage[data-frame="fluid"] .app{width:100%;height:100%}
+.stage[data-frame="phone"] .app{width:390px;height:min(844px,100%);border-radius:30px;box-shadow:0 0 0 10px #0d0e10,0 24px 60px rgba(0,0,0,.55)}
+
+/* ================= TOKENS (Direction C) ================= */
+.app{
+  --fs-xs:.8125rem; --fs-sm:.875rem; --fs-body:1.0625rem; --fs-lg:1.125rem; --fs-xl:1.375rem; --fs-2xl:1.75rem; --fs-3xl:2.25rem;
+  --sp-1:.25rem; --sp-2:.5rem; --sp-3:.75rem; --sp-4:1rem; --sp-5:1.5rem; --sp-6:2rem;
+  --target:2.75rem; --r-sm:12px; --r-md:18px; --r-lg:24px; --r-card:28px; --r-pill:999px;
+  --font-body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --font-display:ui-serif,"Iowan Old Style","Charter",Georgia,serif;
+  --dur-1:120ms; --dur-2:320ms; --dur-fade:150ms; --ease:cubic-bezier(.2,.8,.2,1); --sheet-move:100%; --focus-w:3px;
+  --bg:#FBF7EF; --surface:#FFFFFF; --surface-2:#F3ECDD; --ink:#1F1A14; --muted:#5C5245; --line:#E2D8C6; --line-strong:#8A7E6B;
+  --accent:#FDBB30; --on-accent:#1F1A14; --accent-ink:#7A4E00; --accent-soft:#FBEBC4;
+  --header:#FBF7EF; --demo:#FFB020; --focus:#0B57D0;
+  --ok-fg:#14592F; --ok-bg:#DCF2E3; --warn-fg:#6B4700; --warn-bg:#FCEFD2; --bad-fg:#8F1D1D; --bad-bg:#FBE2E2;
+  --ken-fg:#7A4E00; --ken-bg:#FBEBC4; --mar-fg:#1E3A8A; --mar-bg:#DBEAFE;
+  --open-fg:#00517F; --open-bg:#E2F0F9; --filling-fg:#6B4700; --filling-bg:#FCEFD2; --nearly-fg:#8A2E00; --nearly-bg:#FBE1D3; --full-fg:#6E1F5C; --full-bg:#F6E1EE;
+  --open-mark:#0072B2; --filling-mark:#B07A00; --nearly-mark:#D55E00; --full-mark:#A23B84;
+  --shadow:0 2px 6px rgba(60,40,10,.06),0 12px 32px rgba(60,40,10,.08);
+  --map-land:#EFE8D8; --map-road:#FFFFFF; --map-bldg:#D9CDB6;
+}
+.app[data-theme="dark"]{
+  --bg:#17140F; --surface:#211D17; --surface-2:#2C271F; --ink:#F6EFE3; --muted:#BFB3A0; --line:#3A342A; --line-strong:#8C806C;
+  --accent:#FDBB30; --on-accent:#1F1A14; --accent-ink:#FDCB5C; --accent-soft:#3A2F14;
+  --header:#17140F; --focus:#8AB4F8;
+  --ok-fg:#8FE0A9; --ok-bg:#12301C; --warn-fg:#F6C667; --warn-bg:#34270C; --bad-fg:#FFA8A8; --bad-bg:#3D1515;
+  --ken-fg:#FDCB5C; --ken-bg:#3A2F14; --mar-fg:#A9C4FF; --mar-bg:#16234A;
+  --open-fg:#8CCBF2; --open-bg:#0F2A3D; --filling-fg:#F6C667; --filling-bg:#34270C; --nearly-fg:#FFA27A; --nearly-bg:#3D1D0F; --full-fg:#F2A6D9; --full-bg:#3A1530;
+  --open-mark:#56B4E9; --filling-mark:#E69F00; --nearly-mark:#FF7A33; --full-mark:#E07FC0;
+  --shadow:0 1px 2px rgba(0,0,0,.4); --map-land:#252019; --map-road:#3A342A; --map-bldg:#3F372B;
+}
+.app[data-motion="reduce"]{--dur-1:0ms;--dur-2:0ms;--sheet-move:0%}
+@media (prefers-reduced-motion:reduce){.app[data-motion="system"]{--dur-1:0ms;--dur-2:0ms;--sheet-move:0%}}
+
+/* ================= BASE ================= */
+.app{position:relative;overflow:hidden;container:app/inline-size;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:var(--fs-body);line-height:1.5;color-scheme:light}
+.app[data-theme="dark"]{color-scheme:dark}
+#shellRoot{height:100%}
+.sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.app :focus-visible{outline:var(--focus-w) solid var(--focus);outline-offset:2px}
+.app [tabindex="-1"]:focus{outline:none}
+h1,h2,h3,h4,p,figure{margin:0}
+a{color:inherit}
+button,input,select,textarea{font:inherit;color:inherit}
+.skip{position:absolute;left:var(--sp-2);top:-5rem;z-index:80;background:var(--ink);color:var(--bg);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-sm);font-weight:700}
+.skip:focus{top:var(--sp-2)}
+.muted{color:var(--muted)} .meta{font-size:var(--fs-xs);color:var(--muted)} .num{font-variant-numeric:tabular-nums}
+.disp{font-family:var(--font-display)}
+svg.i{flex:none;display:block}
+.stack{display:grid;gap:var(--sp-3);grid-template-columns:minmax(0,1fr)} .stack-lg{display:grid;gap:var(--sp-5);grid-template-columns:minmax(0,1fr)}
+.app h1,.app h2,.app h3,.app p,.app b,.app a,.app span{overflow-wrap:anywhere;word-break:normal}
+.row{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
+.spread{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);flex-wrap:wrap}
+
+/* buttons */
+.btn{min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-pill);border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:var(--sp-2);text-decoration:none;font-size:var(--fs-sm);line-height:1.2;text-align:center}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:transparent}
+.btn.dark{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--bad-fg);border-color:currentColor;background:transparent}
+.btn.block{width:100%}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.link{min-height:var(--target);display:inline-flex;align-items:center;gap:var(--sp-1);color:var(--accent-ink);font-weight:750;text-decoration:underline;text-underline-offset:3px;background:none;border:0;padding:0;cursor:pointer;font-size:var(--fs-sm)}
+.icon-btn{min-width:var(--target);min-height:var(--target);display:inline-grid;place-items:center;border:0;background:transparent;border-radius:var(--r-pill);cursor:pointer;color:var(--muted);padding:0}
+.icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+.icon-btn.solid{background:var(--surface-2);color:var(--ink)}
+.icon-btn[aria-pressed="true"]{color:var(--ink)}
+.seg{display:flex;gap:var(--sp-1);flex-wrap:wrap}
+.seg button,.pill{min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-pill);border:1.5px solid var(--line);background:var(--surface);font-weight:700;font-size:var(--fs-sm);cursor:pointer;display:inline-flex;align-items:center;gap:var(--sp-1);white-space:nowrap}
+.seg button[aria-pressed="true"],.pill[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.hscroll{display:flex;gap:var(--sp-2);overflow-x:auto;scrollbar-width:none;padding-bottom:var(--sp-1)}
+.hscroll>*{flex:none}
+
+/* chips & badges */
+.chip{max-width:100%;display:inline-flex;align-items:center;gap:.3em;font-size:var(--fs-xs);font-weight:750;padding:.15rem .6rem .15rem .45rem;border-radius:var(--r-pill);white-space:nowrap;line-height:1.5;background:var(--surface-2);color:var(--ink)}
+.chip.k{background:var(--ken-bg);color:var(--ken-fg)} .chip.m{background:var(--mar-bg);color:var(--mar-fg)}
+.chip.ok{background:var(--ok-bg);color:var(--ok-fg)} .chip.warn{background:var(--warn-bg);color:var(--warn-fg)} .chip.bad{background:var(--bad-bg);color:var(--bad-fg)}
+.chip.open{color:var(--open-fg);background:var(--open-bg)} .chip.filling{color:var(--filling-fg);background:var(--filling-bg)} .chip.nearly{color:var(--nearly-fg);background:var(--nearly-bg)} .chip.full{color:var(--full-fg);background:var(--full-bg)}
+.chip.outline{background:transparent;border:1.5px solid var(--line)}
+a.chip{text-decoration:none;min-height:1.75rem}
+.bar{height:.5rem;border-radius:var(--r-pill);background:var(--surface-2);overflow:hidden}
+.fill{display:block;height:100%;border-radius:inherit}
+.fill.open{background:var(--open-mark)}
+.fill.filling{background:repeating-linear-gradient(90deg,var(--filling-mark) 0 7px,transparent 7px 9px)}
+.fill.nearly{background:repeating-linear-gradient(45deg,var(--nearly-mark) 0 5px,color-mix(in srgb,var(--nearly-mark) 45%,transparent) 5px 8px)}
+.fill.full{background:repeating-linear-gradient(135deg,var(--full-mark) 0 3px,color-mix(in srgb,var(--full-mark) 60%,transparent) 3px 5px)}
+.mark-open{color:var(--open-mark)} .mark-filling{color:var(--filling-mark)} .mark-nearly{color:var(--nearly-mark)} .mark-full{color:var(--full-mark)}
+.count{min-width:1.35rem;height:1.35rem;padding:0 .35rem;border-radius:var(--r-pill);background:var(--ink);color:var(--bg);font-size:.75rem;font-weight:800;display:inline-grid;place-items:center;line-height:1}
+.avatar{flex:none;width:2.5rem;height:2.5rem;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:var(--fs-sm);background:var(--surface-2);color:var(--ink);border:2px solid var(--line)}
+.avatar.lg{width:5rem;height:5rem;font-size:var(--fs-xl)}
+.avatar.owl{background:var(--accent);color:var(--on-accent);border-color:transparent}
+
+/* cards */
+.card{background:var(--surface);border-radius:var(--r-card);padding:var(--sp-4);box-shadow:var(--shadow);display:grid;gap:var(--sp-2);min-width:0;grid-template-columns:minmax(0,1fr)}
+.card.pad{padding:var(--sp-5)}
+.card.flat{box-shadow:none;border:1.5px solid var(--line)}
+.kicker{display:flex;align-items:center;gap:var(--sp-2);font-size:var(--fs-xs);font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--accent-ink)}
+.card h3,.story-h{font-family:var(--font-display);font-size:var(--fs-xl);line-height:1.2;font-weight:700}
+.note{padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--surface-2);font-size:var(--fs-sm)}
+.note.ok{background:var(--ok-bg);color:var(--ok-fg)} .note.warn{background:var(--warn-bg);color:var(--warn-fg)} .note.bad{background:var(--bad-bg);color:var(--bad-fg)}
+.callout{border:2px solid var(--bad-fg);border-radius:var(--r-md);padding:var(--sp-3) var(--sp-4);font-size:var(--fs-sm);display:grid;gap:var(--sp-1)}
+.callout b{color:var(--bad-fg)}
+.list{list-style:none;margin:0;padding:0;display:grid}
+.list>li{padding:var(--sp-3) 0;border-top:1px solid var(--line)}
+.list>li:first-child{border-top:0}
+.empty{text-align:center;padding:var(--sp-5);color:var(--muted);font-size:var(--fs-sm)}
+
+/* forms */
+.field{display:grid;gap:var(--sp-1)}
+.field>label,.lbl{font-size:var(--fs-sm);font-weight:700}
+.input,.select,.textarea{width:100%;min-height:var(--target);padding:var(--sp-2) var(--sp-3);border:1.5px solid var(--line-strong);border-radius:var(--r-sm);background:var(--surface);font-size:var(--fs-body)}
+.textarea{min-height:6rem;resize:vertical;line-height:1.45}
+.select{appearance:none;padding-right:2.25rem;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 1.1rem) 50%,calc(100% - .75rem) 50%;background-size:.35rem .35rem;background-repeat:no-repeat}
+.input:focus-visible,.select:focus-visible,.textarea:focus-visible{outline:var(--focus-w) solid var(--focus);outline-offset:1px}
+.hint{font-size:var(--fs-xs);color:var(--muted)}
+.err{font-size:var(--fs-sm);color:var(--bad-fg);font-weight:700}
+.check{display:flex;gap:var(--sp-2);align-items:flex-start;min-height:var(--target);padding-top:var(--sp-2);font-size:var(--fs-sm);cursor:pointer}
+.check input{width:1.4rem;height:1.4rem;margin:0;flex:none;accent-color:var(--ink)}
+fieldset{border:0;margin:0;padding:0;min-width:0}
+legend{font-size:var(--fs-sm);font-weight:700;padding:0;margin-bottom:var(--sp-1)}
+.radio-list{display:grid;gap:var(--sp-2)}
+.radio{display:flex;gap:var(--sp-3);align-items:flex-start;padding:var(--sp-3);border:1.5px solid var(--line);border-radius:var(--r-sm);cursor:pointer}
+.radio:has(input:checked){border-color:var(--ink);background:var(--surface-2)}
+.radio input{width:1.3rem;height:1.3rem;margin:.15rem 0 0;flex:none;accent-color:var(--ink)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3)}
+@container app (max-width:22em){.grid2{grid-template-columns:1fr}}
+
+/* photo picker + gallery */
+.thumbs{display:flex;gap:var(--sp-2);flex-wrap:wrap}
+.thumb{position:relative;width:5rem;height:5rem;border-radius:var(--r-sm);overflow:hidden;background:var(--surface-2)}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb .icon-btn{position:absolute;top:2px;right:2px;min-width:2.25rem;min-height:2.25rem;background:rgba(0,0,0,.65);color:#fff}
+.add-photo{width:5rem;height:5rem;border:2px dashed var(--line-strong);border-radius:var(--r-sm);display:grid;place-items:center;align-content:center;gap:2px;font-size:var(--fs-xs);font-weight:750;cursor:pointer;color:var(--muted);text-align:center}
+.add-photo:focus-within{outline:var(--focus-w) solid var(--focus);outline-offset:2px}
+.add-photo input{position:absolute;opacity:0;width:1px;height:1px}
+.media{display:grid;gap:var(--sp-2);grid-template-columns:repeat(2,minmax(0,1fr));border-radius:var(--r-md);overflow:hidden}
+.media.one{grid-template-columns:1fr}
+.media img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;border-radius:var(--r-sm)}
+.gallery{position:relative;border-radius:var(--r-md);overflow:hidden;background:var(--surface-2)}
+.gallery img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+.gallery .nav-g{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.6);color:#fff}
+.gallery .prev{left:var(--sp-2)} .gallery .next{right:var(--sp-2)}
+.gallery .pos{position:absolute;bottom:var(--sp-2);right:var(--sp-2);background:rgba(0,0,0,.7);color:#fff;font-size:var(--fs-xs);font-weight:800;padding:.1rem .6rem;border-radius:var(--r-pill)}
+.gthumbs{display:flex;gap:var(--sp-2);margin-top:var(--sp-2)}
+.gthumbs button{padding:0;border:3px solid transparent;border-radius:var(--r-sm);overflow:hidden;width:3.5rem;height:3.5rem;cursor:pointer;background:none}
+.gthumbs button[aria-current="true"]{border-color:var(--ink)}
+.gthumbs img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* ================= SHELL ================= */
+.shell{display:grid;height:100%;min-height:0;grid-template-rows:auto 1fr;grid-template-columns:100%;grid-template-areas:"header" "main"}
+.hdr{grid-area:header;position:relative;z-index:6;background:color-mix(in srgb,var(--header) 94%,transparent);backdrop-filter:blur(10px);padding:var(--sp-2) var(--sp-4);border-bottom:1px solid transparent}
+.hdr.scrolled{border-bottom-color:var(--line)}
+.hdr-row{display:flex;align-items:center;gap:var(--sp-2);min-height:var(--target)}
+.brand{font-family:var(--font-display);font-weight:800;font-size:var(--fs-xl);font-style:italic;display:inline-flex;align-items:center;gap:var(--sp-2);text-decoration:none;color:var(--ink);min-height:var(--target)}
+.brand .dot{width:.6rem;height:.6rem;border-radius:50%;background:var(--accent)}
+.hdr-title{font-weight:800;font-size:var(--fs-lg);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hdr .grow{flex:1}
+.campus-chips{display:flex;gap:var(--sp-2);overflow-x:auto;scrollbar-width:none;padding:var(--sp-2) 0 var(--sp-1)}
+.campus-chips button{flex:none;min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-pill);border:1.5px solid var(--line);background:var(--surface);font-weight:700;font-size:var(--fs-sm);cursor:pointer;display:inline-flex;align-items:center;gap:var(--sp-1)}
+.campus-chips button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.campus-chips .lbl{align-self:center;flex:none;padding-right:var(--sp-1)}
+.demo{position:relative}
+.demo-pill{min-height:var(--target);display:inline-flex;align-items:center;gap:.3rem;padding:0 var(--sp-3);border-radius:var(--r-pill);background:transparent;color:var(--ink);border:2px solid var(--demo);font-weight:800;font-size:var(--fs-xs);cursor:pointer;white-space:nowrap}
+.demo-pill .zap{color:var(--accent-ink)}
+.menu{position:absolute;right:0;top:calc(100% + 6px);z-index:30;width:min(19rem,86vw);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-md);padding:var(--sp-2);box-shadow:0 12px 32px rgba(0,0,0,.25);max-height:70vh;overflow:auto}
+.menu hr{border:0;border-top:1px solid var(--line);margin:var(--sp-2) 0}
+.menu-h{font-size:var(--fs-xs);font-weight:800;color:var(--muted);padding:var(--sp-1) var(--sp-2);text-transform:uppercase;letter-spacing:.06em}
+.mi{display:flex;flex-direction:column;align-items:flex-start;width:100%;min-height:var(--target);padding:var(--sp-2);border:0;background:none;border-radius:var(--r-sm);cursor:pointer;text-align:left;font-size:var(--fs-sm);font-weight:700;color:var(--ink);text-decoration:none}
+.mi:hover{background:var(--surface-2)}
+.mi .muted{font-weight:500;font-size:var(--fs-xs)}
+.mi[aria-checked="true"]::after{content:"✓ Active";font-size:var(--fs-xs);color:var(--accent-ink);font-weight:800}
+.mi.danger{color:var(--bad-fg)}
+.main{grid-area:main;overflow:auto;min-height:0;overscroll-behavior:contain;padding-bottom:7rem;scroll-padding-block:6rem 8rem}
+.main.no-dock{padding-bottom:0}
+.page{padding:var(--sp-3) var(--sp-4) var(--sp-5);display:grid;gap:var(--sp-5);max-width:46rem;margin:0 auto;grid-template-columns:minmax(0,1fr)}
+.page-h h1{font-family:var(--font-display);font-size:var(--fs-2xl);line-height:1.15;font-weight:700}
+.page-h p{color:var(--muted);font-size:var(--fs-sm);margin-top:var(--sp-1)}
+.page-h .scope{display:inline-flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-xs);font-weight:700;color:var(--muted);margin-top:var(--sp-1)}
+.sec-row{display:flex;align-items:baseline;justify-content:space-between;gap:var(--sp-2);margin-bottom:var(--sp-2);flex-wrap:wrap}
+.sec-row h2{font-family:var(--font-display);font-size:var(--fs-xl)}
+
+/* dock (mobile bottom nav) */
+.dock{position:absolute;left:var(--sp-3);right:var(--sp-3);bottom:max(var(--sp-3),env(safe-area-inset-bottom));z-index:7;display:grid;grid-template-columns:1fr 1fr 1.7fr 1fr 1fr;align-items:center;gap:var(--sp-1);padding:var(--sp-1);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-pill);box-shadow:0 10px 30px rgba(40,25,5,.18)}
+.dock-i{position:relative;min-height:3.25rem;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);text-decoration:none;font-size:.75rem;font-weight:700;border-radius:var(--r-pill);line-height:1.1}
+.dock-i[aria-current="page"]{background:var(--surface-2);color:var(--ink);font-weight:850}
+.dock-i .count{position:absolute;top:.1rem;left:calc(50% + .3rem)}
+.dock-q{min-height:3.25rem;display:flex;align-items:center;justify-content:center;gap:var(--sp-1);border-radius:var(--r-pill);border:0;background:var(--accent);color:var(--on-accent);font-weight:850;font-size:var(--fs-sm);cursor:pointer;padding:0 var(--sp-2);line-height:1.1}
+.rail,.pulse{display:none}
+@container app (min-width:1024px){
+  .shell{grid-template-columns:16rem minmax(0,1fr) 21rem;grid-template-areas:"rail header pulse" "rail main pulse"}
+  .dock{display:none!important}
+  .main{padding-bottom:var(--sp-6)}
+  .rail{display:flex;flex-direction:column;grid-area:rail;min-height:0;overflow:auto;background:var(--bg);padding:var(--sp-4) var(--sp-3);gap:2px;border-right:1px solid var(--line)}
+  .rail .brand{padding:0 var(--sp-3) var(--sp-3);font-size:var(--fs-2xl)}
+  .rail a{display:flex;align-items:center;gap:var(--sp-3);min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-pill);color:var(--muted);text-decoration:none;font-weight:700}
+  .rail a[aria-current="page"]{background:var(--ink);color:var(--bg)}
+  .rail a .count{margin-left:auto}
+  .rail .rail-h{font-size:var(--fs-xs);font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:var(--sp-4) var(--sp-4) var(--sp-1)}
+  .rail .btn{margin-top:var(--sp-4);min-height:3.25rem}
+  .pulse{display:block;grid-area:pulse;overflow:auto;min-height:0;padding:var(--sp-4);border-left:1px solid var(--line);background:var(--surface)}
+  .hdr .brand-m{display:none}
+}
+.pulse h2{font-family:var(--font-display);font-size:var(--fs-xl)}
+.pulse h3{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:var(--sp-4) 0 var(--sp-1)}
+.plist{list-style:none;margin:0;padding:0}
+.plist li{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--sp-2);font-size:var(--fs-sm);padding:var(--sp-2) 0;border-bottom:1px solid var(--line)}
+
+/* dialog / sheet primitive */
+.backdrop{position:absolute;inset:0;z-index:40;background:rgba(0,0,0,.45);animation:fade var(--dur-fade) ease-out}
+.dialog{grid-template-columns:minmax(0,1fr);position:absolute;z-index:41;left:0;right:0;bottom:0;max-height:92%;overflow:auto;background:var(--surface);color:var(--ink);border-radius:var(--r-card) var(--r-card) 0 0;padding:var(--sp-3) var(--sp-5) var(--sp-6);animation:sheetIn var(--dur-2) var(--ease),fade var(--dur-fade) ease-out;display:grid;gap:var(--sp-4);align-content:start}
+.dialog.full{top:0;max-height:none;border-radius:0}
+@keyframes sheetIn{from{transform:translateY(var(--sheet-move))}to{transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@container app (min-width:1024px){.dialog,.dialog.full{left:50%;right:auto;bottom:auto;top:8%;width:38rem;max-height:84%;transform:translateX(-50%);border-radius:var(--r-card);animation:fade var(--dur-fade) ease-out}}
+.handle{width:2.5rem;height:.3rem;border-radius:var(--r-pill);background:var(--line);margin:0 auto}
+.dlg-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3)}
+.dlg-head h2{font-family:var(--font-display);font-size:var(--fs-xl);line-height:1.2}
+.dlg-actions{display:flex;gap:var(--sp-2);justify-content:flex-end;flex-wrap:wrap}
+.ask-field{display:flex;align-items:center;gap:var(--sp-2);min-height:3.5rem;padding:0 var(--sp-2) 0 var(--sp-4);border:2px solid var(--line-strong);border-radius:var(--r-pill);background:var(--bg)}
+.ask-field input{flex:1;border:0;background:none;min-height:var(--target);font-size:var(--fs-body);min-width:0}
+.ask-field input:focus{outline:none}
+.ask-field:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.sec-h{font-size:var(--fs-xs);font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3)}
+.tiles button{display:grid;gap:var(--sp-1);text-align:left;min-height:5.5rem;padding:var(--sp-4);border-radius:var(--r-md);border:0;background:var(--surface-2);cursor:pointer;align-content:start;color:var(--ink)}
+.tiles b{font-family:var(--font-display);font-size:var(--fs-lg)}
+.tiles span{font-size:var(--fs-xs);color:var(--muted)}
+.capchips{display:flex;flex-wrap:wrap;gap:var(--sp-2);list-style:none;margin:0;padding:0}
+.capchips a{min-height:var(--target);display:inline-flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-4);border-radius:var(--r-pill);border:1.5px solid var(--line);text-decoration:none;color:var(--ink);font-weight:700;font-size:var(--fs-sm)}
+
+/* toasts */
+.toasts{position:absolute;left:50%;transform:translateX(-50%);bottom:6.5rem;z-index:60;width:max-content;max-width:92%;display:grid;gap:var(--sp-2);pointer-events:none}
+.toast{background:var(--ink);color:var(--bg);font-weight:700;font-size:var(--fs-sm);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);box-shadow:0 8px 24px rgba(0,0,0,.3);animation:fade var(--dur-fade)}
+.msg-toast{position:absolute;left:var(--sp-3);right:var(--sp-3);top:var(--sp-3);z-index:61;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow);padding:var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4);display:flex;align-items:center;gap:var(--sp-2);animation:fade var(--dur-fade)}
+.msg-toast a{flex:1;text-decoration:none;font-size:var(--fs-sm);min-height:var(--target);display:grid;align-content:center}
+@container app (min-width:1024px){.toasts{bottom:var(--sp-5)}.msg-toast{left:auto;width:24rem}}
+.offline-bar{background:var(--warn-bg);color:var(--warn-fg);font-weight:750;font-size:var(--fs-sm);padding:var(--sp-2) var(--sp-4);display:flex;gap:var(--sp-2);align-items:center}
+
+/* ================= SCREENS ================= */
+/* Now */
+.dateline{font-size:var(--fs-sm);color:var(--muted);font-weight:650}
+.hello{font-family:var(--font-display);font-size:var(--fs-3xl);line-height:1.1;font-weight:700;letter-spacing:-.015em}
+.lede blockquote{margin:0;font-family:var(--font-display);font-size:var(--fs-xl);line-height:1.35}
+.lede blockquote::before{content:"“";color:var(--accent-ink);font-size:1.6em;line-height:0;vertical-align:-.35em;margin-right:.05em}
+.src{font-size:var(--fs-xs);color:var(--muted);display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap}
+.carousel{display:flex;gap:var(--sp-3);overflow-x:auto;scroll-snap-type:x mandatory;padding:var(--sp-1) var(--sp-4) var(--sp-3);margin:0 calc(-1 * var(--sp-4));list-style:none;scroll-padding-inline:var(--sp-4);scrollbar-width:none}
+.carousel:focus-visible{outline-offset:-3px}
+.carousel>li{flex:0 0 min(15rem,78%);scroll-snap-align:start}
+.carousel .card{height:100%}
+.pct{font-family:var(--font-display);font-size:3rem;line-height:1;font-weight:700}
+.deadlines{display:flex;gap:var(--sp-2);flex-wrap:wrap}
+.tonight{list-style:none;margin:0;padding:0}
+.tonight li{display:grid;grid-template-columns:5rem minmax(0,1fr);gap:var(--sp-3);padding:var(--sp-3) 0;border-top:1px solid var(--line)}
+.tonight .t{font-weight:800;font-size:var(--fs-sm)}
+.tonight .link,.list .link{display:inline;min-height:0;line-height:1.6;padding-block:.6rem;}
+@container app (max-width:22em){.tonight li{grid-template-columns:minmax(0,1fr)}}
+.install{display:flex;gap:var(--sp-3);align-items:flex-start;position:relative}
+.install>.icon-btn{position:absolute;top:var(--sp-2);right:var(--sp-2)}
+.install>.stack{padding-right:var(--target)}
+
+/* feed */
+.rings{display:flex;gap:var(--sp-3);overflow-x:auto;scrollbar-width:none;padding:var(--sp-1) var(--sp-4) var(--sp-2);margin:0 calc(-1 * var(--sp-4));list-style:none}
+.rings li{flex:none}
+.ring{display:flex;flex-direction:column;align-items:center;gap:var(--sp-1);border:0;background:none;cursor:pointer;padding:0;min-width:4rem;color:var(--ink);font-size:var(--fs-xs);font-weight:700;text-decoration:none}
+.ring .r{width:3.5rem;height:3.5rem;border-radius:50%;display:grid;place-items:center;font-weight:850;font-size:.75rem;overflow-wrap:normal!important;line-height:1.1;text-align:center;border:3px solid var(--line);background:var(--surface)}
+.ring[aria-pressed="true"] .r{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.ring.club .r{border-style:dashed}
+.composer-start{flex-wrap:wrap;display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-card);background:var(--surface);box-shadow:var(--shadow);border:0;width:100%;cursor:pointer;text-align:left;color:var(--muted);font-size:var(--fs-body);min-height:4rem}
+.post{background:var(--surface);border-radius:var(--r-card);padding:var(--sp-4);box-shadow:var(--shadow);display:grid;gap:var(--sp-3);grid-template-columns:minmax(0,1fr)}
+.post-h{display:flex;gap:var(--sp-3);align-items:flex-start}
+.post-h .who{flex:1;min-width:0;display:grid;gap:2px}
+.post-h .who a{font-weight:800;text-decoration:none}
+.post-h .who a:hover{text-decoration:underline}
+.post-body{white-space:pre-wrap;overflow-wrap:anywhere}
+.post-body .tag{color:var(--accent-ink);font-weight:750}
+.embed{display:grid;gap:2px;padding:var(--sp-3) var(--sp-4);border:1.5px solid var(--line);border-radius:var(--r-md);text-decoration:none}
+.embed .t{font-weight:800}
+.quote{border-left:4px solid var(--line-strong);padding:var(--sp-1) var(--sp-3);font-size:var(--fs-sm)}
+.actions{display:flex;flex-wrap:wrap;justify-content:space-between;border-top:1px solid var(--line);padding-top:var(--sp-1);margin:0 calc(-1 * var(--sp-2))}
+.act{min-height:var(--target);min-width:var(--target);display:inline-flex;align-items:center;justify-content:center;gap:var(--sp-1);border:0;background:none;border-radius:var(--r-pill);cursor:pointer;color:var(--muted);font-weight:700;font-size:var(--fs-sm);padding:0 var(--sp-2)}
+.act:hover{background:var(--surface-2);color:var(--ink)}
+.act[aria-pressed="true"]{color:var(--ink)}
+.cite{display:inline-flex;align-items:center;gap:var(--sp-1);min-height:2rem;padding:0 var(--sp-3);border-radius:var(--r-pill);background:var(--accent-soft);color:var(--ink);font-size:var(--fs-xs);font-weight:750;text-decoration:none}
+.reply{display:grid;gap:var(--sp-1);padding:var(--sp-3);border-radius:var(--r-md);background:var(--surface-2)}
+.reply.owl{background:var(--accent-soft)}
+
+/* marketplace */
+.listings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3)}
+@container app (min-width:700px){.listings{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@container app (max-width:20em){.listings{grid-template-columns:1fr}}
+.listing{background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;position:relative}
+.listing .ph{position:relative;aspect-ratio:1;background:var(--surface-2)}
+.listing .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.listing .ph .n{position:absolute;bottom:var(--sp-2);left:var(--sp-2);background:rgba(0,0,0,.7);color:#fff;font-size:.75rem;font-weight:800;padding:.05rem .5rem;border-radius:var(--r-pill);display:inline-flex;gap:3px;align-items:center}
+.listing .save{position:absolute;top:var(--sp-1);right:var(--sp-1);background:rgba(255,255,255,.92);color:#1F1A14;z-index:2}
+.listing .save[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+.listing .body{padding:var(--sp-3);display:grid;gap:2px;flex:1}
+.listing .price{font-weight:900;font-size:var(--fs-lg)}
+.listing .ttl{font-weight:700;font-size:var(--fs-sm);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.listing a.cover{position:absolute;inset:0;z-index:1;border-radius:var(--r-md)}
+.listing a.cover:focus-visible{outline-offset:-3px}
+.status-tag{position:absolute;top:var(--sp-2);left:var(--sp-2);z-index:2}
+
+/* chats */
+.chat-row{display:flex;gap:var(--sp-3);align-items:center;padding:var(--sp-2) 0}
+.chat-row a{flex:1;min-width:0;display:grid;gap:2px;text-decoration:none;min-height:3.5rem;align-content:center}
+.chat-row .t{font-weight:800;display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap}
+.chat-row .p{font-size:var(--fs-sm);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-row.unread .p{color:var(--ink);font-weight:650}
+.thread{display:flex;flex-direction:column;height:100%;min-height:0}
+.thread-scroll{flex:1;overflow:auto;padding:var(--sp-3) var(--sp-4);display:grid;gap:var(--sp-3);align-content:start}
+.bubble-wrap{display:grid;gap:2px;max-width:85%}
+.bubble-wrap.me{justify-self:end}
+.bubble{padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--surface);box-shadow:var(--shadow);overflow-wrap:anywhere}
+.me .bubble{background:var(--ink);color:var(--bg)}
+.sys .bubble{background:var(--accent-soft);box-shadow:none;border:1.5px solid var(--accent)}
+.bubble img{max-width:100%;border-radius:var(--r-sm);margin-top:var(--sp-1);display:block}
+.bubble .rq{font-size:var(--fs-xs);border-left:3px solid currentColor;padding-left:var(--sp-2);opacity:.85;margin-bottom:var(--sp-1)}
+.reacts{display:flex;gap:var(--sp-1);flex-wrap:wrap}
+.reacts button{min-height:2rem;padding:0 var(--sp-2);border-radius:var(--r-pill);border:1.5px solid var(--line);background:var(--surface);cursor:pointer;font-size:var(--fs-xs);font-weight:750}
+.reacts button[aria-pressed="true"]{border-color:var(--ink);background:var(--surface-2)}
+.msg-tools{display:flex;gap:var(--sp-1);flex-wrap:wrap}
+.composer-bar{border-top:1px solid var(--line);padding:var(--sp-2) var(--sp-3) max(var(--sp-3),env(safe-area-inset-bottom));display:grid;gap:var(--sp-2);background:var(--bg)}
+.composer-bar form{display:flex;gap:var(--sp-2);align-items:flex-end}
+.composer-bar .input{border-radius:var(--r-lg)}
+.handoff{background:var(--surface);border-bottom:1px solid var(--line);padding:var(--sp-3) var(--sp-4);display:grid;gap:var(--sp-2)}
+.handoff details summary{cursor:pointer;min-height:var(--target);display:flex;align-items:center;gap:var(--sp-2);font-weight:800;list-style:none}
+.handoff details summary::-webkit-details-marker{display:none}
+
+/* parking map */
+.map{position:relative;border-radius:var(--r-md);overflow:hidden;background:var(--map-land);border:1.5px solid var(--line)}
+.map svg.mapsvg{display:block;width:100%;height:auto;transition:transform var(--dur-2) var(--ease);transform-origin:center}
+.map .ctrls{position:absolute;right:var(--sp-2);top:var(--sp-2);display:grid;gap:2px;background:var(--surface);border-radius:var(--r-sm);box-shadow:var(--shadow);overflow:hidden}
+.map .ctrls .icon-btn{border-radius:0;color:var(--ink)}
+.map .attr{position:absolute;right:0;bottom:0;background:color-mix(in srgb,var(--surface) 90%,transparent);font-size:.75rem;padding:2px var(--sp-2);border-top-left-radius:var(--r-sm)}
+.map .legend{position:absolute;left:var(--sp-2);bottom:var(--sp-2);background:var(--surface);border-radius:var(--r-sm);padding:var(--sp-1) var(--sp-2);font-size:.75rem;display:flex;gap:var(--sp-2);flex-wrap:wrap;max-width:70%}
+.map .legend span{display:inline-flex;align-items:center;gap:2px;font-weight:700}
+.lot{background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);padding:var(--sp-3) var(--sp-4);display:grid;gap:var(--sp-2);border:2px solid transparent}
+.lot.sel{border-color:var(--ink)}
+.lot-head{display:flex;gap:var(--sp-3);align-items:center}
+.lot-head button.expand{flex:1;min-width:0;text-align:left;background:none;border:0;padding:0;cursor:pointer;display:grid;gap:2px;min-height:var(--target)}
+.lot-head .nm{font-weight:800}
+.slots{display:grid;grid-template-columns:repeat(28,1fr);gap:2px;margin-top:var(--sp-1)}
+.slots span{height:1.1rem;border-radius:3px;background:var(--surface-2);border:1px solid var(--line)}
+.slots span.f{background:var(--ok-fg);border-color:var(--ok-fg)}
+.route-tile{flex:none;width:3rem;height:3rem;border-radius:var(--r-sm);display:grid;place-items:center;font-weight:900;font-size:var(--fs-sm);color:#1F1A14}
+.stations{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:var(--sp-2)}
+.station{border:1.5px solid var(--line);border-radius:var(--r-sm);padding:var(--sp-2) var(--sp-3);font-size:var(--fs-sm)}
+.station ul{margin:var(--sp-1) 0 0;padding-left:1.1rem}
+.tabs{display:flex;gap:var(--sp-1);border-bottom:1.5px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs button{min-height:var(--target);padding:0 var(--sp-3);border:0;background:none;font-weight:700;font-size:var(--fs-sm);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1.5px;white-space:nowrap;color:var(--muted)}
+.tabs button[aria-selected="true"]{border-bottom-color:var(--ink);color:var(--ink)}
+.profile-top{display:flex;gap:var(--sp-4);align-items:center}
+.stats{display:flex;gap:var(--sp-5)}
+.stats b{display:block;font-size:var(--fs-xl);font-family:var(--font-display)}
+
+/* welcome */
+.welcome{min-height:100%;display:grid;align-content:center;gap:var(--sp-5);padding:var(--sp-6) var(--sp-5);max-width:30rem;margin:0 auto}
+.welcome h1{font-family:var(--font-display);font-size:var(--fs-3xl);line-height:1.1}
+.otp{font-family:ui-monospace,Menlo,monospace;font-size:var(--fs-2xl);letter-spacing:.4em;text-align:center}
+
+/* LARGE TEXT MODE (>=150% text on a phone) */
+@container app (max-width:18em){
+  .demo-pill>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .dock{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .dock .lbl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .dock-i,.dock-q{min-height:3.75rem}
+  .listings{grid-template-columns:1fr}
+  .tiles{grid-template-columns:1fr}
+  .install{display:grid}
+  .install>.stack{padding-right:0}
+  .profile-top{flex-wrap:wrap}
+  .stats{flex-wrap:wrap;gap:var(--sp-3)}
+}
+/* ================= PROTOTYPE CHROME (not under evaluation; px on purpose) ================= */
+.proto-bar{position:fixed;left:50%;bottom:8px;transform:translateX(-50%);z-index:1000;display:flex;align-items:center;gap:6px;padding:6px 8px;background:#fff;color:#111;border-radius:999px;box-shadow:0 0 0 2px #ff2d92,0 10px 30px rgba(0,0,0,.45);font:600 12px/1 system-ui,sans-serif;white-space:nowrap;max-width:calc(100vw - 16px);overflow-x:auto}
+.proto-bar button,.proto-bar select,.proto-bar a{font:inherit;height:32px;border:1px solid #ccc;border-radius:999px;background:#f4f4f4;padding:0 10px;cursor:pointer;color:#111;display:inline-flex;align-items:center;text-decoration:none}
+.proto-bar .tag{background:#ff2d92;color:#fff;border-radius:999px;padding:4px 8px;font-weight:900;letter-spacing:.05em}
+.proto-bar input[type=range]{width:80px}
+.proto-bar label{display:flex;align-items:center;gap:4px}
+.tokens{position:fixed;top:0;right:0;bottom:64px;width:min(440px,100vw);z-index:999;background:#fff;color:#111;overflow:auto;box-shadow:-10px 0 30px rgba(0,0,0,.4);font:13px/1.45 system-ui,sans-serif;padding:14px 16px 24px}
+.tokens h2{font-size:15px;margin:16px 0 6px} .tokens table{width:100%;border-collapse:collapse;font-size:12px}
+.tokens td{padding:4px;border-bottom:1px solid #eee;vertical-align:middle}
+.tokens .sw{display:inline-block;width:16px;height:16px;border-radius:4px;border:1px solid rgba(0,0,0,.2);vertical-align:-3px;margin-right:4px}
+.tokens .pass{color:#0a6b2d;font-weight:800}.tokens .fail{color:#b00020;font-weight:800}.tokens .info{color:#555}
+.tokens .x{float:right;height:32px;padding:0 12px;border-radius:999px;border:1px solid #ccc;background:#f4f4f4;cursor:pointer}
+.tokens ul{padding-left:18px;margin:4px 0} .tokens code{background:#f1f1f1;padding:0 3px;border-radius:3px}
+
+/* ================= PARKING PROTOTYPE (ticket #47) ================= */
+.app{--sheet-peek:auto}
+.hdr-title.h1{font-family:var(--font-display);font-size:var(--fs-xl);font-weight:700}
+.park{position:relative;padding-bottom:0!important;overflow:hidden!important;display:flex;flex-direction:column}
+.map-wrap{position:relative;background:var(--map-land);min-height:0}
+#map{position:absolute;inset:0}
+#map .maplibregl-canvas:focus-visible{outline:var(--focus-w) solid var(--focus);outline-offset:-3px}
+.map-wrap .ctrls{position:absolute;right:var(--sp-2);top:var(--sp-2);z-index:3;display:grid;gap:2px;background:var(--surface);border-radius:var(--r-sm);box-shadow:var(--shadow);overflow:hidden}
+.map-wrap .ctrls .icon-btn{border-radius:0;color:var(--ink)}
+.map-wrap .ctrls hr{margin:0;border:0;border-top:1px solid var(--line)}
+.map-wrap .legend-btn{position:absolute;left:var(--sp-2);top:var(--sp-2);z-index:3}
+.legend-card{position:absolute;left:var(--sp-2);top:calc(var(--sp-2) + var(--target) + var(--sp-2));z-index:3;background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);padding:var(--sp-3);display:grid;gap:var(--sp-2);font-size:var(--fs-xs);max-width:min(17rem,70%)}
+.legend-card ul{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-1)}
+.legend-card li svg.i{display:inline-block;vertical-align:-3px}
+.legend-card li{display:grid;grid-template-columns:2.25rem auto;align-items:center;gap:var(--sp-2);font-weight:700}
+.swatch{width:2.25rem;height:1.25rem;border-radius:4px;border:2px solid currentColor;background-color:var(--surface)}
+.swatch.open{background:color-mix(in srgb,var(--open-mark) 30%,var(--surface))}
+.swatch.filling{background:repeating-linear-gradient(90deg,var(--filling-mark) 0 3px,color-mix(in srgb,var(--filling-mark) 18%,var(--surface)) 3px 7px)}
+.swatch.nearly{background:repeating-linear-gradient(45deg,var(--nearly-mark) 0 2px,color-mix(in srgb,var(--nearly-mark) 20%,var(--surface)) 2px 6px)}
+.swatch.full{background:repeating-linear-gradient(45deg,var(--full-mark) 0 2px,transparent 2px 5px),repeating-linear-gradient(135deg,var(--full-mark) 0 2px,color-mix(in srgb,var(--full-mark) 35%,var(--surface)) 2px 5px)}
+.swatch.est{border-style:dashed;background:var(--surface);color:var(--line-strong)}
+.swatch.live{color:var(--ink);background:var(--surface)}
+.swatch.other{color:var(--line-strong);background:color-mix(in srgb,var(--line-strong) 15%,var(--surface))}
+.map-note{position:absolute;left:var(--sp-2);right:calc(var(--target) + var(--sp-4));bottom:var(--sp-6);z-index:3}
+.skip-map{position:absolute;left:var(--sp-2);top:-6rem;z-index:5;background:var(--ink);color:var(--bg);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-sm);font-weight:700}
+.skip-map:focus{top:var(--sp-2)}
+.maplibregl-ctrl-attrib{font-size:.8125rem!important;background:color-mix(in srgb,var(--surface) 92%,transparent)!important;color:var(--ink)!important}
+.maplibregl-ctrl-attrib a{color:var(--ink)!important}
+.map-fallback{position:absolute;inset:0;display:grid;place-items:center;padding:var(--sp-5);text-align:center;color:var(--muted);font-size:var(--fs-sm)}
+
+/* the list "sheet" */
+.sheet{background:var(--bg);display:flex;flex-direction:column;min-height:0;z-index:4}
+.sheet-h{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2)}
+.sheet-h h2{font-family:var(--font-display);font-size:var(--fs-xl)}
+.sheet-body{overflow:auto;min-height:0;padding:0 var(--sp-4) var(--sp-5);display:grid;gap:var(--sp-3);align-content:start;grid-template-columns:minmax(0,1fr);scroll-padding-block:1rem 8rem}
+.handle-btn{display:grid;place-items:center;width:100%;min-height:var(--target);background:none;border:0;cursor:pointer;padding:0;color:var(--muted);font-size:var(--fs-xs);font-weight:750;gap:2px}
+.handle-btn .handle{width:3rem}
+.peek{display:grid;gap:var(--sp-3);padding:0 var(--sp-4) var(--sp-3)}
+.actions2{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2)}
+.actions2 .btn{min-height:3.25rem;border-radius:var(--r-md)}
+.best{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:var(--sp-3);align-items:center;background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);padding:var(--sp-3) var(--sp-4)}
+.best .pct-s{font-family:var(--font-display);font-size:var(--fs-2xl);font-weight:700;line-height:1}
+.best button.nm{background:none;border:0;padding:0;text-align:left;cursor:pointer;display:grid;gap:2px;min-height:var(--target);align-content:center}
+.filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--sp-2)}
+.filters .field>label{font-size:var(--fs-xs)}
+.search{position:relative}
+.search .input{padding-left:2.5rem;border-radius:var(--r-pill)}
+.search svg{position:absolute;left:.9rem;top:50%;transform:translateY(-50%);color:var(--muted)}
+.lot-head{align-items:flex-start}
+.lot-head .glyph{padding-top:.5rem}
+.lot .pctv{font-family:var(--font-display);font-size:var(--fs-xl);font-weight:700;line-height:1;padding-top:.5rem}
+.prov{display:inline-flex;align-items:center;gap:.3rem}
+.prov .dotlive{width:.55rem;height:.55rem;border-radius:50%;background:var(--ink)}
+.prov .dotest{width:.55rem;height:.55rem;border-radius:50%;border:1.5px dashed var(--muted)}
+.mine{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2);padding:var(--sp-2) var(--sp-3);border-radius:var(--r-sm);background:var(--surface-2);font-size:var(--fs-sm)}
+.tierbtns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-2)}
+.tierbtns .btn{border-radius:var(--r-md);min-height:3.25rem;justify-content:flex-start;padding:0 var(--sp-3)}
+.tierbtns .btn[aria-pressed="true"]{outline:3px solid var(--ink);outline-offset:1px;background:var(--surface);color:var(--ink)}
+.tierbtns .btn small{display:block;font-weight:600;font-size:var(--fs-xs);color:var(--muted)}
+.lot.stale .pctv,.lot.stale .bar{opacity:.55}
+.leaving-live{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--sp-2)}
+.radio .sub{display:block;font-size:var(--fs-xs);color:var(--muted);font-weight:600}
+.app.cvd-protan{filter:url(#cvd-protan)} .app.cvd-deutan{filter:url(#cvd-deutan)} .app.cvd-tritan{filter:url(#cvd-tritan)} .app.cvd-achroma{filter:url(#cvd-achroma)}
+.toast{pointer-events:auto;display:flex;align-items:center;gap:var(--sp-3)}
+.toast .link{color:inherit;min-height:2rem}
+
+/* ---- layout: sheet (map full-bleed, bottom sheet) ---- */
+.lay-sheet .map-wrap{position:absolute;inset:0}
+.lay-sheet .sheet{position:absolute;left:0;right:0;bottom:0;border-radius:var(--r-card) var(--r-card) 0 0;box-shadow:0 -8px 30px rgba(40,25,5,.18);padding-bottom:6rem;transition:height var(--dur-2) var(--ease);max-height:calc(100% - 3rem)}
+.lay-sheet .sheet[data-snap="peek"]{height:auto}
+.lay-sheet .sheet[data-snap="peek"] .sheet-body{display:none}
+.lay-sheet .sheet[data-snap="half"]{height:58%}
+.lay-sheet .sheet[data-snap="full"]{height:calc(100% - 3rem)}
+.lay-sheet .sheet[data-snap="half"] .peek .best,.lay-sheet .sheet[data-snap="full"] .peek .best{display:none}
+/* ---- layout: list (list-first, map card) ---- */
+.lay-list{overflow:auto!important;display:block}
+.lay-list .map-wrap{height:16rem;margin:var(--sp-3) var(--sp-4) 0;border-radius:var(--r-md);overflow:hidden;border:1.5px solid var(--line)}
+.lay-list .sheet{padding-bottom:7rem}
+.lay-list .handle-btn{display:none}
+.lay-list .peek{padding-top:var(--sp-3)}
+.lay-list .sheet-body{overflow:visible}
+/* ---- layout: tabs ---- */
+.lay-tabs .tabbar{padding:var(--sp-2) var(--sp-4)}
+.lay-tabs .map-wrap{flex:1}
+.lay-tabs .sheet{flex:1;padding-bottom:6rem}
+.lay-tabs[data-tab="map"] .sheet .sheet-body{display:none}
+.lay-tabs[data-tab="map"] .sheet{flex:none;position:absolute;left:0;right:0;bottom:0;background:transparent;padding-bottom:5.5rem}
+.lay-tabs[data-tab="map"] .sheet .filters,.lay-tabs[data-tab="map"] .sheet .sheet-h{display:none}
+.lay-tabs[data-tab="list"] .map-wrap{display:none}
+.lay-tabs .handle-btn{display:none}
+.lay-tabs[data-tab="list"] .sheet-body{overflow:auto}
+.tabbar{display:none}
+.lay-tabs .tabbar{display:flex}
+
+/* desktop: map + side list regardless of layout */
+@container app (min-width:1024px){
+  .shell{grid-template-columns:100%!important;grid-template-areas:"header" "main"!important}
+  .hdr .brand-m{display:inline-flex!important}
+  .park{flex-direction:row}
+  .park .map-wrap{position:relative!important;inset:auto!important;flex:1;height:auto!important;margin:0!important;border-radius:0!important;display:block!important}
+  .park .sheet{position:relative!important;width:26rem;height:auto!important;border-radius:0!important;box-shadow:none;border-left:1px solid var(--line);padding-bottom:0!important;max-height:none;background:var(--bg)!important}
+  .park .sheet .sheet-body{display:grid!important;overflow:auto}
+  .park .handle-btn,.park .tabbar{display:none!important}
+  .park .peek .best{display:grid!important}
+  .park .filters,.park .sheet-h{display:flex!important}
+  .lay-list{overflow:hidden!important}
+}
+@container app (max-width:18em){
+  .filters,.actions2,.tierbtns{grid-template-columns:1fr}
+  .best{grid-template-columns:auto minmax(0,1fr)}
+  .best .pct-s{grid-column:2}
+  .lay-sheet .sheet[data-snap="peek"]{max-height:70%;overflow:auto}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <filter id="cvd-protan"><feColorMatrix type="matrix" values="0.152 1.053 -0.205 0 0  0.115 0.786 0.099 0 0  -0.004 -0.048 1.052 0 0  0 0 0 1 0"/></filter>
+  <filter id="cvd-deutan"><feColorMatrix type="matrix" values="0.367 0.861 -0.228 0 0  0.280 0.673 0.047 0 0  -0.012 0.043 0.969 0 0  0 0 0 1 0"/></filter>
+  <filter id="cvd-tritan"><feColorMatrix type="matrix" values="1.256 -0.077 -0.179 0 0  -0.078 0.931 0.148 0 0  0.005 0.691 0.304 0 0  0 0 0 1 0"/></filter>
+  <filter id="cvd-achroma"><feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0"/></filter>
+</svg>
+<div class="stage" id="stage">
+  <div class="app" id="app">
+    <div id="shellRoot"></div>
+    <div id="dialogRoot"></div>
+    <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+    <div class="sr" id="live" role="status" aria-live="polite"></div>
+  </div>
+</div>
+<div class="proto-bar" role="toolbar" aria-label="Prototype controls (not part of the design)">
+  <span class="tag">PROTOTYPE</span><b>#47 Parking</b>
+  <label>Layout <select id="ctlLayout"><option value="sheet">A · map + bottom sheet</option><option value="list">B · list first, map card</option><option value="tabs">C · Map | List tabs</option></select></label>
+  <label>Theme <select id="ctlTheme"><option value="light">light</option><option value="dark">dark</option></select></label>
+  <label>Motion <select id="ctlMotion"><option value="system">OS setting</option><option value="reduce">reduce</option></select></label>
+  <label>Text <input type="range" id="ctlText" min="100" max="200" step="25"><output id="textOut"></output></label>
+  <label>Vision <select id="ctlCvd"><option value="">normal</option><option value="protan">protanopia</option><option value="deutan">deuteranopia</option><option value="tritan">tritanopia</option><option value="achroma">greyscale</option></select></label>
+  <label>Frame <select id="ctlFrame"><option value="phone">phone 390</option><option value="fluid">fluid (≥1024 = desktop)</option></select></label>
+  <button id="ctlNotes" aria-expanded="false">Patterns under test</button>
+  <a href="v2-shell-c.html#/parking">v2 shell (first pass)</a>
+</div>
+<aside class="tokens" id="notes" hidden></aside>
+<script src="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
+<script>
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+
+/* ===================== DATA ===================== */
+/* Real KSU lot polygons (public/data/parking-lots.geojson + data/ksu-seed levels). Fullness below is FAKE demo data. */
+const LOTGEO={"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5818,34.03735],[-84.5804,34.03735],[-84.5804,34.03845],[-84.5818,34.03845],[-84.5818,34.03735]]]},"properties":{"slug":"central-parking-deck","name":"Central Parking Deck","code":"CD","campus":"Kennesaw","deck":true,"permits":["Central","Commuter"],"levels":["P1","P2","P3","P4","P5","P6","Roof"],"c":[-84.5811,34.0379],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5776,34.03595],[-84.5762,34.03595],[-84.5762,34.03705],[-84.5776,34.03705],[-84.5776,34.03595]]]},"properties":{"slug":"east-parking-deck","name":"East Parking Deck","code":"ED","campus":"Kennesaw","deck":true,"permits":["East","Commuter"],"levels":["P1","P2","P3","P4","P5","Roof"],"c":[-84.5769,34.0365],"overflow":["east-economy-lot","town-point-economy-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5832,34.04085],[-84.5818,34.04085],[-84.5818,34.04195],[-84.5832,34.04195],[-84.5832,34.04085]]]},"properties":{"slug":"north-parking-deck","name":"North Parking Deck","code":"ND","campus":"Kennesaw","deck":true,"permits":["North","Central","Commuter"],"levels":["P1","P2","P3","P4","P5","Roof"],"c":[-84.5825,34.0414],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5874,34.03785],[-84.586,34.03785],[-84.586,34.03895],[-84.5874,34.03895],[-84.5874,34.03785]]]},"properties":{"slug":"west-parking-deck","name":"West Parking Deck","code":"WD","campus":"Kennesaw","deck":true,"permits":["West","Commuter"],"levels":["P1","P2","P3","P4","Roof"],"c":[-84.5867,34.0384],"overflow":["west-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5749,34.03125],[-84.5735,34.03125],[-84.5735,34.03235],[-84.5749,34.03235],[-84.5749,34.03125]]]},"properties":{"slug":"town-point-economy-lot","name":"Town Point Economy Lot","code":"TPE","campus":"Kennesaw","deck":false,"permits":["Economy","Central","East","West","North","Shuttle"],"levels":["Surface"],"c":[-84.5742,34.0318],"overflow":["shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5745,34.03435],[-84.5731,34.03435],[-84.5731,34.03545],[-84.5745,34.03545],[-84.5745,34.03435]]]},"properties":{"slug":"east-economy-lot","name":"East Economy Lot","code":"EE","campus":"Kennesaw","deck":false,"permits":["Economy","East","Central","Shuttle"],"levels":["Surface"],"c":[-84.5738,34.0349],"overflow":["town-point-economy-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5899,34.03925],[-84.5885,34.03925],[-84.5885,34.04035],[-84.5899,34.04035],[-84.5899,34.03925]]]},"properties":{"slug":"west-economy-lot","name":"West Economy Lot","code":"WE","campus":"Kennesaw","deck":false,"permits":["Economy","West","Central"],"levels":["Surface"],"c":[-84.5892,34.0398],"overflow":["shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5785,34.03035],[-84.5771,34.03035],[-84.5771,34.03145],[-84.5785,34.03145],[-84.5785,34.03035]]]},"properties":{"slug":"gutenberg-economy-lot","name":"Gutenberg Economy Lot","code":"GE","campus":"Kennesaw","deck":false,"permits":["Economy","Shuttle","Central"],"levels":["Surface"],"c":[-84.5778,34.0309],"overflow":["shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5726,34.02825],[-84.5712,34.02825],[-84.5712,34.02935],[-84.5726,34.02935],[-84.5726,34.02825]]]},"properties":{"slug":"shuttle-lot-3305","name":"3305 Busbee Shuttle Lot","code":"SL3305","campus":"Kennesaw","deck":false,"permits":["Shuttle","Economy","Central","East","West"],"levels":["Surface"],"c":[-84.5719,34.0288],"overflow":[]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5702,34.02685],[-84.5688,34.02685],[-84.5688,34.02795],[-84.5702,34.02795],[-84.5702,34.02685]]]},"properties":{"slug":"ksu-center-lot","name":"KSU Center Lot","code":"KC","campus":"Kennesaw","deck":false,"permits":["Economy","Shuttle","Faculty/Staff"],"levels":["Surface"],"c":[-84.5695,34.0274],"overflow":["shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5882,34.03495],[-84.5868,34.03495],[-84.5868,34.03605],[-84.5882,34.03605],[-84.5882,34.03495]]]},"properties":{"slug":"austin-residence-lot","name":"Austin Residence Complex Lot","code":"ARC-R","campus":"Kennesaw","deck":false,"permits":["Residential"],"levels":["Surface"],"c":[-84.5875,34.0355],"overflow":["west-economy-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5865,34.04135],[-84.5851,34.04135],[-84.5851,34.04245],[-84.5865,34.04245],[-84.5865,34.04135]]]},"properties":{"slug":"campus-loop-residential-lot","name":"Campus Loop Residential Lot","code":"CLR","campus":"Kennesaw","deck":false,"permits":["Residential"],"levels":["Surface"],"c":[-84.5858,34.0419],"overflow":["west-economy-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5825,34.03855],[-84.5811,34.03855],[-84.5811,34.03965],[-84.5825,34.03965],[-84.5825,34.03855]]]},"properties":{"slug":"student-center-visitor-lot","name":"Carmichael Student Center Visitor Lot","code":"SCV","campus":"Kennesaw","deck":false,"permits":["Visitor"],"levels":["Visitor Pay"],"c":[-84.5818,34.0391],"overflow":["central-parking-deck"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5868,34.03095],[-84.5854,34.03095],[-84.5854,34.03205],[-84.5868,34.03205],[-84.5868,34.03095]]]},"properties":{"slug":"chastain-pointe-lot","name":"Chastain Pointe Lot","code":"CPL","campus":"Kennesaw","deck":false,"permits":["Economy","Central","Shuttle"],"levels":["Surface"],"c":[-84.5861,34.0315],"overflow":["shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5887,34.03415],[-84.5873,34.03415],[-84.5873,34.03525],[-84.5887,34.03525],[-84.5887,34.03415]]]},"properties":{"slug":"kennesaw-lot-k01","name":"Kennesaw Lot K01","code":"K01","campus":"Kennesaw","deck":false,"permits":["Central","Faculty/Staff"],"levels":["Surface"],"c":[-84.588,34.0347],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5887,34.03585],[-84.5873,34.03585],[-84.5873,34.03695],[-84.5887,34.03695],[-84.5887,34.03585]]]},"properties":{"slug":"kennesaw-lot-k02","name":"Kennesaw Lot K02","code":"K02","campus":"Kennesaw","deck":false,"permits":["Central","Faculty/Staff"],"levels":["Surface"],"c":[-84.588,34.0364],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5887,34.03755],[-84.5873,34.03755],[-84.5873,34.03865],[-84.5887,34.03865],[-84.5887,34.03755]]]},"properties":{"slug":"kennesaw-lot-k03","name":"Kennesaw Lot K03","code":"K03","campus":"Kennesaw","deck":false,"permits":["Central","Faculty/Staff"],"levels":["Surface"],"c":[-84.588,34.0381],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5887,34.03925],[-84.5873,34.03925],[-84.5873,34.04035],[-84.5887,34.04035],[-84.5887,34.03925]]]},"properties":{"slug":"kennesaw-lot-k04","name":"Kennesaw Lot K04","code":"K04","campus":"Kennesaw","deck":false,"permits":["Central","Faculty/Staff"],"levels":["Surface"],"c":[-84.588,34.0398],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5887,34.04095],[-84.5873,34.04095],[-84.5873,34.04205],[-84.5887,34.04205],[-84.5887,34.04095]]]},"properties":{"slug":"kennesaw-lot-k05","name":"Kennesaw Lot K05","code":"K05","campus":"Kennesaw","deck":false,"permits":["Central","Faculty/Staff"],"levels":["Surface"],"c":[-84.588,34.0415],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5863,34.03245],[-84.5849,34.03245],[-84.5849,34.03355],[-84.5863,34.03355],[-84.5863,34.03245]]]},"properties":{"slug":"kennesaw-lot-k06","name":"Kennesaw Lot K06","code":"K06","campus":"Kennesaw","deck":false,"permits":["Central","Faculty/Staff"],"levels":["Surface"],"c":[-84.5856,34.033],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5863,34.03415],[-84.5849,34.03415],[-84.5849,34.03525],[-84.5863,34.03525],[-84.5863,34.03415]]]},"properties":{"slug":"kennesaw-lot-k07","name":"Kennesaw Lot K07","code":"K07","campus":"Kennesaw","deck":false,"permits":["Central","Faculty/Staff"],"levels":["Surface"],"c":[-84.5856,34.0347],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5863,34.03585],[-84.5849,34.03585],[-84.5849,34.03695],[-84.5863,34.03695],[-84.5863,34.03585]]]},"properties":{"slug":"kennesaw-lot-k08","name":"Kennesaw Lot K08","code":"K08","campus":"Kennesaw","deck":false,"permits":["Central","Faculty/Staff"],"levels":["Surface"],"c":[-84.5856,34.0364],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5863,34.03755],[-84.5849,34.03755],[-84.5849,34.03865],[-84.5863,34.03865],[-84.5863,34.03755]]]},"properties":{"slug":"kennesaw-lot-k09","name":"Kennesaw Lot K09","code":"K09","campus":"Kennesaw","deck":false,"permits":["Central","Faculty/Staff"],"levels":["Surface"],"c":[-84.5856,34.0381],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5863,34.03925],[-84.5849,34.03925],[-84.5849,34.04035],[-84.5863,34.04035],[-84.5863,34.03925]]]},"properties":{"slug":"kennesaw-lot-k10","name":"Kennesaw Lot K10","code":"K10","campus":"Kennesaw","deck":false,"permits":["Central","Faculty/Staff"],"levels":["Surface"],"c":[-84.5856,34.0398],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5863,34.04095],[-84.5849,34.04095],[-84.5849,34.04205],[-84.5863,34.04205],[-84.5863,34.04095]]]},"properties":{"slug":"kennesaw-lot-k11","name":"Kennesaw Lot K11","code":"K11","campus":"Kennesaw","deck":false,"permits":["East","Economy"],"levels":["Surface"],"c":[-84.5856,34.0415],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5839,34.03245],[-84.5825,34.03245],[-84.5825,34.03355],[-84.5839,34.03355],[-84.5839,34.03245]]]},"properties":{"slug":"kennesaw-lot-k12","name":"Kennesaw Lot K12","code":"K12","campus":"Kennesaw","deck":false,"permits":["East","Economy"],"levels":["Surface"],"c":[-84.5832,34.033],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5839,34.03415],[-84.5825,34.03415],[-84.5825,34.03525],[-84.5839,34.03525],[-84.5839,34.03415]]]},"properties":{"slug":"kennesaw-lot-k13","name":"Kennesaw Lot K13","code":"K13","campus":"Kennesaw","deck":false,"permits":["East","Economy"],"levels":["Surface"],"c":[-84.5832,34.0347],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5839,34.03585],[-84.5825,34.03585],[-84.5825,34.03695],[-84.5839,34.03695],[-84.5839,34.03585]]]},"properties":{"slug":"kennesaw-lot-k14","name":"Kennesaw Lot K14","code":"K14","campus":"Kennesaw","deck":false,"permits":["East","Economy"],"levels":["Surface"],"c":[-84.5832,34.0364],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5839,34.03755],[-84.5825,34.03755],[-84.5825,34.03865],[-84.5839,34.03865],[-84.5839,34.03755]]]},"properties":{"slug":"kennesaw-lot-k15","name":"Kennesaw Lot K15","code":"K15","campus":"Kennesaw","deck":false,"permits":["East","Economy"],"levels":["Surface"],"c":[-84.5832,34.0381],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5839,34.03925],[-84.5825,34.03925],[-84.5825,34.04035],[-84.5839,34.04035],[-84.5839,34.03925]]]},"properties":{"slug":"kennesaw-lot-k16","name":"Kennesaw Lot K16","code":"K16","campus":"Kennesaw","deck":false,"permits":["East","Economy"],"levels":["Surface"],"c":[-84.5832,34.0398],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5839,34.04095],[-84.5825,34.04095],[-84.5825,34.04205],[-84.5839,34.04205],[-84.5839,34.04095]]]},"properties":{"slug":"kennesaw-lot-k17","name":"Kennesaw Lot K17","code":"K17","campus":"Kennesaw","deck":false,"permits":["East","Economy"],"levels":["Surface"],"c":[-84.5832,34.0415],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5815,34.03245],[-84.5801,34.03245],[-84.5801,34.03355],[-84.5815,34.03355],[-84.5815,34.03245]]]},"properties":{"slug":"kennesaw-lot-k18","name":"Kennesaw Lot K18","code":"K18","campus":"Kennesaw","deck":false,"permits":["East","Economy"],"levels":["Surface"],"c":[-84.5808,34.033],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5815,34.03415],[-84.5801,34.03415],[-84.5801,34.03525],[-84.5815,34.03525],[-84.5815,34.03415]]]},"properties":{"slug":"kennesaw-lot-k19","name":"Kennesaw Lot K19","code":"K19","campus":"Kennesaw","deck":false,"permits":["East","Economy"],"levels":["Surface"],"c":[-84.5808,34.0347],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5815,34.03585],[-84.5801,34.03585],[-84.5801,34.03695],[-84.5815,34.03695],[-84.5815,34.03585]]]},"properties":{"slug":"kennesaw-lot-k20","name":"Kennesaw Lot K20","code":"K20","campus":"Kennesaw","deck":false,"permits":["East","Economy"],"levels":["Surface"],"c":[-84.5808,34.0364],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5815,34.03755],[-84.5801,34.03755],[-84.5801,34.03865],[-84.5815,34.03865],[-84.5815,34.03755]]]},"properties":{"slug":"kennesaw-lot-k21","name":"Kennesaw Lot K21","code":"K21","campus":"Kennesaw","deck":false,"permits":["Residential","West"],"levels":["Surface"],"c":[-84.5808,34.0381],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5815,34.03925],[-84.5801,34.03925],[-84.5801,34.04035],[-84.5815,34.04035],[-84.5815,34.03925]]]},"properties":{"slug":"kennesaw-lot-k22","name":"Kennesaw Lot K22","code":"K22","campus":"Kennesaw","deck":false,"permits":["Residential","West"],"levels":["Surface"],"c":[-84.5808,34.0398],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5815,34.04095],[-84.5801,34.04095],[-84.5801,34.04205],[-84.5815,34.04205],[-84.5815,34.04095]]]},"properties":{"slug":"kennesaw-lot-k23","name":"Kennesaw Lot K23","code":"K23","campus":"Kennesaw","deck":false,"permits":["Residential","West"],"levels":["Surface"],"c":[-84.5808,34.0415],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5791,34.03245],[-84.5777,34.03245],[-84.5777,34.03355],[-84.5791,34.03355],[-84.5791,34.03245]]]},"properties":{"slug":"kennesaw-lot-k24","name":"Kennesaw Lot K24","code":"K24","campus":"Kennesaw","deck":false,"permits":["Residential","West"],"levels":["Surface"],"c":[-84.5784,34.033],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5791,34.03415],[-84.5777,34.03415],[-84.5777,34.03525],[-84.5791,34.03525],[-84.5791,34.03415]]]},"properties":{"slug":"kennesaw-lot-k25","name":"Kennesaw Lot K25","code":"K25","campus":"Kennesaw","deck":false,"permits":["Residential","West"],"levels":["Surface"],"c":[-84.5784,34.0347],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5791,34.03585],[-84.5777,34.03585],[-84.5777,34.03695],[-84.5791,34.03695],[-84.5791,34.03585]]]},"properties":{"slug":"kennesaw-lot-k26","name":"Kennesaw Lot K26","code":"K26","campus":"Kennesaw","deck":false,"permits":["Residential","West"],"levels":["Surface"],"c":[-84.5784,34.0364],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5791,34.03755],[-84.5777,34.03755],[-84.5777,34.03865],[-84.5791,34.03865],[-84.5791,34.03755]]]},"properties":{"slug":"kennesaw-lot-k27","name":"Kennesaw Lot K27","code":"K27","campus":"Kennesaw","deck":false,"permits":["Residential","West"],"levels":["Surface"],"c":[-84.5784,34.0381],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5791,34.03925],[-84.5777,34.03925],[-84.5777,34.04035],[-84.5791,34.04035],[-84.5791,34.03925]]]},"properties":{"slug":"kennesaw-lot-k28","name":"Kennesaw Lot K28","code":"K28","campus":"Kennesaw","deck":false,"permits":["Residential","West"],"levels":["Surface"],"c":[-84.5784,34.0398],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5791,34.04095],[-84.5777,34.04095],[-84.5777,34.04205],[-84.5791,34.04205],[-84.5791,34.04095]]]},"properties":{"slug":"kennesaw-lot-k29","name":"Kennesaw Lot K29","code":"K29","campus":"Kennesaw","deck":false,"permits":["Residential","West"],"levels":["Surface"],"c":[-84.5784,34.0415],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5767,34.03245],[-84.5753,34.03245],[-84.5753,34.03355],[-84.5767,34.03355],[-84.5767,34.03245]]]},"properties":{"slug":"kennesaw-lot-k30","name":"Kennesaw Lot K30","code":"K30","campus":"Kennesaw","deck":false,"permits":["Residential","West"],"levels":["Surface"],"c":[-84.576,34.033],"overflow":["town-point-economy-lot","shuttle-lot-3305"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5229,33.94025],[-84.5215,33.94025],[-84.5215,33.94135],[-84.5229,33.94135],[-84.5229,33.94025]]]},"properties":{"slug":"marietta-west-deck","name":"Marietta West Deck","code":"MWD","campus":"Marietta","deck":true,"permits":["Marietta West","Central","Commuter"],"levels":["P1","P2","P3","P4","Roof"],"c":[-84.5222,33.9408],"overflow":["marietta-shuttle-lot","marietta-lot-e"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5175,33.93665],[-84.5161,33.93665],[-84.5161,33.93775],[-84.5175,33.93775],[-84.5175,33.93665]]]},"properties":{"slug":"marietta-shuttle-lot","name":"Marietta Shuttle Lot","code":"MSL","campus":"Marietta","deck":false,"permits":["Shuttle","Economy","Marietta West","Central"],"levels":["Surface"],"c":[-84.5168,33.9372],"overflow":[]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5237,33.93725],[-84.5223,33.93725],[-84.5223,33.93835],[-84.5237,33.93835],[-84.5237,33.93725]]]},"properties":{"slug":"marietta-lot-a","name":"Marietta Lot A","code":"A","campus":"Marietta","deck":false,"permits":["Marietta West","Commuter","Central"],"levels":["Surface"],"c":[-84.523,33.9378],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5237,33.93835],[-84.5223,33.93835],[-84.5223,33.93945],[-84.5237,33.93945],[-84.5237,33.93835]]]},"properties":{"slug":"marietta-lot-b","name":"Marietta Lot B","code":"B","campus":"Marietta","deck":false,"permits":["Marietta West","Commuter","Central"],"levels":["Surface"],"c":[-84.523,33.9389],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5237,33.93945],[-84.5223,33.93945],[-84.5223,33.94055],[-84.5237,33.94055],[-84.5237,33.93945]]]},"properties":{"slug":"marietta-lot-b1","name":"Marietta Lot B1","code":"B1","campus":"Marietta","deck":false,"permits":["Marietta West","Commuter","Central"],"levels":["Surface"],"c":[-84.523,33.94],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5237,33.94055],[-84.5223,33.94055],[-84.5223,33.94165],[-84.5237,33.94165],[-84.5237,33.94055]]]},"properties":{"slug":"marietta-lot-b2","name":"Marietta Lot B2","code":"B2","campus":"Marietta","deck":false,"permits":["Marietta West","Commuter","Central"],"levels":["Surface"],"c":[-84.523,33.9411],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5237,33.94165],[-84.5223,33.94165],[-84.5223,33.94275],[-84.5237,33.94275],[-84.5237,33.94165]]]},"properties":{"slug":"marietta-lot-c","name":"Marietta Lot C","code":"C","campus":"Marietta","deck":false,"permits":["Marietta West","Commuter","Central"],"levels":["Surface"],"c":[-84.523,33.9422],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5237,33.94275],[-84.5223,33.94275],[-84.5223,33.94385],[-84.5237,33.94385],[-84.5237,33.94275]]]},"properties":{"slug":"marietta-lot-d","name":"Marietta Lot D","code":"D","campus":"Marietta","deck":false,"permits":["Marietta West","Commuter","Central"],"levels":["Surface"],"c":[-84.523,33.9433],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5221,33.93725],[-84.5207,33.93725],[-84.5207,33.93835],[-84.5221,33.93835],[-84.5221,33.93725]]]},"properties":{"slug":"marietta-lot-e","name":"Marietta Lot E","code":"E","campus":"Marietta","deck":false,"permits":["Marietta West","Commuter","Central"],"levels":["Surface"],"c":[-84.5214,33.9378],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5221,33.93835],[-84.5207,33.93835],[-84.5207,33.93945],[-84.5221,33.93945],[-84.5221,33.93835]]]},"properties":{"slug":"marietta-lot-f","name":"Marietta Lot F","code":"F","campus":"Marietta","deck":false,"permits":["Marietta West","Commuter","Central"],"levels":["Surface"],"c":[-84.5214,33.9389],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5221,33.93945],[-84.5207,33.93945],[-84.5207,33.94055],[-84.5221,33.94055],[-84.5221,33.93945]]]},"properties":{"slug":"marietta-lot-g","name":"Marietta Lot G","code":"G","campus":"Marietta","deck":false,"permits":["Marietta West","Commuter","Central"],"levels":["Surface"],"c":[-84.5214,33.94],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5221,33.94055],[-84.5207,33.94055],[-84.5207,33.94165],[-84.5221,33.94165],[-84.5221,33.94055]]]},"properties":{"slug":"marietta-lot-h","name":"Marietta Lot H","code":"H","campus":"Marietta","deck":false,"permits":["Marietta West","Commuter","Central"],"levels":["Surface"],"c":[-84.5214,33.9411],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5221,33.94165],[-84.5207,33.94165],[-84.5207,33.94275],[-84.5221,33.94275],[-84.5221,33.94165]]]},"properties":{"slug":"marietta-lot-j","name":"Marietta Lot J","code":"J","campus":"Marietta","deck":false,"permits":["Economy","Shuttle","Faculty/Staff"],"levels":["Surface"],"c":[-84.5214,33.9422],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5221,33.94275],[-84.5207,33.94275],[-84.5207,33.94385],[-84.5221,33.94385],[-84.5221,33.94275]]]},"properties":{"slug":"marietta-lot-l","name":"Marietta Lot L","code":"L","campus":"Marietta","deck":false,"permits":["Economy","Shuttle","Faculty/Staff"],"levels":["Surface"],"c":[-84.5214,33.9433],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5205,33.93725],[-84.5191,33.93725],[-84.5191,33.93835],[-84.5205,33.93835],[-84.5205,33.93725]]]},"properties":{"slug":"marietta-lot-p21","name":"Marietta Lot P21","code":"P21","campus":"Marietta","deck":false,"permits":["Economy","Shuttle","Faculty/Staff"],"levels":["Surface"],"c":[-84.5198,33.9378],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5205,33.93835],[-84.5191,33.93835],[-84.5191,33.93945],[-84.5205,33.93945],[-84.5205,33.93835]]]},"properties":{"slug":"marietta-lot-v2","name":"Marietta Lot V2","code":"V2","campus":"Marietta","deck":false,"permits":["Economy","Shuttle","Faculty/Staff"],"levels":["Surface"],"c":[-84.5198,33.9389],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5205,33.93945],[-84.5191,33.93945],[-84.5191,33.94055],[-84.5205,33.94055],[-84.5205,33.93945]]]},"properties":{"slug":"marietta-lot-z","name":"Marietta Lot Z","code":"Z","campus":"Marietta","deck":false,"permits":["Economy","Shuttle","Faculty/Staff"],"levels":["Surface"],"c":[-84.5198,33.94],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5205,33.94055],[-84.5191,33.94055],[-84.5191,33.94165],[-84.5205,33.94165],[-84.5205,33.94055]]]},"properties":{"slug":"marietta-lot-er1","name":"Marietta Residence Lot ER1","code":"ER1","campus":"Marietta","deck":false,"permits":["Residential"],"levels":["Surface"],"c":[-84.5198,33.9411],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5205,33.94165],[-84.5191,33.94165],[-84.5191,33.94275],[-84.5205,33.94275],[-84.5205,33.94165]]]},"properties":{"slug":"marietta-lot-er2","name":"Marietta Residence Lot ER2","code":"ER2","campus":"Marietta","deck":false,"permits":["Residential"],"levels":["Surface"],"c":[-84.5198,33.9422],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5205,33.94275],[-84.5191,33.94275],[-84.5191,33.94385],[-84.5205,33.94385],[-84.5205,33.94275]]]},"properties":{"slug":"marietta-lot-wr1","name":"Marietta Residence Lot WR1","code":"WR1","campus":"Marietta","deck":false,"permits":["Residential"],"levels":["Surface"],"c":[-84.5198,33.9433],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5189,33.93725],[-84.5175,33.93725],[-84.5175,33.93835],[-84.5189,33.93835],[-84.5189,33.93725]]]},"properties":{"slug":"marietta-lot-wr2","name":"Marietta Residence Lot WR2","code":"WR2","campus":"Marietta","deck":false,"permits":["Residential"],"levels":["Surface"],"c":[-84.5182,33.9378],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5189,33.93835],[-84.5175,33.93835],[-84.5175,33.93945],[-84.5189,33.93945],[-84.5189,33.93835]]]},"properties":{"slug":"marietta-lot-sh1","name":"Marietta Residence Lot SH1","code":"SH1","campus":"Marietta","deck":false,"permits":["Residential"],"levels":["Surface"],"c":[-84.5182,33.9389],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5189,33.93945],[-84.5175,33.93945],[-84.5175,33.94055],[-84.5189,33.94055],[-84.5189,33.93945]]]},"properties":{"slug":"marietta-lot-sh2","name":"Marietta Residence Lot SH2","code":"SH2","campus":"Marietta","deck":false,"permits":["Residential"],"levels":["Surface"],"c":[-84.5182,33.94],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5189,33.94055],[-84.5175,33.94055],[-84.5175,33.94165],[-84.5189,33.94165],[-84.5189,33.94055]]]},"properties":{"slug":"marietta-lot-m10","name":"Marietta Lot M10","code":"M10","campus":"Marietta","deck":false,"permits":["Economy","Shuttle","Faculty/Staff"],"levels":["Surface"],"c":[-84.5182,33.9411],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5189,33.94165],[-84.5175,33.94165],[-84.5175,33.94275],[-84.5189,33.94275],[-84.5189,33.94165]]]},"properties":{"slug":"marietta-lot-m11","name":"Marietta Lot M11","code":"M11","campus":"Marietta","deck":false,"permits":["Economy","Shuttle","Faculty/Staff"],"levels":["Surface"],"c":[-84.5182,33.9422],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5189,33.94275],[-84.5175,33.94275],[-84.5175,33.94385],[-84.5189,33.94385],[-84.5189,33.94275]]]},"properties":{"slug":"marietta-lot-m12","name":"Marietta Lot M12","code":"M12","campus":"Marietta","deck":false,"permits":["Economy","Shuttle","Faculty/Staff"],"levels":["Surface"],"c":[-84.5182,33.9433],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5173,33.93725],[-84.5159,33.93725],[-84.5159,33.93835],[-84.5173,33.93835],[-84.5173,33.93725]]]},"properties":{"slug":"marietta-lot-m14","name":"Marietta Lot M14","code":"M14","campus":"Marietta","deck":false,"permits":["Economy","Shuttle","Faculty/Staff"],"levels":["Surface"],"c":[-84.5166,33.9378],"overflow":["marietta-shuttle-lot"]}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-84.5173,33.93835],[-84.5159,33.93835],[-84.5159,33.93945],[-84.5173,33.93945],[-84.5173,33.93835]]]},"properties":{"slug":"marietta-lot-m15","name":"Marietta Lot M15","code":"M15","campus":"Marietta","deck":false,"permits":["Economy","Shuttle","Faculty/Staff"],"levels":["Surface"],"c":[-84.5166,33.9389],"overflow":["marietta-shuttle-lot"]}}]};
+const DEST={
+ Kennesaw:[['Carmichael Student Center',-84.58312,34.03856],['Sturgis Library',-84.58401,34.03829],['Clendenin Building',-84.5836,34.03594],['Social Sciences Building',-84.58548,34.03885],['Convocation Center',-84.58044,34.03707]],
+ Marietta:[['Joe Mack Wilson Student Center',-84.52041,33.94059],['Johnson Library',-84.52039,33.93902],['Academic Building (Q)',-84.52056,33.93843],['Atrium Building',-84.52019,33.93769],['Engineering Technology Center',-84.52262,33.93859]]};
+const CENTER={Kennesaw:{c:[-84.5822,34.0382],z:15.2},Marietta:{c:[-84.5198,33.9401],z:15.6},'All KSU':{c:[-84.551,33.989],z:11.6}};
+const PERMITS=['All','Central','East','West','North','Commuter','Economy','Shuttle','Residential','Marietta West','Faculty/Staff','Visitor'];
+const TIERS={open:'Open',filling:'Filling',nearly:'Nearly Full',full:'Full'};
+const RANGE={open:'under 60%',filling:'60–85%',nearly:'85–98%',full:'circling for spots'};
+const RANK={open:0,filling:1,nearly:2,full:3};
+const MID={open:40,filling:72,nearly:92,full:100};
+const tierOf=p=>p<60?'open':p<85?'filling':p<98?'nearly':'full';
+function hash(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return (h>>>0)/4294967296;}
+// [pct, minutes since last Student report (null = never/estimate), active spot-opening level, report count]
+const FIX={'central-parking-deck':[94,3,'P3',5],'east-parking-deck':[72,6,null,3],'west-parking-deck':[100,2,null,12],'north-parking-deck':[55,null],
+ 'town-point-economy-lot':[28,11,null,2],'east-economy-lot':[41,null],'shuttle-lot-3305':[22,19,null,1],'kennesaw-lot-k12':[66,52,null,1],
+ 'marietta-west-deck':[81,4,'Roof',4],'marietta-lot-a':[93,8,null,2],'marietta-lot-p21':[35,null]};
+const LOTS=LOTGEO.features.map(f=>{const p=f.properties,fx=FIX[p.slug],r=hash(p.slug);
+  return {...p,geom:f.geometry,pct:fx?fx[0]:Math.round(18+r*78),ago:fx?fx[1]:(r>.82?Math.round(8+r*30):null),n:fx?(fx[3]||1):1+Math.round(r*4),
+    openings:fx&&fx[2]?[{level:fx[2],gone:0,mine:false,left:7}]:[]};});
+const bySlug=Object.fromEntries(LOTS.map(l=>[l.slug,l]));
+const live=l=>l.ago!=null&&l.ago<=45;
+const tier=l=>tierOf(l.pct);
+function prov(l){
+  if(l.mine)return 'Live · your report · just now';
+  if(live(l))return `Live · ${l.n} Student report${l.n>1?'s':''} · ${l.ago} min ago`;
+  if(l.ago!=null)return `Estimated · last report ${l.ago} min ago (faded)`;
+  return 'Estimated · Tue 2 PM pattern, no reports yet';
+}
+function meters(a,b){const R=6371e3,t=Math.PI/180,dl=(b[1]-a[1])*t,dg=(b[0]-a[0])*t;const x=Math.sin(dl/2)**2+Math.cos(a[1]*t)*Math.cos(b[1]*t)*Math.sin(dg/2)**2;return 2*R*Math.asin(Math.sqrt(x));}
+function walk(l){const d=destFor(l.campus);if(!d)return null;return Math.max(1,Math.round(meters(l.c,[d[1],d[2]])*1.3/80))+(l.deck?1:0);}
+function destFor(campus){const name=S.dest[campus];return DEST[campus].find(d=>d[0]===name)||DEST[campus][0];}
+
+/* ===================== STATE ===================== */
+const qs=new URLSearchParams(location.search);
+const S={layout:qs.get('layout')||'sheet',theme:'light',motion:'system',text:100,cvd:'',frame:'phone',
+  campus:'Kennesaw',permit:'Central',q:'',sort:'room',showOther:false,dest:{Kennesaw:'Carmichael Student Center',Marietta:'Academic Building (Q)'},
+  snap:'peek',tab:'map',sel:null,open:null,level:{},pinned:['central-parking-deck'],leaving:null,legend:false,dialog:null,notes:false};
+const reduced=()=>S.motion==='reduce'||(S.motion==='system'&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+const inCampus=l=>S.campus==='All KSU'||l.campus===S.campus;
+const permitOK=l=>S.permit==='All'||l.permits.includes(S.permit);
+function sorted(ls){const k=S.sort;return ls.slice().sort((a,b)=>
+  k==='walk'?(walk(a)-walk(b))||(a.pct-b.pct):k==='code'?a.code.localeCompare(b.code,undefined,{numeric:true}):(RANK[tier(a)]-RANK[tier(b)])||((live(b)?1:0)-(live(a)?1:0))||(a.pct-b.pct));}
+function bestBet(){const ls=LOTS.filter(l=>inCampus(l)&&permitOK(l)&&tier(l)!=='full');
+  return ls.sort((a,b)=>(RANK[tier(a)]-RANK[tier(b)])||((live(b)?1:0)-(live(a)?1:0))||(walk(a)-walk(b)))[0];}
+
+/* ===================== ICONS ===================== */
+const P={
+ car:'<path d="M5 17h14v-5l-2-5H7l-2 5z"/><path d="M5 12h14"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/>',
+ pin:'<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>',minus:'<path d="M5 12h14"/>',search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+ x:'<path d="M18 6 6 18M6 6l12 12"/>',chev:'<path d="m6 9 6 6 6-6"/>',up:'<path d="m18 15-6-6-6 6"/>',
+ locate:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/>',
+ list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',map:'<path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/>',
+ info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',walk:'<circle cx="13" cy="4" r="2"/><path d="m9 20 3-6 3 3v5M7 12l3-4 4 1 3 4"/>',
+ home:'<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',rss:'<path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>',
+ bag:'<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>',chat:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+ owl:'<path d="M5 9c0-3.5 3-6 7-6s7 2.5 7 6v6a7 7 0 0 1-14 0Z"/><circle cx="9" cy="10.5" r="2"/><circle cx="15" cy="10.5" r="2"/><path d="m11 14.5 1 1.2 1-1.2"/><path d="M5 5 7 7M19 5l-2 2"/>',
+ bus:'<rect x="4" y="3" width="16" height="15" rx="2"/><path d="M4 11h16M8 3v8M16 3v8"/><circle cx="8" cy="18" r="1.5"/><circle cx="16" cy="18" r="1.5"/>',
+ undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',zap:'<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',
+ open:'<circle cx="12" cy="12" r="8"/>',
+ filling:'<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/>',
+ nearly:'<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 1 1-8 8h8z" fill="currentColor"/>',
+ full:'<circle cx="12" cy="12" r="8" fill="currentColor"/><path d="M8 12h8" stroke="var(--surface)"/>',
+};
+const ic=(n,s=20)=>`<svg class="i" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${P[n]||''}</svg>`;
+const glyph=(t,s=22)=>`<span class="mark-${t}">${ic(t,s)}</span>`;
+const tierChip=t=>`<span class="chip ${t}">${ic(t,14)}${TIERS[t]}</span>`;
+const fillBar=l=>`<div class="bar" aria-hidden="true"><span class="fill ${tier(l)}" style="width:${l.pct}%"></span></div>`;
+const provTag=l=>`<span class="prov">${live(l)||l.mine?'<span class="dotlive" aria-hidden="true"></span>':'<span class="dotest" aria-hidden="true"></span>'}${esc(prov(l))}</span>`;
+
+/* ===================== RENDER ===================== */
+const mapHost=document.createElement('div');mapHost.id='map';
+let map=null,lastTrigger=null;
+const DOCK=[['now','Now','home'],['feed','Feed','rss'],null,['marketplace','Market','bag'],['chats','Chats','chat']];
+const lotsShown=()=>LOTS.filter(l=>inCampus(l)&&(S.showOther||permitOK(l))&&(!S.q||(l.name+' '+l.code).toLowerCase().includes(S.q.toLowerCase())));
+const hidden=()=>LOTS.filter(l=>inCampus(l)&&!permitOK(l)).length;
+
+function header(){
+  return `<header class="hdr"><div class="hdr-row"><a class="brand brand-m" href="#" aria-label="KSUX home"><span class="dot"></span>KSUX</a><span class="hdr-title h1" style="text-align:center">Parking</span><button class="demo-pill" type="button">${ic('zap',16)}<span>Demo</span></button></div>
+  <div class="campus-chips" role="group" aria-label="Campus for parking">${['Kennesaw','Marietta','All KSU'].map(c=>`<button id="cmp-${c.replace(' ','')}" data-a="campus" data-x="${c}" aria-pressed="${S.campus===c}">${S.campus===c?ic('pin',16):''}${c}</button>`).join('')}</div></header>`;
+}
+function mapFrame(){
+  return `<section class="map-wrap" aria-label="Parking map">
+   <a class="skip-map" href="#lot-list-h">Skip map, go to the lot list</a>
+   <div id="mapSlot"></div>
+   <button class="btn legend-btn" id="legendBtn" data-a="legend" aria-expanded="${S.legend}" aria-controls="legendCard">${ic('info',18)}Key</button>
+   ${S.legend?`<div class="legend-card" id="legendCard"><b>How full</b><ul>${Object.keys(TIERS).map(t=>`<li><span class="mark-${t}" style="display:flex;align-items:center;gap:2px"><span class="swatch ${t}"></span></span><span>${glyph(t,16)} ${TIERS[t]} · ${RANGE[t]}</span></li>`).join('')}</ul>
+     <b>How sure</b><ul><li><span class="swatch live"></span><span>Solid edge: live Student reports (≤45 min)</span></li><li><span class="swatch est"></span><span>Dashed edge: estimate, no recent report</span></li>${S.showOther?`<li><span class="swatch other"></span><span>Grey: your permit can't park here</span></li>`:''}</ul>
+     <span class="meta">Same list, same order: “Skip map” or the list below.</span></div>`:''}
+   <div class="ctrls" role="group" aria-label="Map controls"><button class="icon-btn" id="zin" data-a="zoom" data-x="1" aria-label="Zoom in">${ic('plus',20)}</button><hr><button class="icon-btn" id="zout" data-a="zoom" data-x="-1" aria-label="Zoom out">${ic('minus',20)}</button><hr><button class="icon-btn" id="recenter" data-a="recenter" aria-label="Back to ${esc(S.campus)} campus">${ic('locate',20)}</button></div>
+  </section>`;
+}
+function lotItem(l){
+  const t=tier(l),open=S.open===l.slug,pin=S.pinned.includes(l.slug),w=walk(l),d=destFor(l.campus),ok=permitOK(l);
+  const lvl=S.level[l.slug]||'';
+  return `<li class="lot ${S.sel===l.slug?'sel':''} ${!live(l)&&!l.mine?'stale':''}" id="lot-${l.slug}">
+   <div class="lot-head"><span class="glyph">${glyph(t,26)}</span>
+    <button class="expand" id="ex-${l.slug}" data-a="toggle" data-x="${l.slug}" aria-expanded="${open}" aria-controls="det-${l.slug}">
+     <span class="nm">${esc(l.name)} <span class="meta">${esc(l.code)}</span></span>
+     <span class="meta">${provTag(l)}</span>
+     <span class="sr">${TIERS[t]}, about ${l.pct}% full.${w?` ${w} minute walk to ${esc(d[0])}.`:''}${l.openings.length?' Spot opening reported.':''}${!ok?' Not valid for your permit.':''}</span></button>
+    <span class="pctv num" aria-hidden="true">${l.pct}%</span></div>
+   ${fillBar(l)}
+   <div class="row">${tierChip(t)}${S.campus==='All KSU'?`<span class="chip ${l.campus==='Marietta'?'m':'k'}">${l.campus}</span>`:''}${w?`<span class="meta">${ic('walk',14)} ${w} min to ${esc(d[0])}</span>`:''}${!ok?'<span class="chip outline">Not your permit</span>':''}</div>
+   ${l.openings.map((o,i)=>`<p class="note ok leaving-live"><span>${ic('car',16)} Spot opening on ${esc(o.level)} in ~5 min · ${o.left} min left (anonymous)</span>${o.mine?`<button class="link" data-a="cancelLeaving">Cancel mine</button>`:`<button class="link" data-a="gone" data-x="${l.slug}:${i}">Mark gone (${o.gone}/2)</button>`}</p>`).join('')}
+   ${open?`<div class="stack" id="det-${l.slug}">
+    ${l.mine?`<p class="mine">You reported <b>${TIERS[l.mine]}</b>${l.mineLevel?` on ${esc(l.mineLevel)}`:''} just now. It fades over 45 min. <button class="link" data-a="undo" data-x="${l.slug}">Undo</button></p>`:''}
+    ${l.levels.length>1?`<fieldset><legend>Deck level (optional)</legend><div class="seg">${l.levels.map(v=>`<button type="button" id="lv-${l.slug}-${v}" data-a="level" data-x="${l.slug}:${v}" aria-pressed="${lvl===v}">${esc(v)}</button>`).join('')}</div></fieldset>`:''}
+    <fieldset><legend>How full is it right now?${lvl?` (${esc(lvl)})`:''}</legend><div class="tierbtns">${Object.keys(TIERS).map(k=>`<button class="btn" id="rp-${l.slug}-${k}" data-a="report" data-x="${l.slug}:${k}" aria-pressed="${l.mine===k}">${glyph(k,20)}<span>${TIERS[k]}<small>${RANGE[k]}</small></span></button>`).join('')}</div></fieldset>
+    <div class="row"><button class="btn" id="pin-${l.slug}" data-a="pin" data-x="${l.slug}" aria-pressed="${pin}">${ic('pin',16)}${pin?'Pinned to Now':'Pin to Now'}</button><button class="btn" id="show-${l.slug}" data-a="showOnMap" data-x="${l.slug}">${ic('map',16)}Show on map</button><button class="btn" id="lv5-${l.slug}" data-a="leavingFrom" data-x="${l.slug}">${ic('car',16)}Leaving here in ~5 min</button></div>
+    ${t!=='open'&&l.overflow.length&&bySlug[l.overflow[0]]?`<p class="note">${ic('bus',16)} Overflow: <b>${esc(bySlug[l.overflow[0]].name)}</b> is ${TIERS[tier(bySlug[l.overflow[0]])]} · Big Owl Bus Economy Route every 8 min.</p>`:''}
+    <p class="meta">Permits: ${esc(l.permits.join(', '))}</p></div>`:''}
+  </li>`;
+}
+function sheet(){
+  const ls=sorted(lotsShown()),b=bestBet(),h=hidden();
+  const lab={peek:'Show lots list',half:'Show full list',full:'Show more map'}[S.snap];
+  return `<section class="sheet" data-snap="${S.snap}" aria-labelledby="lot-list-h">
+   <button class="handle-btn" id="handle" data-a="snap" aria-expanded="${S.snap!=='peek'}" aria-controls="lotList"><span class="handle"></span><span>${S.snap==='full'?ic('chev',16):ic('up',16)}${lab}</span></button>
+   ${S.offline?`<p class="note warn" style="margin:0 var(--sp-4) var(--sp-2)" role="status">You're offline. Showing fullness saved at 1:42 PM. It is not current.</p>`:''}
+   ${S.leaving?`<p class="note ok leaving-live" style="margin:0 var(--sp-4) var(--sp-2)"><span>Shared: spot opening at ${esc(bySlug[S.leaving.slug].name)}${S.leaving.level?' '+esc(S.leaving.level):''} for 10 min.</span><button class="link" data-a="cancelLeaving">Cancel</button></p>`:''}
+   <div class="peek">
+    ${b?`<div class="best">${glyph(tier(b),28)}<button class="nm" id="best" data-a="focusLot" data-x="${b.slug}"><span class="kicker" style="color:var(--muted)">Best bet for your ${esc(S.permit==='All'?'':S.permit+' ')}permit</span><b>${esc(b.name)}</b><span class="meta">${TIERS[tier(b)]} · ${walk(b)} min walk · ${live(b)?'live':'estimate'}</span></button><span class="pct-s num" aria-hidden="true">${b.pct}%</span></div>`:''}
+    <div class="actions2"><button class="btn primary" id="rpt" data-a="reportPick" aria-haspopup="dialog">${ic('plus',18)}Parking Report</button><button class="btn dark" id="lvg" data-a="leavingPick" aria-haspopup="dialog">${ic('car',18)}I'm leaving ~5 min</button></div>
+   </div>
+   <div class="sheet-body" id="lotList">
+    <div class="sheet-h"><h2 id="lot-list-h" tabindex="-1">${ls.length} lot${ls.length===1?'':'s'}</h2><span class="meta">${S.campus==='All KSU'?'Both campuses':esc(S.campus)}</span></div>
+    <div class="filters"><div class="field"><label for="permit">Your permit</label><select class="select" id="permit" data-change="permit">${PERMITS.map(x=>`<option ${S.permit===x?'selected':''}>${x}</option>`).join('')}</select></div>
+     <div class="field"><label for="sort">Sort</label><select class="select" id="sort" data-change="sort">${[['room','Most room'],['walk','Shortest walk'],['code','Lot code']].map(([v,t])=>`<option value="${v}" ${S.sort===v?'selected':''}>${t}</option>`).join('')}</select></div>
+     ${S.campus!=='All KSU'?`<div class="field" style="grid-column:1/-1"><label for="dest">Walking to</label><select class="select" id="dest" data-change="dest">${DEST[S.campus].map(d=>`<option ${S.dest[S.campus]===d[0]?'selected':''}>${esc(d[0])}</option>`).join('')}</select></div>`:''}</div>
+    <div class="search"><label for="q" class="sr">Find a lot by name or code</label>${ic('search',18)}<input class="input" id="q" data-input="q" type="search" placeholder="Find a lot (e.g. West Deck, K12)" value="${esc(S.q)}" autocomplete="off"></div>
+    <ul class="stack" style="list-style:none;margin:0;padding:0">${ls.map(lotItem).join('')||'<li class="empty">No lots match. Clear the search or change your permit.</li>'}</ul>
+    ${h?`<button class="btn ghost" id="other" data-a="other" aria-pressed="${S.showOther}">${S.showOther?'Hide':'Show'} ${h} lots your permit can't use</button>`:''}
+   </div></section>`;
+}
+function dock(){return `<nav class="dock" aria-label="Primary">${DOCK.map(d=>d?`<a href="#" class="dock-i">${ic(d[2],22)}<span class="lbl">${d[1]}</span></a>`:`<button class="dock-q">${ic('owl',22)}<span class="lbl">Ask Scrappy</span></button>`).join('')}</nav>`;}
+
+function render(opt={}){
+  const app=$('#app');app.dataset.theme=S.theme;app.dataset.motion=S.motion;app.className='app'+(S.cvd?' cvd-'+S.cvd:'');
+  $('#stage').dataset.frame=S.frame;document.documentElement.style.fontSize=S.text+'%';$('#textOut').textContent=S.text+'%';
+  const fid=opt.focus||(document.activeElement&&document.activeElement.id&&$('#shellRoot').contains(document.activeElement)?'#'+document.activeElement.id:null);
+  const listScroll=$('#lotList')?.scrollTop, mainScroll=$('#main')?.scrollTop;
+  const tabs=`<div class="tabbar"><div class="seg" role="group" aria-label="View">${[['map','Map','map'],['list','List','list']].map(([k,t,i])=>`<button id="tab-${k}" data-a="tab" data-x="${k}" aria-pressed="${S.tab===k}">${ic(i,16)}${t}</button>`).join('')}</div></div>`;
+  $('#shellRoot').innerHTML=`<a class="skip" href="#lot-list-h">Skip to lot list</a><div class="shell">${header()}
+   <main class="main park lay-${S.layout}" id="main" data-tab="${S.tab}"><h1 class="sr" id="main-h" tabindex="-1">Parking</h1>${S.layout==='tabs'?tabs:''}${S.layout==='list'?sheet()+'':mapFrame()+sheet()}</main></div>${dock()}`;
+  if(S.layout==='list'){ // list-first: map card goes after the peek actions
+    const peek=$('.peek');peek.insertAdjacentHTML('afterend',mapFrame());}
+  $('#mapSlot').replaceWith(mapHost);
+  if(listScroll!=null&&$('#lotList'))$('#lotList').scrollTop=listScroll; if(mainScroll!=null)$('#main').scrollTop=mainScroll;
+  renderDialog();
+  if(fid){const el=document.querySelector(fid);if(el)el.focus({preventScroll:false});}
+  if(map){requestAnimationFrame(()=>map.resize());syncMap();}
+}
+
+/* ===================== DIALOGS (Direction C sheet primitive) ===================== */
+function candidates(){const ls=[];const add=s=>{if(s&&bySlug[s]&&!ls.includes(bySlug[s])&&inCampus(bySlug[s]))ls.push(bySlug[s]);};
+  add(S.sel);S.pinned.forEach(add);LOTS.filter(l=>inCampus(l)&&permitOK(l)).sort((a,b)=>walk(a)-walk(b)).forEach(l=>add(l.slug));return ls.slice(0,5);}
+function renderDialog(){
+  const d=S.dialog,root=$('#dialogRoot');const shell=$('#shellRoot');
+  if(!d){root.innerHTML='';shell.inert=false;return;}
+  shell.inert=true;const l=bySlug[d.slug],lv=d.level||'';
+  const lotPick=`<fieldset><legend>Which lot?</legend><div class="radio-list">${candidates().map(c=>`<label class="radio"><input type="radio" name="dlot" value="${c.slug}" ${c.slug===d.slug?'checked':''} data-change="dlot"><span><b>${esc(c.name)}</b>${S.pinned.includes(c.slug)?' · pinned':''}<span class="sub">${TIERS[tier(c)]} now · ${walk(c)} min walk</span></span></label>`).join('')}</div></fieldset>
+   ${l.levels.length>1?`<fieldset><legend>Deck level (optional)</legend><div class="seg">${l.levels.map(v=>`<button type="button" id="dl-${v}" data-a="dlevel" data-x="${v}" aria-pressed="${lv===v}">${esc(v)}</button>`).join('')}</div></fieldset>`:''}`;
+  const body=d.kind==='report'
+   ?`<div class="dlg-head"><h2 id="dlg-h">Parking Report</h2><button class="icon-btn" data-a="close" aria-label="Close">${ic('x')}</button></div>${lotPick}
+     <fieldset><legend>How full is ${esc(l.name)}${lv?' '+esc(lv):''} right now? Tapping publishes.</legend><div class="tierbtns">${Object.keys(TIERS).map(k=>`<button class="btn" data-a="dreport" data-x="${k}">${glyph(k,20)}<span>${TIERS[k]}<small>${RANGE[k]}</small></span></button>`).join('')}</div></fieldset>
+     <p class="meta">Anonymous to other Students. Fades over 45 min. Not shown to KSU Parking Services.</p>`
+   :`<div class="dlg-head"><h2 id="dlg-h">I'm leaving in ~5 min</h2><button class="icon-btn" data-a="close" aria-label="Close">${ic('x')}</button></div>${lotPick}
+     <p class="meta">Drivers looking at this lot see “Spot opening in ~5 min” for 10 minutes. Your name is never shown.</p>
+     <div class="dlg-actions"><button class="btn" data-a="close">Cancel</button><button class="btn dark" data-a="dleaving">${ic('car',18)}Share spot opening</button></div>`;
+  root.innerHTML=`<div class="backdrop" data-a="close"></div><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-h"><div class="handle"></div>${body}</div>`;
+  if(d.justOpened){d.justOpened=false;(root.querySelector('input:checked')||root.querySelector('button')).focus();}
+}
+function openDialog(kind,trigger){lastTrigger=trigger;const c=candidates()[0];S.dialog={kind,slug:c?c.slug:LOTS[0].slug,level:'',justOpened:true};render();}
+function closeDialog(){S.dialog=null;render({focus:lastTrigger});}
+
+/* ===================== MAPLIBRE ===================== */
+const css=v=>getComputedStyle($('#app')).getPropertyValue(v).trim();
+const styleUrl=()=>`https://tiles.openfreemap.org/styles/${S.theme==='dark'?'dark':'positron'}`;
+function canvasImg(w,h,draw,ratio=2){const c=document.createElement('canvas');c.width=w*ratio;c.height=h*ratio;const x=c.getContext('2d');x.scale(ratio,ratio);draw(x);return {width:c.width,height:c.height,data:x.getImageData(0,0,c.width,c.height).data};}
+function patterns(){
+  const surf=css('--surface'),out={};
+  const mk={open:css('--open-mark'),filling:css('--filling-mark'),nearly:css('--nearly-mark'),full:css('--full-mark'),other:css('--line-strong')};
+  const tint=(c,a)=>{const x=document.createElement('canvas').getContext('2d');x.fillStyle=c;return x.fillStyle;};
+  out.open=canvasImg(12,12,x=>{x.fillStyle=surf;x.fillRect(0,0,12,12);x.globalAlpha=.38;x.fillStyle=mk.open;x.fillRect(0,0,12,12);});
+  out.filling=canvasImg(12,12,x=>{x.fillStyle=surf;x.fillRect(0,0,12,12);x.globalAlpha=.2;x.fillStyle=mk.filling;x.fillRect(0,0,12,12);x.globalAlpha=1;x.fillRect(0,0,4,12);});
+  out.nearly=canvasImg(12,12,x=>{x.fillStyle=surf;x.fillRect(0,0,12,12);x.globalAlpha=.2;x.fillStyle=mk.nearly;x.fillRect(0,0,12,12);x.globalAlpha=1;x.strokeStyle=mk.nearly;x.lineWidth=3;x.beginPath();for(let i=-12;i<=24;i+=6){x.moveTo(i,12);x.lineTo(i+12,0);}x.stroke();});
+  out.full=canvasImg(12,12,x=>{x.fillStyle=surf;x.fillRect(0,0,12,12);x.globalAlpha=.35;x.fillStyle=mk.full;x.fillRect(0,0,12,12);x.globalAlpha=1;x.strokeStyle=mk.full;x.lineWidth=2.2;x.beginPath();for(let i=-12;i<=24;i+=5){x.moveTo(i,12);x.lineTo(i+12,0);x.moveTo(i,0);x.lineTo(i+12,12);}x.stroke();});
+  out.other=canvasImg(12,12,x=>{x.fillStyle=surf;x.fillRect(0,0,12,12);x.globalAlpha=.25;x.fillStyle=mk.other;x.fillRect(0,0,12,12);});
+  // glyph pins: surface disc, coloured ring, ○ ◐ ◕ ● shape
+  for(const t of ['open','filling','nearly','full'])out['g-'+t]=canvasImg(34,34,x=>{const c=mk[t];
+    x.fillStyle=surf;x.beginPath();x.arc(17,17,15.5,0,7);x.fill();x.strokeStyle=css('--ink');x.lineWidth=1.5;x.stroke();
+    x.strokeStyle=c;x.fillStyle=c;x.lineWidth=2.6;x.beginPath();x.arc(17,17,9,0,7);x.stroke();
+    x.beginPath();if(t==='filling'){x.moveTo(17,8);x.arc(17,17,9,-Math.PI/2,Math.PI/2);x.fill();}
+    if(t==='nearly'){x.moveTo(17,17);x.arc(17,17,9,-Math.PI/2,Math.PI);x.closePath();x.fill();}
+    if(t==='full'){x.arc(17,17,9,0,7);x.fill();x.strokeStyle=surf;x.lineWidth=2.4;x.beginPath();x.moveTo(12.5,17);x.lineTo(21.5,17);x.stroke();}});
+  out['g-other']=canvasImg(34,34,x=>{x.fillStyle=surf;x.beginPath();x.arc(17,17,12,0,7);x.fill();x.strokeStyle=mk.other;x.lineWidth=2;x.setLineDash([3,2]);x.stroke();x.setLineDash([]);x.beginPath();x.moveTo(11,23);x.lineTo(23,11);x.stroke();});
+  out.opening=canvasImg(30,22,x=>{x.fillStyle=css('--ink');x.beginPath();x.roundRect(1,1,28,20,10);x.fill();x.strokeStyle=css('--bg');x.fillStyle=css('--bg');x.lineWidth=1.8;x.lineJoin='round';
+    x.beginPath();x.moveTo(9,14);x.lineTo(21,14);x.lineTo(21,11);x.lineTo(19,7);x.lineTo(11,7);x.lineTo(9,11);x.closePath();x.stroke();x.beginPath();x.arc(11.5,15,1.8,0,7);x.arc(18.5,15,1.8,0,7);x.fill();});
+  return out;
+}
+function geo(){
+  return {type:'FeatureCollection',features:lotsShown().map(l=>{const ok=permitOK(l);return {type:'Feature',id:LOTS.indexOf(l),geometry:l.geom,
+    properties:{slug:l.slug,code:l.code,tier:ok?tier(l):'other',live:(live(l)||!!l.mine)?1:0,sel:S.sel===l.slug?1:0,open:l.openings.length?1:0,cx:l.c[0],cy:l.c[1]}};})};
+}
+function points(){const g=geo();return {type:'FeatureCollection',features:g.features.map(f=>({type:'Feature',geometry:{type:'Point',coordinates:[f.properties.cx,f.properties.cy]},properties:f.properties}))};}
+function addLayers(){
+  const img=patterns();for(const [k,v] of Object.entries(img)){if(map.hasImage(k))map.removeImage(k);map.addImage(k,v,{pixelRatio:2});}
+  if(map.getSource('lots')){map.getSource('lots').setData(geo());map.getSource('pins').setData(points());return;}
+  const ink=css('--ink'),focus=css('--focus');
+  map.addSource('lots',{type:'geojson',data:geo()});map.addSource('pins',{type:'geojson',data:points()});
+  map.addLayer({id:'lot-fill',type:'fill',source:'lots',paint:{'fill-pattern':['get','tier'],'fill-opacity':.95}});
+  map.addLayer({id:'lot-edge-live',type:'line',source:'lots',filter:['==',['get','live'],1],paint:{'line-color':ink,'line-width':2}});
+  map.addLayer({id:'lot-edge-est',type:'line',source:'lots',filter:['==',['get','live'],0],paint:{'line-color':ink,'line-width':1.6,'line-dasharray':[2,1.5]}});
+  map.addLayer({id:'lot-sel',type:'line',source:'lots',filter:['==',['get','sel'],1],paint:{'line-color':focus,'line-width':5}});
+  map.addLayer({id:'lot-pin',type:'symbol',source:'pins',layout:{'icon-image':['concat','g-',['get','tier']],'icon-allow-overlap':true,'icon-size':['interpolate',['linear'],['zoom'],13,.6,15,1],
+    'text-field':['step',['zoom'],'',14.3,['get','code']],'text-font':['Noto Sans Bold'],'text-size':13*S.text/100,'text-offset':[0,1.55],'text-anchor':'top','text-optional':true,'symbol-sort-key':['case',['==',['get','sel'],1],0,1]},
+    paint:{'text-color':ink,'text-halo-color':css('--surface'),'text-halo-width':2}});
+  map.addLayer({id:'lot-opening',type:'symbol',source:'pins',filter:['==',['get','open'],1],layout:{'icon-image':'opening','icon-allow-overlap':true,'icon-offset':[16,-16],'icon-size':['interpolate',['linear'],['zoom'],13,.7,15,1]}});
+  for(const id of ['lot-fill','lot-pin']){map.on('click',id,e=>{const f=e.features[0];if(f)selectFromMap(f.properties.slug);});
+    map.on('mouseenter',id,()=>map.getCanvas().style.cursor='pointer');map.on('mouseleave',id,()=>map.getCanvas().style.cursor='');}
+}
+function syncMap(){if(!map||!map.isStyleLoaded()||!map.getSource('lots'))return;map.getSource('lots').setData(geo());map.getSource('pins').setData(points());
+  if(map.getLayer('lot-pin'))map.setLayoutProperty('lot-pin','text-size',13*S.text/100);}
+function initMap(){
+  if(!window.maplibregl){mapHost.innerHTML='<p class="map-fallback">Map unavailable (offline or blocked). Every lot is in the list.</p>';return;}
+  map=new maplibregl.Map({container:mapHost,style:styleUrl(),center:CENTER[S.campus].c,zoom:CENTER[S.campus].z,attributionControl:false,
+    cooperativeGestures:false,dragRotate:false,pitchWithRotate:false,touchPitch:false,maxZoom:18.5,minZoom:10});
+  map.touchZoomRotate.disableRotation();map.keyboard.disableRotation();
+  map.addControl(new maplibregl.AttributionControl({compact:true,customAttribution:'Lot outlines © OpenStreetMap contributors'}),'bottom-right');
+  map.on('style.load',addLayers);map.once('load',()=>fitCampus(true));
+  map.on('error',e=>{if(/style|Failed to fetch/i.test(String(e?.error?.message))&&!map.loaded())mapHost.insertAdjacentHTML('beforeend','<p class="map-fallback">Map tiles unavailable. Every lot is in the list.</p>');});
+  const cv=map.getCanvas();cv.setAttribute('aria-label','Parking map. Arrow keys pan, plus and minus zoom. The lot list has the same lots in the same order.');
+}
+function fitCampus(instant){if(!map)return;const ls=LOTS.filter(l=>inCampus(l)&&permitOK(l));if(!ls.length)return;let b=new maplibregl.LngLatBounds(ls[0].c,ls[0].c);ls.forEach(l=>b.extend(l.c));
+  const r=mapHost.getBoundingClientRect(),sh=$('.lay-sheet .sheet');const bottom=sh&&r.width<1000?Math.min(sh.getBoundingClientRect().height,r.height*.6):24;
+  map.fitBounds(b,{padding:{top:60,left:24,right:64,bottom:bottom+24},maxZoom:16.5,...(instant?{duration:0}:motionOpts())});}
+const motionOpts=()=>reduced()?{duration:0}:{duration:500};
+function fly(l){if(!map)return;map.easeTo({center:l.c,zoom:Math.max(map.getZoom(),16.2),...motionOpts()});}
+function say(m){const r=$('#live');r.textContent='';setTimeout(()=>r.textContent=m,30);}
+function toast(msg,undo){const t=document.createElement('div');t.className='toast';t.innerHTML=`<span>${esc(msg)}</span>${undo?`<button class="link" data-a="undo" data-x="${undo}">Undo</button>`:''}`;$('#toasts').append(t);setTimeout(()=>t.remove(),undo?6500:3600);}
+function selectFromMap(slug){
+  S.sel=slug;S.open=slug;if(S.layout==='sheet'&&S.snap==='peek')S.snap='half';if(S.layout==='tabs')S.tab='list';
+  if(!lotsShown().some(l=>l.slug===slug))S.q='';
+  render({focus:'#ex-'+slug});const el=$('#lot-'+slug);el&&el.scrollIntoView({block:'nearest',behavior:reduced()?'auto':'smooth'});
+  const l=bySlug[slug];say(`${l.name} selected. ${TIERS[tier(l)]}, about ${l.pct}% full. Details are open in the list.`);
+}
+
+/* ===================== ACTIONS ===================== */
+function publish(slug,t,level){
+  const l=bySlug[slug];l.prev={pct:l.pct,ago:l.ago,n:l.n,mine:l.mine,mineLevel:l.mineLevel};
+  l.mine=t;l.mineLevel=level||'';l.pct=Math.round((l.pct+MID[t]*2)/3);if(tierOf(l.pct)!==t)l.pct=MID[t];l.ago=0;l.n=(live(l)?l.n:0)+1;
+  toast(`Parking Report: ${l.name}${level?' '+level:''} is ${TIERS[t]}.`,slug);
+}
+const A={
+ campus:(el,x)=>{S.campus=x;S.sel=null;S.open=null;if(x!=='All KSU'&&!S.permit)S.permit='All';render({focus:'#cmp-'+x.replace(' ','')});fitCampus();},
+ zoom:(el,x)=>{if(!map)return;(+x>0?map.zoomIn:map.zoomOut).call(map,motionOpts());say(`Zoom ${+x>0?'in':'out'}`);},
+ recenter:()=>{fitCampus();say(`Map back to ${S.campus}`);},
+ legend:()=>{S.legend=!S.legend;render({focus:'#legendBtn'});},
+ snap:()=>{S.snap={peek:'half',half:'full',full:'peek'}[S.snap];render({focus:'#handle'});},
+ tab:(el,x)=>{S.tab=x;render({focus:'#tab-'+x});if(x==='map'&&map)setTimeout(()=>map.resize(),0);},
+ toggle:(el,x)=>{S.open=S.open===x?null:x;S.sel=S.open;render({focus:'#ex-'+x});if(S.open&&S.layout!=='tabs')fly(bySlug[x]);},
+ focusLot:(el,x)=>{S.open=x;S.sel=x;S.q='';if(S.layout==='sheet')S.snap='half';if(S.layout==='tabs')S.tab='list';render({focus:'#ex-'+x});fly(bySlug[x]);$('#lot-'+x)?.scrollIntoView({block:'nearest'});},
+ showOnMap:(el,x)=>{S.sel=x;if(S.layout==='tabs')S.tab='map';if(S.layout==='sheet')S.snap='peek';render({focus:'#zin'});fly(bySlug[x]);say(`${bySlug[x].name} highlighted on the map with a blue outline.`);},
+ level:(el,x)=>{const [s,v]=x.split(':');S.level[s]=S.level[s]===v?'':v;render({focus:`#lv-${s}-${v}`});},
+ report:(el,x)=>{const [s,t]=x.split(':');publish(s,t,S.level[s]);render({focus:`#rp-${s}-${t}`});},
+ undo:(el,x)=>{const l=bySlug[x];if(!l.prev)return;Object.assign(l,l.prev);l.prev=null;toast(`Report on ${l.name} removed.`);render();},
+ pin:(el,x)=>{const p=S.pinned,i=p.indexOf(x);if(i>=0)p.splice(i,1);else{if(p.length>=2){toast(`Unpinned ${bySlug[p[0]].name} (2 max).`);p.shift();}p.push(x);}render({focus:'#pin-'+x});},
+ gone:(el,x)=>{const [s,i]=x.split(':');const o=bySlug[s].openings[+i];o.gone++;if(o.gone>=2){bySlug[s].openings.splice(+i,1);toast('Spot opening removed (2 Students said it’s gone).');}render();},
+ leavingFrom:(el,x)=>{startLeaving(x,S.level[x]);render({focus:'#lv5-'+x});},
+ cancelLeaving:()=>{if(!S.leaving)return;const l=bySlug[S.leaving.slug];l.openings=l.openings.filter(o=>!o.mine);S.leaving=null;toast('Spot opening cancelled.');render();},
+ other:()=>{S.showOther=!S.showOther;render({focus:'#other'});},
+ reportPick:el=>openDialog('report','#rpt'), leavingPick:el=>openDialog('leaving','#lvg'),
+ close:()=>closeDialog(),
+ dlevel:(el,x)=>{S.dialog.level=S.dialog.level===x?'':x;render({focus:'#dl-'+x});},
+ dreport:(el,x)=>{const d=S.dialog;publish(d.slug,x,d.level);S.dialog=null;S.sel=d.slug;render({focus:lastTrigger});},
+ dleaving:()=>{const d=S.dialog;startLeaving(d.slug,d.level);S.dialog=null;render({focus:lastTrigger});},
+};
+function startLeaving(slug,level){
+  if(S.leaving)bySlug[S.leaving.slug].openings=bySlug[S.leaving.slug].openings.filter(o=>!o.mine);
+  bySlug[slug].openings.unshift({level:level||'this lot',gone:0,mine:true,left:10});S.leaving={slug,level};
+  toast(`Spot opening shared for ${bySlug[slug].name}. Visible 10 min.`);
+}
+document.addEventListener('click',e=>{const el=e.target.closest('[data-a]');if(!el||!el.closest('#app'))return;
+  if(el.tagName==='A')e.preventDefault();const f=A[el.dataset.a];if(f){e.preventDefault();f(el,el.dataset.x);}});
+document.addEventListener('change',e=>{const c=e.target.dataset.change;if(!c)return;
+  if(c==='permit'){S.permit=e.target.value;render({focus:'#permit'});fitCampus();say(`${lotsShown().length} lots for ${S.permit} permit`);}
+  if(c==='sort'){S.sort=e.target.value;render({focus:'#sort'});}
+  if(c==='dest'){S.dest[S.campus]=e.target.value;render({focus:'#dest'});}
+  if(c==='dlot'){S.dialog.slug=e.target.value;S.dialog.level='';render({focus:`input[value="${e.target.value}"]`});}});
+let qT;document.addEventListener('input',e=>{if(e.target.dataset.input==='q'){S.q=e.target.value;clearTimeout(qT);qT=setTimeout(()=>{render({focus:'#q'});const q=$('#q');q.setSelectionRange(q.value.length,q.value.length);say(`${lotsShown().length} lots match`);},250);}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(S.dialog){closeDialog();}else if(S.legend){S.legend=false;render({focus:'#legendBtn'});}}
+  if(e.key==='Tab'&&S.dialog){const f=[...$('#dialogRoot').querySelectorAll('button,input,select')].filter(x=>!x.disabled);const a=f[0],z=f[f.length-1];
+    if(e.shiftKey&&document.activeElement===a){e.preventDefault();z.focus();}else if(!e.shiftKey&&document.activeElement===z){e.preventDefault();a.focus();}}});
+
+/* ===================== PROTOTYPE BAR ===================== */
+const bind=(id,k,num,after)=>{const el=$(id);el.value=S[k];el.oninput=el.onchange=()=>{S[k]=num?+el.value:el.value;render();after&&after();};};
+bind('#ctlLayout','layout',false,()=>{const u=new URL(location);u.searchParams.set('layout',S.layout);history.replaceState(null,'',u);});
+bind('#ctlTheme','theme',false,()=>{if(map){map.setStyle(styleUrl());}});
+bind('#ctlMotion','motion');bind('#ctlText','text',true);bind('#ctlCvd','cvd');bind('#ctlFrame','frame',false,()=>setTimeout(()=>map&&map.resize(),50));
+$('#ctlNotes').onclick=()=>{S.notes=!S.notes;$('#notes').hidden=!S.notes;$('#ctlNotes').setAttribute('aria-expanded',S.notes);};
+$('#notes').innerHTML=`<button class="x" onclick="$('#ctlNotes').click()">Close</button><h2>#47 Parking: what to react to</h2>
+<ol>
+<li><b>Layout</b> (bar → Layout). <b>A</b> map full-bleed + bottom sheet with 3 snaps (peek · half · full); the two primary actions and “best bet” sit in thumb reach in the peek. <b>B</b> list-first with a map card (v2-shell first pass). <b>C</b> Map | List tabs. On desktop (Frame → fluid) all three become map + 26rem side list.</li>
+<li><b>Fullness encoding on the map</b>: the lot polygon gets the <i>same pattern</i> as the list's fill bar (tint · vertical stripes · diagonal hatch · cross-hatch), plus a glyph pin (○ ◐ ◕ ●) and the lot code at zoom ≥14.3. Okabe–Ito-derived colour is the 4th channel, never the only one. Try Vision → greyscale / deuteranopia.</li>
+<li><b>Confidence</b>: solid outline = live Student reports (≤45 min); dashed = estimate; list rows dim the % when stale, and the provenance line says which.</li>
+<li><b>Permit</b> filters by default; “Show N lots your permit can't use” adds them greyed with a struck pin.</li>
+<li><b>Parking Report</b> in 2 taps: “Parking Report” → (nearest/pinned lot pre-selected) → tap a tier = published, with Undo in the toast and in the lot. Same flow inline on any expanded lot. Deck level stays optional.</li>
+<li><b>Spot Opening</b>: “I'm leaving ~5 min” → confirm lot → share; one active per Student; others “Mark gone” (2 votes removes).</li>
+<li><b>List parity</b>: every lot on the map is in the list in the chosen order; tapping a lot on the map opens the same row and announces it; “Show on map” goes the other way with a blue (focus-colour) outline, never colour-coded status.</li>
+<li><b>Map keyboard</b>: canvas is focusable (arrows pan, +/− zoom) with a “Skip map” link first; zoom in / out / recenter buttons are 44 px; rotation and pitch are off. OSM attribution is on (fixes the <code>attributionControl:false</code> gap).</li>
+<li><b>Reduced motion</b>: camera moves become jumps (duration 0), sheet snaps without sliding.</li>
+<li><b>Text scaling</b>: everything in rem; map lot-code labels scale via <code>setLayoutProperty('text-size')</code>; at ≥150% the filter/tier grids drop to one column.</li>
+</ol>
+<h2>Not decided here</h2><ul><li>Real fullness model and decay (unchanged from SPEC §4.x).</li><li>Where Incidents/Alerts sit on maps (navigation ticket).</li><li>Offline map tiles (ADR-0005 offline scope still read-only).</li></ul>`;
+
+render();initMap();
+
+</script>
+</body>
+</html>
