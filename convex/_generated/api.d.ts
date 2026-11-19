@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as agenda from "../agenda.js";
 import type * as auth from "../auth.js";
 import type * as authNode from "../authNode.js";
 import type * as chats from "../chats.js";
@@ -21,6 +22,7 @@ import type * as demo_v2Fixtures from "../demo/v2Fixtures.js";
 import type * as feed from "../feed.js";
 import type * as housekeeping from "../housekeeping.js";
 import type * as http from "../http.js";
+import type * as lib_agendaItems from "../lib/agendaItems.js";
 import type * as lib_bannerCatalog from "../lib/bannerCatalog.js";
 import type * as lib_campusChat from "../lib/campusChat.js";
 import type * as lib_chatPreview from "../lib/chatPreview.js";
@@ -70,6 +72,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  agenda: typeof agenda;
   auth: typeof auth;
   authNode: typeof authNode;
   chats: typeof chats;
@@ -83,6 +86,7 @@ declare const fullApi: ApiFromModules<{
   feed: typeof feed;
   housekeeping: typeof housekeeping;
   http: typeof http;
+  "lib/agendaItems": typeof lib_agendaItems;
   "lib/bannerCatalog": typeof lib_bannerCatalog;
   "lib/campusChat": typeof lib_campusChat;
   "lib/chatPreview": typeof lib_chatPreview;

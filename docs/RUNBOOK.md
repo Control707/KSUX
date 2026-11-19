@@ -2,6 +2,16 @@
 
 > Companion operations runbook to [`docs/SPEC.md`](./SPEC.md) for running KSUX locally and deploying to `$0` free-tier production.
 
+## Private agenda (#76)
+
+- `/agenda`, linked from the desktop You rail and Quick Sheet, shows the next 14 Eastern calendar days across both Campuses. It reads the owning Student's private schedule, enrollments, RSVP records (Going and Interested), and joined Study Sessions, including archived Session Chats. It never accepts a Student/workspace selector. Campus location preferences do not filter it. Cancelled Events and Study Sessions remain labelled until their scheduled window passes; removed RSVPs and departed attendance disappear. Hidden, blocked, cross-workspace and Course Hub-ineligible content is excluded.
+- Imported class meetings override their matched Banner meetings. Repeated imports and legacy/private copies of a deadline are deduplicated. Class recurrence follows the existing calendar-term convention (Jan–Apr / May–Jul / Aug–Dec), preserving Eastern wall time over DST. No registrar end dates, holidays or class cancellations are inferred. Owl Express and D2L handoffs are provided for authoritative records and coursework. Imported calendar bytes and subscription URLs are never stored.
+- All reads are bounded: latest 20 private terms, 100 enrollments, 200 RSVP records and 200 Study Session chat memberships; reaching a limit shows a notice. Attendance and session visibility are rechecked against the original session; chat membership is only the indexed discovery path. No new cron or materialized agenda copy is needed.
+- **Export Events (.ics)** downloads only the RSVPed Events shown in that 14-day view. Stable per-Event UIDs, UTC timestamps, escaped/folded UTF-8 text and `STATUS:CANCELLED` are included. Classes, deadlines, Study Sessions, student identities and reminder alarms are omitted. This is a snapshot, not a calendar subscription: export again after changes. Removing an RSVP omits the Event on the next export; KSUX cannot remove an earlier import from an external calendar.
+- `/profile/notifications#agenda` holds four independent switches (Class, Deadline, Event, Study Session), all off by default. Reminders are **in-app only**, respecting ADR-0005/0007. An enabled type is checked once a minute while the shell is visible and online and when the tab returns online/visible. It can appear in the 15 minutes before the start/deadline; missed starts are never replayed. There is no background scheduling or OS push permission request. Turning a switch on inside that window permits the upcoming reminder immediately.
+- Each claim rereads current sources and settings in a Convex mutation. Cancelling, removing an RSVP or leaving attendance suppresses pending delivery. The deduplication key is the stable item/occurrence key plus its start/deadline instant: title/location changes do not redeliver; time changes may generate a new reminder; moving back to an already claimed time does not repeat it. Claims serialize across tabs/devices, giving at-most-once claim semantics. Closing/navigating after a successful claim can lose the visible toast; an already displayed toast cannot be retracted. Pending receipt keys expire at their occurrence's start time and are pruned on the next enabled check, with a 1,000-key cap that defers excess claims rather than evicting live keys. Settings/receipts are private, removed on Student cleanup, and purged with expired/reset Demo workspaces by the existing hourly batch job.
+- Verify with `pnpm test -- tests/convex/private-agenda.test.ts`, `pnpm test:e2e --project=chromium tests/e2e/private-agenda.spec.ts`, and `pnpm test:e2e --project=a11y tests/a11y/agenda.spec.ts`. The new route/settings use shared accessible primitives, target sizes, rem text and live announcements. The existing release-level manual AT matrix still applies.
+
 ---
 
 ## Repeatable team setup wizard
@@ -200,6 +210,18 @@ Record the date, deployment URL, verified commit SHA, tester, and outcome in the
 - [ ] Sign in with a real KSU inbox. Confirm OTP delivery, verification, reload, and sign-out.
 - [ ] Upload an image through the hosted media provider and confirm it renders. Verify cleanup for abandoned test media.
 - [ ] If Web Push is enabled, opt in on a supported device and confirm receipt and navigation for an eligible message. Record the tested browser and device, or mark push disabled.
+
+## Next-class wayfinding checks (#75)
+
+On Now, the next weekly class is selected across both Campuses, independently of the location-screen Campus setting. Imported meetings override matching Banner meetings; unmatched and online classes retain their schedule cards. Building matching uses the shipped names and aliases and leaves unknown or ambiguous locations unlinked. The current semester is Spring (January–April), Summer (May–July), or Fall (August–December); this weekly schedule does not infer holidays or class cancellations.
+
+Choose **Your stop** on a Transit stop card or pin Parking Lots on Parking. Now's **Start from** control reuses those choices. The stop is stored on the authenticated Student or isolated Demo persona, replacing the previous device-wide preference. Changing it in one Student's session never changes another's. Old device-wide choices are not imported because their owner is unknown.
+
+The class card suggests the nearest destination stop on a relevant published route. For a cross-Campus origin it uses a route serving both Campuses. Distances are straight-line distances, not walking directions or promised transfers. Its arrival query reads one indexed route and the shared snapshot; it only uses the requested boarding stop's ETA. Snapshots older than 36 seconds are labelled stale; missing arrivals show scheduled operating hours without inventing an ETA. Demo estimates are labelled explicitly.
+
+Visit Now online before an offline reload. The existing scoped commuter cache keeps only the schedule, Your stop and pinned-lot coordinates for this feature, never arrival estimates. The shared campus map and shipped route hours remain available offline. Sign-out clears the cache. Existing snapshots without travel preferences remain readable.
+
+Focused verification: `pnpm test:e2e --project=chromium class-wayfinding.spec.ts`; the case checks a Kennesaw class, a Marietta class, a saved Kennesaw stop, a KM trip, keyboard map entry, axe, 320 px reflow and offline reload. Unit and Convex cases are in `tests/unit/class-wayfinding.test.ts` and `tests/convex/class-wayfinding.test.ts`.
 
 ## Verified Banner catalog refresh
 

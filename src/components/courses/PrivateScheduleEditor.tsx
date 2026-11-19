@@ -118,7 +118,7 @@ export function PrivateScheduleEditor({ termCode }: { termCode: string }) {
   return (
     <section aria-label="Private schedule" className="space-y-[var(--sp-3)] border-t border-[var(--line)] pt-[var(--sp-3)]">
       <h2 className={ui.h2}>Your private schedule</h2>
-      <p className={ui.muted}>Only you can see these classes. They show on your Now screen.</p>
+      <p className={ui.muted}>Only you can see these classes. They show on Now and your private agenda.</p>
       <div className="lt-grid-1 grid grid-cols-1 items-end gap-[var(--sp-3)] sm:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0">
           <label htmlFor={`${id}-ics`} className={ui.label}>Import .ics Schedule</label>

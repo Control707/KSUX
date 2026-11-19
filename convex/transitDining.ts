@@ -120,6 +120,7 @@ export const listShuttleOverview = viewerQuery({
 
     return {
       campusFilter,
+      yourStopId: viewer.actorStudent.yourShuttleStopId ?? null,
       staleness,
       serverNow: now,
       routes: scopedRoutes.map((r) => {
@@ -154,11 +155,50 @@ export const listShuttleOverview = viewerQuery({
   },
 });
 
-/**
- * One-tap stop report (No line / Long line / Passed full). Lasts 15 min, is
- * anonymous to other Students, earns no Clout, and is never sent to Big Owl
- * Bus or KSU. A new report replaces the Student's own active report at that stop.
- */
+/** The single private Your stop preference, shared by Transit and Now. */
+export const setYourStop = viewerMutation({
+  args: { stopId: v.union(v.string(), v.null()) },
+  handler: async (ctx, { stopId }) => {
+    if (stopId !== null) {
+      const routes = await ctx.db.query("shuttleRoutes").take(20);
+      if (!routes.some((route) => route.stops.some((stop) => stop.stopId === stopId))) {
+        throw new ConvexError("Choose a published Shuttle Stop.");
+      }
+    }
+    await ctx.db.patch(ctx.viewer.actorStudent._id, { yourShuttleStopId: stopId ?? undefined });
+    return { yourStopId: stopId };
+  },
+});
+
+/** One indexed route and one shared snapshot; no per-stop report fan-out on Now. */
+export const classArrival = viewerQuery({
+  args: { routeId: v.string(), stopId: v.string() },
+  handler: async (ctx, { routeId, stopId }) => {
+    const now = Date.now();
+    const [route, snapshot] = await Promise.all([
+      ctx.db.query("shuttleRoutes").withIndex("by_passio_id", (q) => q.eq("passioRouteId", routeId)).unique(),
+      ctx.db.query("shuttleSnapshots").withIndex("by_singleton", (q) => q.eq("singletonKey", "latest")).unique(),
+    ]);
+    if (!route?.stops.some((stop) => stop.stopId === stopId)) return null;
+    const { runsToday } = shuttleRunsToday(route.operatingHoursSummary, now);
+    const observedAt = snapshot?.etasFetchedAt ?? null;
+    const fixture = Boolean(snapshot?.isFixture && ctx.viewer.mode === "demo");
+    const fresh = fixture || Boolean(snapshot && !snapshot.isFixture && observedAt !== null && now - observedAt <= 36_000);
+    const arrivals = fresh && runsToday ? (snapshot?.stopEtas ?? [])
+      .filter((eta) => eta.passioRouteId === routeId && eta.stopId === stopId)
+      .map((eta) => fixture ? now + eta.etaMinutes * 60_000 : eta.arrivalAt)
+      .filter((at): at is number => at !== undefined && at >= now)
+      .sort((a, b) => a - b) : [];
+    return {
+      observedAt, fixture, runsToday, hours: route.operatingHoursSummary,
+      arrivalAt: arrivals[0] ?? null,
+      state: !runsToday ? "not-today" as const : arrivals.length ? "live" as const
+        : observedAt && snapshot && !snapshot.isFixture && !fresh ? "stale" as const : "missing" as const,
+    };
+  },
+});
+
+/** One-tap anonymous stop report, replacing the Student's earlier report for 15 min. */
 export const submitShuttleStopPulse = viewerMutation({
   args: {
     stopId: v.string(),

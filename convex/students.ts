@@ -459,7 +459,7 @@ export async function closeStudentArtifactsAndMedia(
   deletePrivateSchedule = false,
 ): Promise<number> {
   const batchSize = 25;
-  const [sessions, pushes, postBatches, listingBatches, hostedSessions, reports, mediaBatches, privateSchedules] = await Promise.all([
+  const [sessions, pushes, postBatches, listingBatches, hostedSessions, reports, mediaBatches, privateSchedules, agendaStates] = await Promise.all([
     ctx.db.query("studentSessions").withIndex("by_student", (q) => q.eq("studentId", studentId)).take(batchSize),
     ctx.db.query("pushSubscriptions").withIndex("by_student", (q) => q.eq("studentId", studentId)).take(batchSize),
     Promise.all((["visible", "under_review"] as const).map((status) => ctx.db.query("posts")
@@ -477,8 +477,11 @@ export async function closeStudentArtifactsAndMedia(
         .eq("status", status)).take(batchSize))),
     deletePrivateSchedule ? ctx.db.query("privateScheduleTerms").withIndex("by_student_term", (q) =>
       q.eq("workspaceKey", workspaceKey).eq("studentId", studentId)).take(batchSize) : Promise.resolve([]),
+    ctx.db.query("agendaReminderState").withIndex("by_student", (q) =>
+      q.eq("workspaceKey", workspaceKey).eq("studentId", studentId)).take(batchSize),
   ]);
   for (const schedule of privateSchedules) await ctx.db.delete(schedule._id);
+  for (const state of agendaStates) await ctx.db.delete(state._id);
   for (const s of sessions) await ctx.db.delete(s._id);
   for (const p of pushes) await ctx.db.delete(p._id);
   for (const p of postBatches.flat()) {
@@ -502,7 +505,7 @@ export async function closeStudentArtifactsAndMedia(
   const media = mediaBatches.flat();
   for (const asset of media) await queueMediaDeletion(ctx, asset);
 
-  const batches = [sessions, pushes, ...postBatches, ...listingBatches, hostedSessions, reports, ...mediaBatches, privateSchedules];
+  const batches = [sessions, pushes, ...postBatches, ...listingBatches, hostedSessions, reports, ...mediaBatches, privateSchedules, agendaStates];
   if (batches.some((batch) => batch.length === batchSize)) {
     await ctx.scheduler.runAfter(0, internal.students.continueStudentCleanup, { workspaceKey, studentId });
   }
@@ -643,6 +646,7 @@ export const deleteMyProfile = verifiedStudentMutation({
       avatarAssetId: undefined,
       permitTier: undefined,
       pinnedParkingLotIds: [],
+      yourShuttleStopId: undefined,
       accountStatus: "deleted",
     });
 

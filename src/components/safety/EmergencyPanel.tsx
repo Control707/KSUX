@@ -15,16 +15,16 @@ export const DEMO_HANDOFF_COPY = "Demo Mode: nothing dialled. In a real emergenc
 
 /**
  * The event the root-layout interceptor dispatches when a Demo tab taps a
- * tel:/sms: link before React knows it is a Demo session.
+ * tel:/sms:/mailto: link before React knows it is a Demo session.
  */
 export const DEMO_CALL_EVENT = "ksux:demo-call-intercepted";
 
 /**
  * Runs inline in <head> before any bundle loads, so Judge Demo Mode never
- * dials even before hydration or offline. Checks the tab's demo state at
+ * dials or opens an email to real KSU Police even before hydration or offline. Checks the tab's demo state at
  * click time; real Students are never blocked.
  */
-export const DEMO_CALL_INTERCEPT_SCRIPT = `(function(){try{document.addEventListener("click",function(e){var t=e.target;var a=t&&t.closest?t.closest('a[href^="tel:"],a[href^="sms:"]'):null;if(!a)return;var demo=false;try{demo=!!sessionStorage.getItem("ksux_demo_short_code")||new URLSearchParams(location.search).has("demo")}catch(_){}if(!demo)return;e.preventDefault();e.stopPropagation();var p=a.closest("[data-emergency-panel]");var s=p&&p.querySelector("[data-emergency-status]");if(s)s.textContent=${JSON.stringify(DEMO_HANDOFF_COPY)};document.dispatchEvent(new CustomEvent(${JSON.stringify(DEMO_CALL_EVENT)}));},true);}catch(_){}})();`;
+export const DEMO_CALL_INTERCEPT_SCRIPT = `(function(){try{document.addEventListener("click",function(e){var t=e.target;var a=t&&t.closest?t.closest('a[href^="tel:"],a[href^="sms:"],a[href^="mailto:"]'):null;if(!a)return;var demo=false;try{demo=!!sessionStorage.getItem("ksux_demo_short_code")||new URLSearchParams(location.search).has("demo")}catch(_){}if(!demo)return;e.preventDefault();e.stopPropagation();var p=a.closest("[data-emergency-panel]");var s=p&&p.querySelector("[data-emergency-status]");if(s)s.textContent=${JSON.stringify(DEMO_HANDOFF_COPY)};document.dispatchEvent(new CustomEvent(${JSON.stringify(DEMO_CALL_EVENT)}));},true);}catch(_){}})();`;
 
 export type EmergencyPanelMode = "live" | "demo";
 

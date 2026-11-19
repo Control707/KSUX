@@ -284,6 +284,7 @@ export const getNowHud = viewerQuery({
           termCode: enr.termCode,
           crn: activeSection ? enr.crn : undefined,
           campus: activeSection?.campus ?? hub.campuses[0] ?? "Kennesaw",
+          deliveryMode: activeSection?.deliveryMode,
           instructorName: activeSection?.instructorName,
           meetings: activeSection?.meetings ?? [],
         });
@@ -740,6 +741,12 @@ export const getNowHud = viewerQuery({
         enrolledCourses,
         privateClasses,
         personalDeadlines: personalDeadlines.slice(0, 5),
+      },
+      wayfinding: {
+        yourStopId: viewer.actorStudent.yourShuttleStopId ?? null,
+        pinnedLots: (await Promise.all(viewer.actorStudent.pinnedParkingLotIds.map((id) => ctx.db.get(id))))
+          .filter((lot) => lot !== null)
+          .map((lot) => ({ slug: lot.slug, name: lot.name, campus: lot.campus, latitude: lot.latitude, longitude: lot.longitude })),
       },
       joinedClubs,
       parkingCards,

@@ -8,7 +8,7 @@ export type CommuterScope =
   | { mode: "demo"; shortCode: string; persona: string };
 
 type Hud = FunctionReturnType<typeof api.shell.getNowHud>;
-type Snapshot = Pick<Hud, "campusFilter" | "schedule"> & { savedAt: number };
+type Snapshot = Pick<Hud, "campusFilter" | "schedule"> & { savedAt: number; wayfinding?: Hud["wayfinding"] };
 type StoredSnapshot = { scope: CommuterScope; snapshot: Snapshot };
 
 function storageKey(scope: CommuterScope) {
@@ -71,8 +71,8 @@ export function readCommuterSnapshot(scope: CommuterScope): Snapshot | null {
   return null;
 }
 
-export function saveCommuterSnapshot(scope: CommuterScope, hud: Pick<Hud, "campusFilter" | "schedule">): void {
-  const snapshot = { savedAt: Date.now(), campusFilter: hud.campusFilter, schedule: hud.schedule };
+export function saveCommuterSnapshot(scope: CommuterScope, hud: Pick<Hud, "campusFilter" | "schedule"> & { wayfinding?: Hud["wayfinding"] }): void {
+  const snapshot = { savedAt: Date.now(), campusFilter: hud.campusFilter, schedule: hud.schedule, wayfinding: hud.wayfinding };
   try {
     const storage = scope.mode === "student" ? window.localStorage : window.sessionStorage;
     storage.setItem(storageKey(scope), JSON.stringify({ scope, snapshot }));

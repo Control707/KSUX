@@ -56,6 +56,7 @@ export const RAIL_GROUPS: { label: string; items: Destination[] }[] = [
   {
     label: "You",
     items: [
+      { href: "/agenda", label: "Private agenda", icon: Calendar },
       { href: "/profile", label: "Profile", icon: User, match: "/profile" },
       { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
       { href: "/profile/notifications", label: "Notifications", icon: Bell },
