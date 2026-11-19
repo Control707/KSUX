@@ -100,6 +100,16 @@ it("requires the Emergency Panel acknowledgment for Campus Safety", async () => 
   await expect(t.mutation(api.incidents.report, { sessionToken: reporters[0]!.sessionToken, incidentId, reason: "campus_safety" })).rejects.toThrow(/Emergency Panel/);
 });
 
+it("counts new reports after a long history of closed Moderation Reports", async () => {
+  const { t, write, reporters } = await setup(); const { incidentId } = await write();
+  await t.run(async ({ db }) => {
+    for (let n = 0; n < 205; n++) await db.insert("moderationReports", { workspaceKey: "prod", reporterId: reporters[0]!.studentId,
+      targetType: "incident", targetKey: "incident:" + incidentId, reason: "false_misleading", queueStatus: "dismissed", createdAt: NOW - DAY });
+  });
+  expect((await t.mutation(api.incidents.report, { sessionToken: reporters[0]!.sessionToken, incidentId, reason: "false_misleading" })).quarantined).toBe(false);
+  expect((await t.mutation(api.incidents.report, { sessionToken: reporters[1]!.sessionToken, incidentId, reason: "false_misleading" })).quarantined).toBe(true);
+});
+
 it("limits identifies-me claims and removes the one-tap hide after three rejected claims", async () => {
   const { t, write, reporters } = await setup();
   const reporter = reporters[0]!;

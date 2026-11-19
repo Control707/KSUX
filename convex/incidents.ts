@@ -169,7 +169,8 @@ export const report = viewerMutation({
       || row.authorId === ctx.viewer.actorStudent._id) fail("NOT_FOUND", "Incident no longer available for reporting.");
     const targetKey = "incident:" + row._id;
     const reports = await ctx.db.query("moderationReports").withIndex("by_target", (q) =>
-      q.eq("workspaceKey", ctx.viewer.workspaceKey).eq("targetKey", targetKey)).take(200);
+      q.eq("workspaceKey", ctx.viewer.workspaceKey).eq("targetKey", targetKey))
+      .filter((q) => q.or(q.eq(q.field("queueStatus"), "open"), q.eq(q.field("queueStatus"), "quarantined"))).collect();
     const pending = reports.filter((r) => r.queueStatus === "open" || r.queueStatus === "quarantined");
     if (pending.some((r) => r.reporterId === ctx.viewer.actorStudent._id)) return { quarantined: row.visibility === "under_review" };
     const now = Date.now();
