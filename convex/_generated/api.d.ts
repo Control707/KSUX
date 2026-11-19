@@ -54,6 +54,7 @@ import type * as scrappy_mentions from "../scrappy/mentions.js";
 import type * as scrappy_router from "../scrappy/router.js";
 import type * as scrappy_threads from "../scrappy/threads.js";
 import type * as scrappy_tools from "../scrappy/tools.js";
+import type * as search from "../search.js";
 import type * as seed from "../seed.js";
 import type * as shell from "../shell.js";
 import type * as storageNode from "../storageNode.js";
@@ -118,6 +119,7 @@ declare const fullApi: ApiFromModules<{
   "scrappy/router": typeof scrappy_router;
   "scrappy/threads": typeof scrappy_threads;
   "scrappy/tools": typeof scrappy_tools;
+  search: typeof search;
   seed: typeof seed;
   shell: typeof shell;
   storageNode: typeof storageNode;

@@ -77,7 +77,7 @@ export function MarketplaceView() {
 
   const [category, setCategory] = useState<string>("");
   const [pricingModeFilter, setPricingModeFilter] = useState<string>("");
-  const [queryText, setQueryText] = useState("");
+  const [queryText, setQueryText] = useState(() => searchParams.get("q")?.slice(0, 100) ?? "");
   const [onlyMine, setOnlyMine] = useState(false);
   const [browseCampus, setBrowseCampus] = useState<BrowseCampus>("All KSU");
 

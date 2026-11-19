@@ -238,11 +238,13 @@ From [#46](https://github.com/Control707/KSUX/issues/46) ([verdict](https://gith
   - `/leaderboard` (`?campus=kennesaw|marietta`);
   - `/profile/notifications` (deep links `#messages`, `#alerts`, `#agenda`);
   - `/agenda` (private, KSU-wide classes, deadlines, RSVPed Events and joined Study Sessions; #76), plus `/study/<sessionId>` for a joined Study Session's details.
+  - `/search` (`?q=`; KSU-wide Buildings, Events, Clubs, Course Hubs and Listings with an optional visible Campus filter; never Incidents or Alerts) and `/saved` (the private saved Posts and Listings view);
+  - `/feed?post=<postId>` opens that Post's thread and `/marketplace?q=` pre-fills the Listing search.
 
   The Incident report flow is a dialog with no route.
 - **Campus is a location setting** (ADR-0008):
   - **Location screens** show the switcher (Kennesaw | Marietta): Now, Parking, Transit, Study, Dining, Events and `/safety` (Incidents only; Official Alerts stay KSU-wide).
-  - **KSU-wide screens** show a text campus badge on each item and no global switcher: Feed, Marketplace, Chats, Scrappy, Course Hubs, Clubs, Profile, private agenda and Moderation. Joined Study Session detail is also KSU-wide; `/study` keeps its location switcher.
+  - **KSU-wide screens** show a text campus badge on each item and no global switcher: Feed, Marketplace, Chats, Scrappy, Course Hubs, Clubs, Profile, private agenda, Search, Saved and Moderation. Joined Study Session detail is also KSU-wide; `/study` keeps its location switcher.
   - Marketplace and Clubs keep a **local, visible** campus filter; Marketplace sorts the home Campus first.
   - `/leaderboard` has its own Kennesaw | Marietta control.
   - Stored records remain strictly `Kennesaw` or `Marietta`.

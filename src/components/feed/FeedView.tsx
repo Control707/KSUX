@@ -83,7 +83,13 @@ export function FeedView() {
   const [selectedHubId, setSelectedHubId] = useState<Id<"courseHubs"> | null>(null);
   const [selectedClubId, setSelectedClubId] = useState<Id<"clubs"> | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
-  const [activeThreadPostId, setActiveThreadPostId] = useState<Id<"posts"> | null>(null);
+  // `/feed?post=<id>` opens that thread (saved items, search). getPostThread re-checks access.
+  const [activeThreadPostId, setActiveThreadPostId] = useState<Id<"posts"> | null>(
+    () => {
+      const id = searchParams.get("post");
+      return id && /^[a-z0-9]{16,64}$/.test(id) ? (id as Id<"posts">) : null;
+    },
+  );
 
   // Composer state
   const [composerOpen, setComposerOpen] = useState(searchParams.get("compose") === "1");
@@ -722,8 +728,10 @@ export function FeedView() {
         closeLabel="Close thread"
       >
         <div className="space-y-[var(--sp-3)]">
-          {!threadDetail ? (
+          {threadDetail === undefined ? (
             <p role="status" className={muted}>Loading thread…</p>
+          ) : threadDetail === null ? (
+            <p role="status" data-testid="thread-unavailable" className={muted}>This Post is no longer available.</p>
           ) : (
             <>
               <div className="rounded-[var(--r-md)] border border-[var(--line)] bg-[var(--surface-2)] p-[var(--sp-3)]">

@@ -1,6 +1,7 @@
 import {
   AlertTriangle,
   Bell,
+  Bookmark,
   BookOpen,
   Bus,
   Calendar,
@@ -11,6 +12,7 @@ import {
   MessageSquare,
   Shield,
   ShieldAlert,
+  Search,
   ShoppingBag,
   Sparkles,
   Trophy,
@@ -34,6 +36,7 @@ export const RAIL_GROUPS: { label: string; items: Destination[] }[] = [
     label: "Everyday",
     items: [
       { href: "/", label: "Now", icon: Home },
+      { href: "/search", label: "Search", icon: Search },
       { href: "/feed", label: "Feed", icon: Compass },
       { href: "/marketplace", label: "Marketplace", icon: ShoppingBag },
       { href: "/chats", label: "Chats", icon: MessageSquare },
@@ -58,6 +61,7 @@ export const RAIL_GROUPS: { label: string; items: Destination[] }[] = [
     items: [
       { href: "/agenda", label: "Private agenda", icon: Calendar },
       { href: "/profile", label: "Profile", icon: User, match: "/profile" },
+      { href: "/saved", label: "Saved", icon: Bookmark },
       { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
       { href: "/profile/notifications", label: "Notifications", icon: Bell },
     ],
