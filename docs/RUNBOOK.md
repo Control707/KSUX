@@ -157,7 +157,8 @@ Faculty/Staff cannot receive an appointment.
 Both query and mutation boundaries enforce workspace, author/report/claim
 conflicts and the CSA Incident exclusion. The author and deciding Moderator
 cannot read an Appeal snapshot or decide it. A suspension Appeal requires a
-different maintainer. Exclusions are explained with notes; no review time is
+different maintainer and retains conflicts from the report that prompted the
+suspension and the author's affected Incidents. Exclusions are explained with notes; no review time is
 promised. Direct API calls cannot bypass these checks. Feed health and V2 launch
 readiness remain production-maintainer-only in **Feed health**; the **Moderators**
 section retains manual Club officer review alongside the roster.

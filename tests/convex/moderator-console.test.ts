@@ -236,3 +236,21 @@ it("CSA guards also exclude direct Appeal snapshots and decisions, and cross-wor
   const other = await t.mutation(api.demo.session.provisionOrAttachDemoSession, {});
   expect(await t.query(api.moderatorConsole.review, { demoShortCode: other.shortCode, demoPersonaHandle: "alex_owl", targetType: queue.items[0]!.targetType, targetId: queue.items[0]!.targetId })).toBeNull();
 });
+
+it("a suspension Appeal retains the reporter conflict from the Post that prompted it", async () => {
+  const t = createTestConvex();
+  const author = await createVerifiedTestStudent(t, { handle: "case_author", displayName: "Author" });
+  const owner = await createVerifiedTestStudent(t, { handle: "case_owner", displayName: "Owner" });
+  const reporter = await createVerifiedTestStudent(t, { handle: "case_reporter", displayName: "Reporter" });
+  const reviewer = await createVerifiedTestStudent(t, { handle: "case_reviewer", displayName: "Reviewer" });
+  vi.stubEnv("KSUX_MAINTAINER_EMAILS", [owner, reporter, reviewer].map((s) => s.canonicalEmail).join(","));
+  const { postId } = await t.mutation(api.feed.createPost, { sessionToken: author.sessionToken, body: "a moderation example" });
+  await t.mutation(api.moderation.submitReport, { sessionToken: reporter.sessionToken, targetType: "post", targetId: postId, reason: "harassment" });
+  await t.mutation(api.moderatorConsole.act, { sessionToken: owner.sessionToken, targetType: "post", targetId: postId, action: "suspend", requestId: "case-suspension" });
+  const notice = (await t.query(api.moderatorConsole.myNotices, { sessionToken: author.sessionToken }))[0]!;
+  const appealId = await t.mutation(api.moderatorConsole.submitAppeal, { sessionToken: author.sessionToken, decisionActionId: notice.actionId, text: "Please review." });
+  expect((await t.query(api.moderatorConsole.appeals, { sessionToken: reporter.sessionToken })).items).toEqual([]);
+  await expect(t.mutation(api.moderatorConsole.decideAppeal, { sessionToken: reporter.sessionToken, appealId, reverse: true })).rejects.toThrow(/different Moderator/);
+  await t.mutation(api.moderatorConsole.decideAppeal, { sessionToken: reviewer.sessionToken, appealId, reverse: true });
+  expect((await t.query(api.shell.shellSummary, { sessionToken: author.sessionToken })).viewer.suspended).toBe(false);
+});

@@ -44,6 +44,7 @@ export async function assertReviewable(ctx: ReviewCtx, targetType: string, targe
 export async function writeAction(ctx: MutationCtx & { viewer: ViewerContext }, input: {
   action: string; targetType: string; targetKey: string; subjectId?: Id<"students">;
   contentSnapshot?: string; reasonId?: string; templateId?: string; requestId?: string;
+  caseTargetType?: string; caseTargetKey?: string;
 }) {
   const now = Date.now();
   return ctx.db.insert("moderatorActions", { ...input, workspaceKey: ctx.viewer.workspaceKey, actorId: ctx.viewer.actorStudent._id,

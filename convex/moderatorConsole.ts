@@ -168,6 +168,7 @@ export const act = moderatorMutation({
     } else if (args.action !== "dismiss") await applyLegacyDecision(ctx, { targetType: args.targetType as "post", targetId: args.targetId, decision: args.action as "remove" | "restore", reasonId: args.reasonId }, false);
     const actionId = await writeAction(ctx, { action: args.action, targetType: args.action === "suspend" ? "student" : args.targetType,
       targetKey: args.action === "suspend" ? String(target.authorId) : args.targetId, subjectId: target.authorId, requestId,
+      caseTargetType: args.action === "suspend" ? args.targetType : undefined, caseTargetKey: args.action === "suspend" ? args.targetId : undefined,
       reasonId: args.action === "remove" ? args.reasonId : undefined,
       templateId: args.action === "redact" ? "redaction" : args.addInaccurateNote ? "inaccurate" : args.action === "note" ? args.templateId : undefined,
       contentSnapshot: JSON.stringify({ text: target.text, status: target.status, redactionNoteId }) });
@@ -227,7 +228,7 @@ export const appeals = viewerQuery({ args: {}, handler: async (ctx) => {
     if (!decision || decision.workspaceKey !== ctx.viewer.workspaceKey) continue;
     if (ctx.viewer.isCsa && (decision.targetType === "incident" || decision.action === "suspend")) { csaExcluded++; continue; }
     const involved = row.appellantId === ctx.viewer.actorStudent._id || decision.actorId === ctx.viewer.actorStudent._id ||
-      await exclusion(ctx, decision.targetType, decision.targetKey, row.appellantId) !== null;
+      await appealConflict(ctx, decision, row.appellantId);
     if (involved) { conflicts++; continue; }
     items.push({ id: row._id, status: row.status, createdAt: row.createdAt, text: row.text, decisionId: decision._id,
       action: decision.action, targetType: decision.targetType, targetKey: decision.targetKey, reason: INCIDENT_REMOVE_REASONS[decision.reasonId ?? ""],
@@ -248,9 +249,19 @@ async function reviewableAppeal(ctx: Parameters<typeof requireModerator>[0], id:
   if (!appeal || !decision || appeal.workspaceKey !== ctx.viewer.workspaceKey || decision.workspaceKey !== ctx.viewer.workspaceKey || appeal.purgeAt <= Date.now()) moderationError("Appeal no longer available.");
   if (appeal.appellantId === ctx.viewer.actorStudent._id || decision.actorId === ctx.viewer.actorStudent._id ||
     ctx.viewer.isCsa && (decision.targetType === "incident" || decision.action === "suspend") ||
-    await exclusion(ctx, decision.targetType, decision.targetKey, appeal.appellantId)) moderationError("A different Moderator without a conflict reviews this Appeal.");
+    await appealConflict(ctx, decision, appeal.appellantId)) moderationError("A different Moderator without a conflict reviews this Appeal.");
   if (decision.action === "suspend" && !ctx.viewer.isMaintainer) moderationError("Only a different maintainer can review a suspension Appeal.");
   return { appeal, decision };
+}
+
+async function appealConflict(ctx: ReviewCtx, decision: Doc<"moderatorActions">, authorId: Id<"students">) {
+  if (await exclusion(ctx, decision.caseTargetType ?? decision.targetType, decision.caseTargetKey ?? decision.targetKey, authorId)) return true;
+  if (decision.action === "suspend") {
+    for await (const incident of ctx.db.query("incidents").withIndex("by_author", (q) => q.eq("workspaceKey", ctx.viewer.workspaceKey).eq("authorId", authorId))) {
+      if (await exclusion(ctx, "incident", String(incident._id), authorId)) return true;
+    }
+  }
+  return false;
 }
 
 export const decideAppeal = moderatorMutation({ args: { appealId: v.id("appeals"), reverse: v.boolean() }, handler: async (ctx, args) => {

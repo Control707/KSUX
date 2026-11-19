@@ -1249,6 +1249,7 @@ export default defineSchema({
     targetType: v.string(), targetKey: v.string(), templateId: v.optional(v.string()),
     reasonId: v.optional(v.string()), contentSnapshot: v.optional(v.string()),
     subjectId: v.optional(v.id("students")), requestId: v.optional(v.string()),
+    caseTargetType: v.optional(v.string()), caseTargetKey: v.optional(v.string()),
     snapshotPurgeAt: v.optional(v.number()), createdAt: v.number(), purgeAt: v.number(),
   }).index("by_target", ["workspaceKey", "targetType", "targetKey", "createdAt"])
     .index("by_created", ["workspaceKey", "createdAt"])
