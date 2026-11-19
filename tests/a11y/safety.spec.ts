@@ -121,3 +121,29 @@ test("Notifications says Demo Mode sends no push and keeps the Alert switch disa
   await expect(page.getByTestId("alert-push-confirm")).toHaveCount(0);
   await expectNoSeriousAxe(page, { label: "/profile/notifications demo" });
 });
+
+test("a judge can trigger a sample Alert on demand and see the banner, with no push", async ({ page }) => {
+  await page.goto("/safety?demo=1");
+  const trigger = page.getByTestId("demo-alert-trigger");
+  await trigger.getByRole("button", { name: "Simulate a new Official Alert (Demo)" }).click();
+  await expect(trigger.getByRole("status")).toContainText("No push was sent.");
+  await expect(page.getByTestId("official-alert-copy")).toContainText("Sample Timely Warning 1");
+  await expectNoSeriousAxe(page, { label: "/safety demo trigger" });
+
+  await trigger.getByRole("link", { name: "Open the sample Alert" }).click();
+  await page.waitForURL(/\/safety\/alerts\//);
+  const sampleId = page.url().split("/safety/alerts/")[1]!;
+  await expect(page.getByTestId("official-alert-item")).toHaveCount(1);
+  await expect(page.getByTestId("official-alert-item")).toContainText("Sample Timely Warning 1");
+
+  // The newest Alert heads the app-wide banner; dismissing it is remembered across reloads.
+  await page.goto("/feed");
+  const banner = page.getByTestId("official-alert-banner");
+  await expect(banner).toHaveAttribute("data-alert-id", sampleId);
+  await expect(banner).toContainText("Demo · not real: KSU Police posted a Timely Warning");
+  await banner.getByRole("button", { name: /Dismiss/ }).click();
+  await expect(banner).not.toHaveAttribute("data-alert-id", sampleId);
+  await page.reload();
+  await expect(page.locator("#main-content h1")).toBeVisible();
+  await expect(page.locator(`[data-testid="official-alert-banner"][data-alert-id="${sampleId}"]`)).toHaveCount(0);
+});

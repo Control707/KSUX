@@ -297,6 +297,35 @@ describe("opt-in Alert push", () => {
   });
 });
 
+describe("Judge Demo sample Alert", () => {
+  it("adds a fresh labelled Alert to that Demo session only, with no push, and refuses outside Demo", async () => {
+    env("display", true);
+    const { t, items } = await setup();
+    const demo = await t.mutation(api.demo.session.provisionOrAttachDemoSession, {});
+    const other = await t.mutation(api.demo.session.provisionOrAttachDemoSession, {});
+    const { alertId, pushSent } = await t.mutation(api.officialAlerts.simulateDemoAlert, { demoShortCode: demo.shortCode });
+    expect(pushSent).toBe(false);
+    expect(await scheduledPushes(t)).toHaveLength(0);
+    expect(await items()).toEqual([]);
+
+    const status = await t.query(api.officialAlerts.alertSourceStatus, { demoShortCode: demo.shortCode });
+    const sample = status.sources.flatMap((s) => s.items).find((i) => i._id === alertId);
+    expect(sample).toMatchObject({ state: "issued", demoLabel: "Demo · not real", sourceName: "KSU Police" });
+    expect(Math.abs(sample!.stateChangedAt - START)).toBeLessThan(1_000);
+    expect(status.sources.find((s) => s.items.some((i) => i._id === alertId))?.display).toBe("ok");
+    const otherStatus = await t.query(api.officialAlerts.alertSourceStatus, { demoShortCode: other.shortCode });
+    expect(otherStatus.sources.flatMap((s) => s.items).some((i) => i._id === alertId)).toBe(false);
+    await expect(t.query(api.officialAlerts.getOfficialAlert, { demoShortCode: other.shortCode, alertId }))
+      .resolves.toMatchObject({ found: false });
+
+    const student = await createVerifiedTestStudent(t, { handle: "not_demo", displayName: "Not Demo" });
+    await expect(t.mutation(api.officialAlerts.simulateDemoAlert, { sessionToken: student.sessionToken })).rejects.toThrow(/Judge Demo Mode/);
+
+    for (let i = 1; i < 10; i++) await t.mutation(api.officialAlerts.simulateDemoAlert, { demoShortCode: demo.shortCode });
+    await expect(t.mutation(api.officialAlerts.simulateDemoAlert, { demoShortCode: demo.shortCode })).rejects.toThrow(/10 sample Alerts/);
+  });
+});
+
 describe("maintainer controls", () => {
   it("signs off after a shortened hackathon window and then displays and pushes", async () => {
     env("shadow", false);
