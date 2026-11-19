@@ -47,7 +47,7 @@ for (const approve of ["Approve", "Approve with blur"] as const) test(`Incident 
   const photo = reviewer.getByRole("img", { name: "Held Incident photo for Moderator review", exact: true });
   await expect(photo).toHaveCount(0);
   await reviewer.getByRole("button", { name: "Show photo", exact: true }).click();
-  await expect(photo).toBeVisible(); await expect.poll(() => photo.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
+  await expect(photo).toBeVisible({ timeout: 20_000 }); await expect.poll(() => photo.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
   await reviewer.getByRole("button", { name: approve, exact: true }).click();
   const confirm = reviewer.getByRole("alertdialog");
   await expect(confirm.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
@@ -56,7 +56,7 @@ for (const approve of ["Approve", "Approve with blur"] as const) test(`Incident 
   await expect(confirm).toHaveCount(0);
   await page.getByRole("button", { name: "Retry connection / Refresh Incident", exact: true }).click();
   const approved = page.getByRole("img", { name: "Moderator-approved Incident photo", exact: true });
-  await expect(approved).toBeVisible(); await expect.poll(() => approved.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
+  await expect(approved).toBeVisible({ timeout: 20_000 }); await expect.poll(() => approved.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
   await expect(page.getByTestId("incident-card")).toContainText("Whole-photo blur applied");
   await context.setOffline(true); await expect(approved).toHaveCount(0); await context.setOffline(false);
   await page.goto("/profile/moderation"); await expect(page.getByText("Your Incident photo was approved with whole-photo blur.", { exact: true })).toBeVisible();

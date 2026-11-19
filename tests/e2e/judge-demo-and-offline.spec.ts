@@ -4,7 +4,15 @@ test.describe("Seam 3 — KSUX 2-Tab Live WebSocket & Offline Commuter PWA Smoke
   test("exercises Welcome gate, 2-tab Judge Demo personas, Campus switcher, Parking Report, @scrappy + SSE Drafts, Deal Chat handoff, Moderation restore, Reset Demo, and Offline fallback", async ({
     browser,
     baseURL,
+    request,
   }) => {
+    test.setTimeout(180_000);
+    // A cold Next dev compilation can exceed the SW's intentional 3s HTML
+    // fallback. Compile these documents through the API client (outside the SW)
+    // before testing online navigation, leaving offline behavior fully enabled.
+    for (const route of ["/parking", "/feed", "/scrappy", "/chats", "/moderation"]) {
+      expect((await request.get(`${baseURL}${route}`)).ok()).toBe(true);
+    }
     const context = await browser.newContext();
     const tab1 = await context.newPage();
 

@@ -14,7 +14,7 @@ for (const theme of THEMES) for (const [size, viewport] of Object.entries(VIEWPO
   await expect(show).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByRole("img", { name: "Held Incident photo for Moderator review" })).toHaveCount(0);
   await show.click(); await expect(page.getByRole("button", { name: "Hide photo", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("img", { name: "Held Incident photo for Moderator review" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Held Incident photo for Moderator review" })).toBeVisible({ timeout: 20_000 });
   await expectNoSeriousAxe(page, { label: `Held photo ${theme} ${size}` });
   await expectTargetSizes(page, "body", "Held photo review"); await expectMinTextSize(page, "body", "Held photo review");
   for (const action of ["Approve", "Approve with blur", "Reject"]) {
