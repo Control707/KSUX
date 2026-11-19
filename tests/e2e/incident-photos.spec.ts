@@ -59,6 +59,8 @@ for (const approve of ["Approve", "Approve with blur"] as const) test(`Incident 
   await expect(approved).toBeVisible({ timeout: 20_000 }); await expect.poll(() => approved.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
   await expect(page.getByTestId("incident-card")).toContainText("Whole-photo blur applied");
   await context.setOffline(true); await expect(approved).toHaveCount(0); await context.setOffline(false);
+  // Compile the private-notices document outside the SW's 3s HTML fallback.
+  expect((await page.request.get("/profile/moderation")).ok()).toBe(true);
   await page.goto("/profile/moderation"); await expect(page.getByText("Your Incident photo was approved with whole-photo blur.", { exact: true })).toBeVisible();
   expect(uploads).toBe(0);
 });
