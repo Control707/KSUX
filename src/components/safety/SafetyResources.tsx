@@ -112,7 +112,13 @@ export function KsuContactsSection({ mode, headingLevel = 2 }: { mode: Emergency
                 <a className={linkClass} href={line.tel}>{line.number}</a>
               )
             )}
-            {line.email && <a className={linkClass} href={`mailto:${line.email}`}>{line.email}</a>}
+            {line.email && (
+              demo ? (
+                <span className="block" data-testid="demo-contact-email">{line.email} <span className="text-[length:var(--fs-sm)]">(Demo · not emailed)</span></span>
+              ) : (
+                <a className={linkClass} href={`mailto:${line.email}`}>{line.email}</a>
+              )
+            )}
             {line.note && <span className="block text-[length:var(--fs-sm)] text-[var(--muted)]">{line.note}</span>}
           </li>
         ))}

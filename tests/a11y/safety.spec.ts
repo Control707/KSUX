@@ -35,7 +35,7 @@ test("the Emergency Panel works signed out and never dials in Demo", async ({ pa
 
   await page.goto("/safety?demo=1");
   await expect(page.getByTestId("emergency-panel")).toHaveAttribute("data-mode", "demo");
-  await expect(page.locator('a[href^="tel:"],a[href^="sms:"]')).toHaveCount(0);
+  await expect(page.locator('a[href^="tel:"],a[href^="sms:"],a[href^="mailto:"]')).toHaveCount(0);
   await page.getByTestId("emergency-emergency").click();
   await expect(page.getByTestId("emergency-panel").getByRole("status")).toHaveText(/Demo Mode: nothing dialled/);
 });
@@ -76,7 +76,7 @@ test("offline, Safety keeps the panel and says it can't check sources or post", 
 test("Demo labels Alert fixtures and dials nothing anywhere on Safety", async ({ page }) => {
   await page.goto("/safety?demo=1");
   await expect(page.getByTestId("demo-alert-fixture")).toContainText("Demo · not real");
-  await expect(page.locator('a[href^="tel:"],a[href^="sms:"]')).toHaveCount(0);
+  await expect(page.locator('a[href^="tel:"],a[href^="sms:"],a[href^="mailto:"]')).toHaveCount(0);
 });
 
 test("the intro card dismisses and stays dismissed", async ({ page }) => {
