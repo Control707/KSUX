@@ -23,14 +23,14 @@ export async function seedV2DemoStates(
   const incident = (text: string, observedAt: number, visibility: "visible" | "under_review" = "visible", photoAssetId?: typeof photoId) =>
     ctx.db.insert("incidents", {
       workspaceKey, demoLabel, authorId: jordanId, category: "hazard", campus: "Marietta",
-      buildingId: "atrium-building", observedAt, text, nameLevel: "hidden", photoAssetId, visibility,
+      buildingId: "bldg-osm-225446898", observedAt, text, nameLevel: "hidden", photoAssetId, visibility,
       publishedAt: observedAt, lockedAt: observedAt + 5 * minute,
       lastActivityAt: observedAt, updateCount: 0, purgeAt: observedAt + 30 * day,
     });
   await incident("Exercise: temporary hallway obstruction.", now - 20 * minute);
   await incident("Exercise: an older building closure.", now - 2 * day);
   const held = await incident("Exercise: an identifying detail was reported.", now - hour, "under_review");
-  const redacted = await incident("Exercise: [detail removed]", now - 2 * hour);
+  const redacted = await incident("Exercise: [removed by moderators]", now - 2 * hour);
   const photoPending = await incident("Exercise: a photo is awaiting review.", now - 10 * minute, "visible", photoId);
   for (const report of [
     { incidentId: held, priority: 0, reason: "identifies_me", queueStatus: "quarantined" },

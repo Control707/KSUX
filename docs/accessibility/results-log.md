@@ -12,5 +12,6 @@ Add one entry per run, newest first. The automated rows record the Layer 4 `a11y
 
 | Date | Scope | Result |
 |---|---|---|
+| 2026-11-19 | #79: Incident list/map, details, Campus Safety Emergency Panel, all six text-only steps and Author Update dialog × light/dark × 390/1440; keyboard Skip map/focus/restore, 44 px targets, minimum text and 320 px at 200% text with spacing overrides | 4/4 passed locally; axe reported zero serious/critical violations. Existing Safety coverage also passed 10/10. Manual AT remains pending |
 | 2026-11-19 | #76: private agenda, reminder preferences and joined Study Session details × light/dark × 390/1440; keyboard switches/deep-link focus, 44 px targets, minimum text, 320 px and 200% reflow | 10/10 passed locally; axe reported zero serious/critical violations |
 | 2026-11-18 | #74 Phase 1A: every route, the Quick Sheet and every dialog × light/dark × 390/1440, plus 320 px and 200% text reflow (`pnpm test:e2e --project=a11y`) | See the PR for #74 |
