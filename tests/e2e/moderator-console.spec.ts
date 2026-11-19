@@ -53,6 +53,9 @@ test("Moderator redacts, adds a template note, removes; author Appeals and a sec
   await page.getByTestId("judge-demo-pill").click();
   await page.getByTestId("persona-switch-sam_cpe").click();
   const appeal = page.getByRole("article").filter({ hasText: "Please review this decision again." });
+  await appeal.getByRole("button", { name: "Show the removed Incident or decision snapshot", exact: true }).click();
+  await expect(appeal.getByRole("blockquote")).toContainText("[removed by moderators]");
+  await expect(appeal.getByRole("blockquote")).not.toContainText('"text":');
   await appeal.getByRole("button", { name: "Reverse decision", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toContainText("Your answer is final");
   await page.getByRole("alertdialog").getByRole("button", { name: "Confirm", exact: true }).click();

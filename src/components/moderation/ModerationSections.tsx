@@ -44,7 +44,11 @@ export function AppealsPanel() {
 function AppealDisclosure({ appealId }: { appealId: Id<"appeals"> }) {
   const [open, setOpen] = useState(false);
   const content = useViewerQuery(api.moderatorConsole.appealSnapshot, open ? { appealId } : "skip");
-  return <div><button className={modButton} aria-expanded={open} onClick={() => setOpen(!open)}>Show the removed Incident or decision snapshot</button>{open && <pre className="mt-2 whitespace-pre-wrap font-sans">{content ?? "Snapshot unavailable or purged."}</pre>}</div>;
+  let text = content;
+  if (content) {
+    try { const saved = JSON.parse(content) as { text?: unknown }; if (typeof saved.text === "string") text = saved.text; } catch { /* Legacy snapshots already contain plain text. */ }
+  }
+  return <div><button className={modButton} aria-expanded={open} onClick={() => setOpen(!open)}>Show the removed Incident or decision snapshot</button>{open && <blockquote className="mt-2 whitespace-pre-wrap border-l-4 border-[var(--line)] pl-3">{content === undefined ? "Loading snapshot…" : text || "Snapshot unavailable or purged."}</blockquote>}</div>;
 }
 
 export function FeedHealth() {
