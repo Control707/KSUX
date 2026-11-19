@@ -20,7 +20,7 @@ export function V2LaunchOps() {
   return (
     <section className="space-y-[var(--sp-3)] rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] p-[var(--sp-4)] [overflow-wrap:anywhere]" aria-labelledby="v2-launch-ops">
       <h2 id="v2-launch-ops" className="font-display text-xl font-bold">V2 launch readiness</h2>
-      <p>Incident posting {gate.postingEnabled ? "enabled" : "disabled"}. {gate.moderatorCount} eligible appointed Moderators. Operations checklist {gate.opsChecklistDone ? "complete" : "pending"}. Production switch {gate.requested ? "on" : "off"}.</p>
+      <p>Incident posting {gate.postingEnabled ? "enabled" : "disabled"}. {gate.moderatorCount} eligible appointed Moderators. Operations checklist {gate.opsChecklistDone ? "complete" : "pending"} (advisory).</p>
       <p data-testid="leaderboard-gate">Leaderboard {data.leaderboard.open ? "open" : `showing "coming soon" (${GATE_REASON[data.leaderboard.reason]})`}.</p>
       <h3 className="text-lg font-bold">Projected monthly database I/O</h3>
       {!io ? <p>No valid usage measurement has been recorded.</p> : (

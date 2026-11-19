@@ -35,13 +35,12 @@ it("publishes a building-level Incident, never a Post, Alert or Clout event, wit
   for (const table of ["posts", "alertItems", "cloutEvents"] as const) expect(await t.run(({ db }) => db.query(table).collect())).toEqual([]);
 });
 
-it("checks the production gate at insert time, including revoked appointments and ops flags", async () => {
+it("accepts production posts without launch switches or appointed Moderators", async () => {
   const { t, write } = await setup();
   vi.stubEnv("KSUX_V2_MODERATOR_OPS_COMPLETE", "false");
-  await expect(write()).rejects.toThrow(/unavailable/);
-  vi.stubEnv("KSUX_V2_MODERATOR_OPS_COMPLETE", "true");
-  await t.run(async ({ db }) => { const row = await db.query("moderators").first(); await db.patch(row!._id, { revokedAt: NOW }); });
-  await expect(write()).rejects.toThrow(/unavailable/);
+  vi.stubEnv("KSUX_V2_INCIDENT_POSTING", "false");
+  await t.run(async ({ db }) => { for (const row of await db.query("moderators").collect()) await db.patch(row._id, { revokedAt: NOW }); });
+  await expect(write()).resolves.toMatchObject({ incidentId: expect.any(String) });
 });
 
 it("blocks identifying details, false authority, diverts, invalid times and forged locations on all author writes", async () => {
@@ -189,7 +188,7 @@ it("orders the bounded Active projection and Older pages by last activity, witho
 });
 
 it("isolates Demo writes, reads, updates and reports across sessions and production", async () => {
-  const { t, auth, write, detail } = await setup();
+  const { t, auth, detail } = await setup();
   await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: true });
   const a = await t.mutation(api.demo.session.provisionOrAttachDemoSession, {});
   const b = await t.mutation(api.demo.session.provisionOrAttachDemoSession, {});
@@ -201,5 +200,4 @@ it("isolates Demo writes, reads, updates and reports across sessions and product
   expect(await t.query(api.incidents.incidentDetail, { demoShortCode: b.shortCode, incidentId })).toEqual({ state: "unavailable" });
   await expect(t.mutation(api.incidents.addUpdate, { ...auth, incidentId, text: "new" })).rejects.toThrow();
   await expect(t.mutation(api.incidents.report, { demoShortCode: b.shortCode, incidentId, reason: "identifies_me" })).rejects.toThrow();
-  await expect(write()).rejects.toThrow(/unavailable/);
 });
