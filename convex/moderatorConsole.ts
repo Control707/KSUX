@@ -105,7 +105,7 @@ async function linkableAlert(ctx: ReviewCtx, alert: Doc<"alertItems">) {
 
 async function addNote(ctx: Ctx, incident: Doc<"incidents">, templateId: string, alertId?: Id<"alertItems">, duplicateIncidentId?: Id<"incidents">) {
   const alert = alertId ? await ctx.db.get(alertId) : null;
-  await ctx.db.insert("incidentUpdates", { workspaceKey: ctx.viewer.workspaceKey, incidentId: incident._id, kind: "moderator_note",
+  return ctx.db.insert("incidentUpdates", { workspaceKey: ctx.viewer.workspaceKey, incidentId: incident._id, kind: "moderator_note",
     templateId, alertId, officialUrl: alert?.officialUrl, duplicateIncidentId, createdAt: Date.now(), purgeAt: incident.purgeAt });
 }
 
@@ -123,6 +123,7 @@ export const act = moderatorMutation({
     const reports = (await targetReports(ctx, args.targetType, args.targetId)).filter(pending);
     const incident = args.targetType === "incident" ? target.row as Doc<"incidents"> : null;
     const photo = incident?.photoAssetId ? await ctx.db.get(incident.photoAssetId) : null;
+    let redactionNoteId: Id<"incidentUpdates"> | undefined;
     if (!reports.length && !(photo?.reviewStatus === "held" && (photo.holdExpiresAt ?? 0) > Date.now())) moderationError("This item has already left the queue.");
     if (args.action === "remove" && !Object.hasOwn(INCIDENT_REMOVE_REASONS, args.reasonId ?? "")) moderationError("Choose a removal reason the author will see.");
     if (["redact", "note"].includes(args.action) && !incident) moderationError("Only Incidents support Redaction and template notes.");
@@ -154,7 +155,7 @@ export const act = moderatorMutation({
     } else if (incident) {
       if (args.action === "redact") {
         await ctx.db.patch(incident._id, { text: incident.text.split(args.words!).join("[removed by moderators]"), visibility: "visible", lastActivityAt: Date.now() });
-        await addNote(ctx, incident, "redaction");
+        redactionNoteId = await addNote(ctx, incident, "redaction");
       } else if (args.action === "note") await addNote(ctx, incident, args.templateId!, args.templateId === "official_notice" ? args.alertId : undefined, args.templateId === "duplicate" ? args.duplicateIncidentId : undefined);
       else if (args.action === "remove") {
         const purgeAt = Date.now() + 30 * DAY;
@@ -169,7 +170,7 @@ export const act = moderatorMutation({
       targetKey: args.action === "suspend" ? String(target.authorId) : args.targetId, subjectId: target.authorId, requestId,
       reasonId: args.action === "remove" ? args.reasonId : undefined,
       templateId: args.action === "redact" ? "redaction" : args.addInaccurateNote ? "inaccurate" : args.action === "note" ? args.templateId : undefined,
-      contentSnapshot: JSON.stringify({ text: target.text, status: target.status }) });
+      contentSnapshot: JSON.stringify({ text: target.text, status: target.status, redactionNoteId }) });
     if (args.action !== "note") await closeReports(ctx, args.targetType, args.targetId, args.action === "remove" || args.action === "suspend" ? "removed" : args.action === "dismiss" ? "dismissed" : "restored", actionId);
     if (args.action !== "dismiss") await notice(ctx, target.authorId, actionId,
       args.action === "remove" ? `Removed: ${INCIDENT_REMOVE_REASONS[args.reasonId!]}` : args.action === "suspend" ? "Your account was suspended. You can submit one Appeal from this notice." : args.action === "redact" ? "Identifying details removed" : args.action === "note" ? INCIDENT_NOTES[args.templateId!]! : "Incident restored.",
@@ -255,8 +256,8 @@ async function reviewableAppeal(ctx: Parameters<typeof requireModerator>[0], id:
 export const decideAppeal = moderatorMutation({ args: { appealId: v.id("appeals"), reverse: v.boolean() }, handler: async (ctx, args) => {
   const { appeal, decision } = await reviewableAppeal(ctx, args.appealId);
   if (appeal.status !== "open") moderationError("This Appeal is final and has already been reviewed.");
+  const target = await loadTarget(ctx, decision.targetType, decision.targetKey);
   if (args.reverse) {
-    const target = await loadTarget(ctx, decision.targetType, decision.targetKey);
     if (!target || target.status === "deleted" || target.purgeAt !== undefined && target.purgeAt <= Date.now()) moderationError("The original item is no longer available.");
     const later = await ctx.db.query("moderatorActions").withIndex("by_target", (q) => q.eq("workspaceKey", ctx.viewer.workspaceKey).eq("targetType", decision.targetType).eq("targetKey", decision.targetKey)).order("desc").first();
     if (later?._id !== decision._id) moderationError("A newer decision exists. A maintainer must review the current item.");
@@ -265,13 +266,18 @@ export const decideAppeal = moderatorMutation({ args: { appealId: v.id("appeals"
       const incident = target.row as Doc<"incidents">;
       if (decision.action === "redact") {
         if (!decision.contentSnapshot || (decision.snapshotPurgeAt ?? 0) <= Date.now()) moderationError("The content snapshot has expired.");
-        const snapshot = JSON.parse(decision.contentSnapshot) as { text: string };
+        const snapshot = JSON.parse(decision.contentSnapshot) as { text: string; redactionNoteId?: Id<"incidentUpdates"> };
         await ctx.db.patch(incident._id, { text: snapshot.text, visibility: "visible" });
+        if (snapshot.redactionNoteId) {
+          const note = await ctx.db.get(snapshot.redactionNoteId);
+          if (note?.workspaceKey === ctx.viewer.workspaceKey && note.incidentId === incident._id && note.templateId === "redaction") await ctx.db.delete(note._id);
+        }
       } else await ctx.db.patch(incident._id, { visibility: "visible" });
     } else await applyLegacyDecision(ctx, { targetType: decision.targetType as "post", targetId: decision.targetKey, decision: "restore" }, false);
   }
   await ctx.db.patch(appeal._id, { status: args.reverse ? "overturned" : "upheld", reviewerId: ctx.viewer.actorStudent._id });
-  const actionId = await writeAction(ctx, { action: args.reverse ? "appeal_reversed" : "appeal_upheld", targetType: decision.targetType, targetKey: decision.targetKey, subjectId: appeal.appellantId });
+  const actionId = await writeAction(ctx, { action: args.reverse ? "appeal_reversed" : "appeal_upheld", targetType: decision.targetType, targetKey: decision.targetKey, subjectId: appeal.appellantId,
+    contentSnapshot: target && target.status !== "deleted" && (target.purgeAt ?? Infinity) > Date.now() ? target.text : undefined });
   await notice(ctx, appeal.appellantId, actionId, args.reverse ? "Decision reversed. Your Appeal is final." : "Decision upheld. Your Appeal is final.");
   return { actionId };
 } });

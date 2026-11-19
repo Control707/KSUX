@@ -62,6 +62,11 @@ it("Redaction requires exact words, logs once on retries, restores and notifies 
   expect(decision!.purgeAt - decision!.createdAt).toBe(365 * DAY);
   const claimant = await t.query(api.moderatorConsole.myNotices, { ...auth, demoPersonaHandle: "maya_cs" });
   expect(claimant.some((r) => /claimed identifies you was restored/.test(r.message))).toBe(true);
+  const appealId = await t.mutation(api.moderatorConsole.submitAppeal, { ...auth, demoPersonaHandle: "jordan_me", decisionActionId: first.actionId, text: "Please reconsider the Redaction." });
+  await t.mutation(api.moderatorConsole.decideAppeal, { ...auth, demoPersonaHandle: "sam_cpe", appealId, reverse: true });
+  const reversed = await t.query(api.moderatorConsole.review, { ...auth, targetType: item.targetType, targetId: item.targetId });
+  expect(reversed?.text).toBe(original.text);
+  expect(reversed?.updates.some((u) => u.text === "Identifying details removed")).toBe(false);
 });
 
 it("template notes stay in queue and validate listed Alerts and visible duplicate Incidents within the workspace", async () => {
