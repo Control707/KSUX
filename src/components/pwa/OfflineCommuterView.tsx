@@ -5,6 +5,7 @@ import { WifiOff } from "lucide-react";
 import { formatPrivateClassMeeting } from "@/lib/privateSchedule";
 import { CampusGeoMap, RouteBadge } from "@/components/map/CampusGeoMap";
 import { readCommuterSnapshot, type CommuterScope } from "@/lib/commuterCache";
+import { NextClassCard } from "@/components/now/NextClassCard";
 import shuttleCatalog from "../../../data/ksu-seed/shuttle-routes.json";
 
 /** Static route hours (no buses, times or live tiers offline). */
@@ -74,6 +75,7 @@ export function OfflineCommuterView({ scope }: { scope: CommuterScope | null }) 
           </ul>
         )}
       </section>
+      {snapshot && <NextClassCard schedule={snapshot.schedule} wayfinding={snapshot.wayfinding} campus={campus} offline />}
       <h2 className="font-display text-[length:var(--fs-lg)] font-bold">Campus map · routes and stops</h2>
       <CampusGeoMap campusFilter={campus} showShuttleRoutes showParkingLots={false} mode="static" />
       <section aria-labelledby="offline-route-hours" className="rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] p-[var(--sp-4)]">

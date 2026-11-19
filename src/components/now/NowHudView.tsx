@@ -23,6 +23,7 @@ import {
 } from "@/lib/viewerClient";
 import { saveCommuterSnapshot } from "@/lib/commuterCache";
 import { InstallHomeScreenCard } from "@/components/pwa/PwaSupport";
+import { NextClassCard } from "./NextClassCard";
 import {
   FillBar,
   StatusChip,
@@ -193,6 +194,7 @@ export function NowHudView() {
       </section>
 
       <div className="lt-grid-1 grid grid-cols-1 gap-[var(--sp-3)] md:grid-cols-2">
+        <div className="md:col-span-2"><NextClassCard schedule={hud.schedule} wayfinding={hud.wayfinding} campus={campusFilter} /></div>
         <section data-testid="bento-schedule-tile" aria-labelledby="now-classes-h" className={`${card} md:col-span-2`}>
           <div className={tileHead}>
             <h2 id="now-classes-h" className={tileTitle}>

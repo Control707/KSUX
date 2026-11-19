@@ -116,6 +116,7 @@ export default defineSchema({
     avatarAssetId: v.optional(v.id("mediaAssets")),
     permitTier: v.optional(v.string()),
     pinnedParkingLotIds: v.array(v.id("parkingLots")),
+    yourShuttleStopId: v.optional(v.string()),
     completedDealCount: v.number(),
     lifetimeClout: v.optional(v.number()),
     leaderboardHidden: v.optional(v.boolean()),
