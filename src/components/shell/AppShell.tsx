@@ -3,7 +3,7 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, Compass, Copy, Home, MessageSquare, RotateCcw, Shield, ShoppingBag } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Compass, Copy, Home, MessageSquare, RotateCcw, Search, Shield, ShoppingBag } from "lucide-react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import { OfflineCommuterView } from "@/components/pwa/OfflineCommuterView";
@@ -150,6 +150,15 @@ export function AppShell({
             )}
 
             <div className="ml-auto flex flex-wrap items-center justify-end gap-[var(--sp-2)]">
+              <Link
+                href="/search"
+                data-testid="header-search-link"
+                aria-current={pathname === "/search" ? "page" : undefined}
+                className="inline-flex min-h-[var(--target)] min-w-[var(--target)] items-center justify-center gap-[var(--sp-2)] rounded-[var(--r-pill)] border border-[var(--line-strong)] bg-[var(--surface)] px-[var(--sp-3)] text-sm font-bold"
+              >
+                <Search aria-hidden="true" className="h-4 w-4" />
+                <span className="sr-only sm:not-sr-only">Search</span>
+              </Link>
               {summary?.viewer.isModerator && auth.status !== "demo" && (
                 <Link
                   href={MODERATION_DESTINATION.href}

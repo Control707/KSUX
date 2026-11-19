@@ -24,7 +24,7 @@ const MAX_DEAL_CHAT_PARTICIPANTS = 6;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
-function isActiveListing(listing: Doc<"listings">, now: number) {
+export function isActiveListing(listing: Doc<"listings">, now: number) {
   return (listing.status === "available" || listing.status === "pending") &&
     listing.expiresAt > now;
 }
