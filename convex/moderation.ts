@@ -645,7 +645,7 @@ export async function applyLegacyDecision(ctx: MutationCtx & { viewer: ViewerCon
 
     if (audit) {
       const actionId = await writeAction(ctx, { action: args.decision === "suspend_student" ? "suspend" : args.decision,
-        targetType: args.decision === "suspend_student" ? "student" : args.targetType, targetKey: args.decision === "suspend_student" ? String(target.authorId) : args.targetId, subjectId: target.authorId, reasonId: args.reasonId,
+        targetType: args.decision === "suspend_student" ? "student" : args.targetType, targetKey: args.decision === "suspend_student" ? String(target.authorId) : args.targetId, subjectId: target.authorId, reasonId: args.decision === "remove" ? args.reasonId : undefined,
         contentSnapshot: target.text });
       await notice(ctx, target.authorId, actionId, args.decision === "remove" ? `Removed: ${INCIDENT_REMOVE_REASONS[args.reasonId!]}` : args.decision === "suspend_student" ? "Your account was suspended." : "Content restored.", args.decision !== "restore");
       await closeReports(ctx, args.targetType, args.targetId, args.decision === "restore" ? "restored" : "removed", actionId);

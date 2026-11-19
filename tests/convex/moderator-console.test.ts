@@ -197,7 +197,10 @@ it("dismisses reports without notices or content changes; upholding an Appeal lo
   const visible = queue.items[2]!;
   const before = (await t.query(api.moderatorConsole.review, { ...auth, targetType: visible.targetType, targetId: visible.targetId }))!;
   const notices = await t.query(api.moderatorConsole.myNotices, { ...auth, demoPersonaHandle: "jordan_me" });
-  await t.mutation(api.moderatorConsole.act, { ...auth, targetType: visible.targetType, targetId: visible.targetId, action: "dismiss", requestId: "dismiss" });
+  const dismissed = await t.mutation(api.moderatorConsole.act, { ...auth, targetType: visible.targetType, targetId: visible.targetId, action: "dismiss", requestId: "private request text", reasonId: "unvalidated text", templateId: "unvalidated text" });
+  const audit = await t.run(({ db }) => db.get(dismissed.actionId));
+  expect(audit?.reasonId).toBeUndefined(); expect(audit?.templateId).toBeUndefined();
+  expect(audit?.requestId).toMatch(/^[a-f0-9]{64}$/);
   expect((await t.query(api.moderatorConsole.review, { ...auth, targetType: visible.targetType, targetId: visible.targetId }))?.text).toBe(before.text);
   expect((await t.query(api.moderatorConsole.myNotices, { ...auth, demoPersonaHandle: "jordan_me" })).length).toBe(notices.length);
   expect((await t.query(api.moderatorConsole.actionLog, auth)).filter((r) => r.action === "dismiss")).toHaveLength(1);

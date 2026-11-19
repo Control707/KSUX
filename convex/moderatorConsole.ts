@@ -9,6 +9,7 @@ import { cleanupV2Student, closeStudentArtifactsAndMedia } from "./students";
 import { presentSource } from "./officialAlerts";
 import { sourceInfo } from "./lib/officialAlerts";
 import type { ReviewCtx } from "./lib/moderationPolicy";
+import { sha256Hex } from "./lib/crypto";
 
 const targetType = v.union(v.literal("incident"), v.literal("post"), v.literal("listing"), v.literal("study_session"), v.literal("student"), v.literal("chat_message"));
 type Ctx = MutationCtx & { viewer: ViewerContext };
@@ -114,7 +115,8 @@ export const act = moderatorMutation({
     alertId: v.optional(v.id("alertItems")), duplicateIncidentId: v.optional(v.id("incidents")) },
   handler: async (ctx, args) => {
     if (!args.requestId || args.requestId.length > 100) moderationError("A decision request identifier is required.");
-    const previous = await ctx.db.query("moderatorActions").withIndex("by_request", (q) => q.eq("workspaceKey", ctx.viewer.workspaceKey).eq("actorId", ctx.viewer.actorStudent._id).eq("requestId", args.requestId)).unique();
+    const requestId = await sha256Hex(args.requestId);
+    const previous = await ctx.db.query("moderatorActions").withIndex("by_request", (q) => q.eq("workspaceKey", ctx.viewer.workspaceKey).eq("actorId", ctx.viewer.actorStudent._id).eq("requestId", requestId)).unique();
     if (previous) return { actionId: previous._id };
     const target = await assertReviewable(ctx, args.targetType, args.targetId);
     if (["removed", "deleted", "deleted_tombstone"].includes(target.status)) moderationError("This item is no longer pending review. Refresh the queue.");
@@ -164,8 +166,9 @@ export const act = moderatorMutation({
       }
     } else if (args.action !== "dismiss") await applyLegacyDecision(ctx, { targetType: args.targetType as "post", targetId: args.targetId, decision: args.action as "remove" | "restore", reasonId: args.reasonId }, false);
     const actionId = await writeAction(ctx, { action: args.action, targetType: args.action === "suspend" ? "student" : args.targetType,
-      targetKey: args.action === "suspend" ? String(target.authorId) : args.targetId, subjectId: target.authorId, requestId: args.requestId,
-      reasonId: args.reasonId, templateId: args.action === "redact" ? "redaction" : args.addInaccurateNote ? "inaccurate" : args.templateId,
+      targetKey: args.action === "suspend" ? String(target.authorId) : args.targetId, subjectId: target.authorId, requestId,
+      reasonId: args.action === "remove" ? args.reasonId : undefined,
+      templateId: args.action === "redact" ? "redaction" : args.addInaccurateNote ? "inaccurate" : args.action === "note" ? args.templateId : undefined,
       contentSnapshot: JSON.stringify({ text: target.text, status: target.status }) });
     if (args.action !== "note") await closeReports(ctx, args.targetType, args.targetId, args.action === "remove" || args.action === "suspend" ? "removed" : args.action === "dismiss" ? "dismissed" : "restored", actionId);
     if (args.action !== "dismiss") await notice(ctx, target.authorId, actionId,
