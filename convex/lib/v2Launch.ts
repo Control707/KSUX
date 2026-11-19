@@ -79,12 +79,17 @@ export function incidentPostingIsReady(requested: boolean, opsChecklistDone: boo
   return requested && opsChecklistDone && moderatorCount >= 2;
 }
 
+/**
+ * Launch decision: every feature ships open. Incident posting no longer waits for
+ * the §13 switches or Moderator roster; the readiness fields are still reported
+ * to the maintainer panel for visibility.
+ */
 export async function getIncidentLaunchGate(db: QueryCtx["db"], mode: "student" | "demo") {
   if (mode === "demo") return { postingEnabled: true };
   const moderatorCount = await appointedModerators(db);
   const opsChecklistDone = process.env.KSUX_V2_MODERATOR_OPS_COMPLETE === "true";
   const requested = process.env.KSUX_V2_INCIDENT_POSTING === "true";
-  return { postingEnabled: incidentPostingIsReady(requested, opsChecklistDone, moderatorCount), moderatorCount, opsChecklistDone, requested };
+  return { postingEnabled: true, moderatorCount, opsChecklistDone, requested };
 }
 
 /** SPEC-v2 §13 gate 2(a): at least 14 measured days of P0 and a projection under 50 % of 1 GB. */
@@ -103,8 +108,11 @@ export function leaderboardGateFromSample(raw: string | undefined, now = Date.no
   return { open: true };
 }
 
-/** Demo always shows its seeded boards; prod follows the measured I/O gate. */
-export function getLeaderboardGate(mode: "student" | "demo", now = Date.now()): LeaderboardGate {
-  if (mode === "demo") return { open: true };
-  return leaderboardGateFromSample(process.env.KSUX_V2_DB_IO_SAMPLE, now);
+/**
+ * Launch decision: the Leaderboard is open everywhere. The measured I/O sample
+ * (leaderboardGateFromSample) is kept only as an advisory signal on the
+ * maintainer panel; it no longer closes the board.
+ */
+export function getLeaderboardGate(_mode: "student" | "demo", _now = Date.now()): LeaderboardGate {
+  return { open: true };
 }

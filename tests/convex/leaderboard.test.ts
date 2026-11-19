@@ -52,7 +52,7 @@ describe("Leaderboard I/O gate (SPEC-v2 §13 gate 2(a))", () => {
     expect(leaderboardGateFromSample(ioSample(14, 1, new Date(now - 8 * day)), now)).toEqual({ open: false, reason: "stale_measurement" });
   });
 
-  it("shows coming soon in prod until the gate passes, while earning keeps working", async () => {
+  it("is open in prod without any I/O measurement, and earning works", async () => {
     const t = createTestConvex();
     await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: true });
     const [a, b] = await Promise.all(["gate_a", "gate_b"].map((handle) => createVerifiedTestStudent(t, { handle, displayName: handle })));
@@ -63,10 +63,6 @@ describe("Leaderboard I/O gate (SPEC-v2 §13 gate 2(a))", () => {
     await t.mutation(api.parking.submitParkingReport, { sessionToken: b!.sessionToken, parkingLotId: lotId, reportKind: "fullness", fullnessTier: 2, nowOverride: now + minute });
     expect((await t.query(api.clout.getMyClout, { sessionToken: a!.sessionToken })).lifetime).toBe(5);
 
-    const closed = await t.query(api.leaderboard.getLeaderboard, { sessionToken: a!.sessionToken });
-    expect(closed).toEqual({ status: "coming_soon", campus: "Kennesaw", defaultCampus: "Kennesaw", isDemo: false });
-
-    openGate();
     const open = await t.query(api.leaderboard.getLeaderboard, { sessionToken: a!.sessionToken });
     expect(open).toMatchObject({ status: "open", me: { state: "ranked", rank: 1, of: 2, total: 5 } });
   });

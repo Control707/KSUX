@@ -46,23 +46,20 @@ async function setup() {
 
 afterEach(() => vi.unstubAllEnvs());
 
-it("enables only with two distinct eligible appointments and closes on revocation or a disabled switch", async () => {
+it("keeps posting open regardless of appointments or switches, while still counting the roster", async () => {
   const { t, reader, appoint, status, ops } = await setup();
-  await expect(status()).resolves.toEqual({ postingEnabled: false });
+  await expect(status()).resolves.toEqual({ postingEnabled: true });
   const appointee = await createVerifiedTestStudent(t, { handle: "appointee", displayName: "Appointee" });
   await appoint(appointee.studentId);
   await appoint(appointee.studentId);
-  await expect(ops()).resolves.toMatchObject({ gate: { moderatorCount: 1, postingEnabled: false } });
+  await expect(ops()).resolves.toMatchObject({ gate: { moderatorCount: 1, postingEnabled: true } });
   const appointment = await appoint(reader.studentId);
-  await expect(status()).resolves.toEqual({ postingEnabled: true });
+  await expect(ops()).resolves.toMatchObject({ gate: { moderatorCount: 2 } });
   vi.stubEnv("KSUX_V2_MODERATOR_OPS_COMPLETE", "false");
-  await expect(status()).resolves.toEqual({ postingEnabled: false });
-  vi.stubEnv("KSUX_V2_MODERATOR_OPS_COMPLETE", "true");
   vi.stubEnv("KSUX_V2_INCIDENT_POSTING", "false");
-  await expect(status()).resolves.toEqual({ postingEnabled: false });
-  vi.stubEnv("KSUX_V2_INCIDENT_POSTING", "true");
+  await expect(status()).resolves.toEqual({ postingEnabled: true });
   await t.run((ctx) => ctx.db.patch(appointment, { revokedAt: Date.now() }));
-  await expect(status()).resolves.toEqual({ postingEnabled: false });
+  await expect(ops()).resolves.toMatchObject({ gate: { moderatorCount: 1, postingEnabled: true } });
 });
 
 it("does not count Faculty · Staff, unverified, suspended, CSA, expired or future appointees", async () => {
@@ -82,7 +79,7 @@ it("does not count Faculty · Staff, unverified, suspended, CSA, expired or futu
   await appoint(reader.studentId, { csaStatement: "  " });
   await appoint(reader.studentId, { purgeAt: Date.now() - 1 });
   await appoint(reader.studentId, { appointedAt: Date.now() + 60_000 });
-  await expect(ops()).resolves.toMatchObject({ gate: { moderatorCount: 1, postingEnabled: false } });
+  await expect(ops()).resolves.toMatchObject({ gate: { moderatorCount: 1 } });
 });
 
 it("does not truncate the eligible count after the first hundred ineligible rows", async () => {

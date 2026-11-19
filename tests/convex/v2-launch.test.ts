@@ -22,7 +22,7 @@ it("requires both switches and two eligible appointments", () => {
   expect(incidentPostingIsReady(false, true, 2)).toBe(false);
 });
 
-it("keeps a requested production launch closed without eligible appointments and keeps the meter private", async () => {
+it("opens production posting without eligible appointments and keeps the meter private", async () => {
   const t = createTestConvex();
   const maintainer = await createVerifiedTestStudent(t, { handle: "launch_lead", displayName: "Launch Lead" });
   const student = await createVerifiedTestStudent(t, { handle: "launch_reader", displayName: "Launch Reader" });
@@ -32,10 +32,10 @@ it("keeps a requested production launch closed without eligible appointments and
   try {
     await expect(t.query(api.moderation.getV2LaunchOps, { sessionToken: student.sessionToken })).resolves.toBeNull();
     await expect(t.query(api.moderation.getV2LaunchOps, { sessionToken: maintainer.sessionToken })).resolves.toMatchObject({
-      gate: { postingEnabled: false, moderatorCount: 0, opsChecklistDone: true, requested: true },
+      gate: { postingEnabled: true, moderatorCount: 0, opsChecklistDone: true, requested: true },
     });
     await expect(t.query(api.moderation.getIncidentLaunchStatus, { sessionToken: student.sessionToken }))
-      .resolves.toEqual({ postingEnabled: false });
+      .resolves.toEqual({ postingEnabled: true });
     const bytes = Object.fromEntries(v2IoShapes.map(({ key }) => [key, key === "leaderboard" ? 70_000_000 : 0]));
     vi.stubEnv("KSUX_V2_DB_IO_SAMPLE", JSON.stringify({ days: 3, measuredAt: new Date().toISOString(), bytes }));
     await expect(t.query(api.moderation.getV2LaunchOps, { sessionToken: maintainer.sessionToken })).resolves.toMatchObject({
