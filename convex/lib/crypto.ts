@@ -24,6 +24,7 @@ export const DEMO_PERSONA_HANDLES = [
   "maya_cs",
   "jordan_me",
   "alex_owl",
+  "sam_cpe",
 ] as const;
 
 export type DemoPersonaHandle = (typeof DEMO_PERSONA_HANDLES)[number];

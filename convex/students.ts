@@ -457,10 +457,11 @@ export async function closeStudentArtifactsAndMedia(
   workspaceKey: string,
   studentId: Id<"students">,
   deletePrivateSchedule = false,
+  preserveAppealAccess = false,
 ): Promise<number> {
   const batchSize = 25;
   const [sessions, pushes, postBatches, listingBatches, hostedSessions, reports, mediaBatches, privateSchedules, agendaStates] = await Promise.all([
-    ctx.db.query("studentSessions").withIndex("by_student", (q) => q.eq("studentId", studentId)).take(batchSize),
+    preserveAppealAccess ? Promise.resolve([]) : ctx.db.query("studentSessions").withIndex("by_student", (q) => q.eq("studentId", studentId)).take(batchSize),
     ctx.db.query("pushSubscriptions").withIndex("by_student", (q) => q.eq("studentId", studentId)).take(batchSize),
     Promise.all((["visible", "under_review"] as const).map((status) => ctx.db.query("posts")
       .withIndex("by_author", (q) => q.eq("workspaceKey", workspaceKey).eq("authorId", studentId)
@@ -517,7 +518,7 @@ export const continueStudentCleanup = internalMutation({
   handler: async (ctx, args) => {
     const student = await ctx.db.get(args.studentId);
     if (student?.workspaceKey === args.workspaceKey && student.accountStatus !== "active") {
-      await closeStudentArtifactsAndMedia(ctx, args.workspaceKey, student._id, student.accountStatus === "deleted");
+      await closeStudentArtifactsAndMedia(ctx, args.workspaceKey, student._id, student.accountStatus === "deleted", student.accountStatus === "suspended");
     }
   },
 });

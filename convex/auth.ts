@@ -13,6 +13,7 @@ import {
   viewerMutation,
 } from "./lib/viewer";
 import { mintBrowserCredential, requireServerSecret } from "./lib/sessionCredential";
+import { hasSuspensionAppealAccess } from "./lib/moderationPolicy";
 
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const RESEND_COOLDOWN_MS = 60 * 1000; // 1 resend / 60s
@@ -63,7 +64,7 @@ export const requestEmailOtp = publicAuthMutation({
         q.eq("workspaceKey", "prod").eq("canonicalEmail", canonicalEmail)
       )
       .unique();
-    if (existingStudent && existingStudent.accountStatus === "suspended") {
+    if (existingStudent && existingStudent.accountStatus === "suspended" && !await hasSuspensionAppealAccess(ctx, existingStudent._id, now)) {
       throw new ConvexError({
         code: "ACCOUNT_SUSPENDED",
         message: "This KSU .edu account has been suspended from KSUX.",
@@ -257,14 +258,15 @@ export const verifyEmailOtp = publicAuthMutation({
       )
       .unique();
 
-    if (student && student.accountStatus === "suspended") {
+    const appealAccess = Boolean(student?.accountStatus === "suspended" && await hasSuspensionAppealAccess(ctx, student._id, now));
+    if (student && student.accountStatus === "suspended" && !appealAccess) {
       throw new ConvexError({
         code: "ACCOUNT_SUSPENDED",
         message: "This KSU .edu account has been suspended from KSUX.",
       });
     }
 
-    if (!student || student.accountStatus !== "active") {
+    if (!student || (student.accountStatus !== "active" && !appealAccess)) {
       const tempSuffix = randomHex(4);
       const tempHandle = `owl_${tempSuffix}`;
       const studentId = await ctx.db.insert("students", {
@@ -312,6 +314,7 @@ export const verifyEmailOtp = publicAuthMutation({
 });
 
 export const getBrowserSession = viewerMutation({
+  allowSuspended: true,
   args: { serverSecret: v.string() },
   handler: async (ctx, args) => {
     await requireServerSecret(args.serverSecret);
@@ -329,6 +332,7 @@ export const getBrowserSession = viewerMutation({
 });
 
 export const signOutSession = viewerMutation({
+  allowSuspended: true,
   args: { pushEndpoint: v.optional(v.string()) },
   handler: async (ctx, args) => {
     let pushRemoved = false;

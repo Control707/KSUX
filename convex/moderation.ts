@@ -3,7 +3,7 @@ import { parseMaintainerEmails } from "./lib/viewer";
 import { describeFeedHealth } from "./lib/syncGuard";
 import { ConvexError, v } from "convex/values";
 import { setClubMembershipRole } from "./communities";
-import { makeStudentPairKey, sha256Hex } from "./lib/crypto";
+import { makeStudentPairKey } from "./lib/crypto";
 import {
   isItemVisibleToViewer,
   makeTargetKey,
@@ -16,6 +16,10 @@ import { cleanupV2Student, closeStudentArtifactsAndMedia } from "./students";
 import { Id } from "./_generated/dataModel";
 import { getChatMembership, updateLatestMessagePreview } from "./chats";
 import { queueMediaDeletion } from "./lib/mediaCleanup";
+import { assertReviewable, writeAction, notice, closeReports, exclusion } from "./lib/moderationPolicy";
+import { INCIDENT_REMOVE_REASONS } from "./lib/incidentPolicy";
+import type { MutationCtx } from "./_generated/server";
+import type { ViewerContext } from "./lib/viewer";
 import { moveListingHandoffClout } from "./lib/cloutLedger";
 
 export const toggleBlockStudent = viewerMutation({
@@ -451,6 +455,7 @@ export const getModerationQueue = viewerQuery({
         }
       }
 
+      if (authorStudentId && await exclusion(ctx, g.targetType, g.targetId, authorStudentId)) continue;
       const author = authorStudentId
         ? await ctx.db.get(authorStudentId)
         : null;
@@ -508,15 +513,30 @@ export const reviewModerationTarget = moderatorMutation({
       v.literal("remove"),
       v.literal("suspend_student")
     ),
+    reasonId: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args) => applyLegacyDecision(ctx, args),
+});
+
+export async function applyLegacyDecision(ctx: MutationCtx & { viewer: ViewerContext }, args: {
+  targetType: "post" | "listing" | "study_session" | "student" | "chat_message";
+  targetId: string; decision: "restore" | "remove" | "suspend_student"; reasonId?: string;
+}, audit = true) {
     const now = Date.now();
     const wsKey = ctx.viewer.workspaceKey;
+    const target = await assertReviewable(ctx, args.targetType, args.targetId);
+    if (args.decision === "remove" && !Object.hasOwn(INCIDENT_REMOVE_REASONS, args.reasonId ?? "")) {
+      throw new ConvexError({ code: "REASON", message: "Choose a removal reason the author will see." });
+    }
     if (args.decision === "suspend_student" && !ctx.viewer.isMaintainer) {
       throw new ConvexError({ code: "FORBIDDEN", message: "Only maintainers can suspend Students." });
     }
-    const targetKey = makeTargetKey(args.targetType, args.targetId);
-
+    if (args.decision === "suspend_student") {
+      if (ctx.viewer.isCsa) throw new ConvexError({ code: "FORBIDDEN", message: "CSA Moderators cannot suspend authors of Incident items." });
+      for await (const row of ctx.db.query("incidents").withIndex("by_author", (q) => q.eq("workspaceKey", wsKey).eq("authorId", target.authorId))) {
+        if (await exclusion(ctx, "incident", String(row._id), row.authorId)) throw new ConvexError({ code: "FORBIDDEN", message: "An Incident involving you needs another maintainer." });
+      }
+    }
     let targetAuthorId: Id<"students"> | undefined;
 
     if (args.targetType === "post") {
@@ -616,58 +636,23 @@ export const reviewModerationTarget = moderatorMutation({
         student.workspaceKey === wsKey &&
         student._id !== ctx.viewer.actorStudent._id
       ) {
-        const blockedEmailHash = student.canonicalEmail
-          ? await sha256Hex(student.canonicalEmail)
-          : undefined;
-
-        // Permanent handle + email hash lock
-        await ctx.db.insert("handleReservations", {
-          workspaceKey: wsKey,
-          handleLower: student.handleLower,
-          reason: "suspended",
-          blockedEmailHash,
-          createdAt: now,
-          expiresAt: undefined,
-        });
-
-        await closeStudentArtifactsAndMedia(
-          ctx,
-          wsKey,
-          student._id
-        );
-
+        await ctx.db.patch(student._id, { accountStatus: "suspended" });
+        await closeStudentArtifactsAndMedia(ctx, wsKey, student._id, false, true);
         await cleanupV2Student(ctx, wsKey, student._id, false);
-        const suspendedHandle = `suspended_${String(student._id).slice(-10).toLowerCase()}`;
-        await ctx.db.patch(student._id, {
-          canonicalEmail: undefined,
-          handle: suspendedHandle,
-          handleLower: suspendedHandle,
-          displayName: "[Removed Student]",
-          searchText: "",
-          avatarUrl: undefined,
-          avatarAssetId: undefined,
-          accountStatus: "suspended",
-        });
 
       }
     }
 
-    const reports = await ctx.db
-      .query("moderationReports")
-      .withIndex("by_target", (q) =>
-        q.eq("workspaceKey", wsKey).eq("targetKey", targetKey)
-      )
-      .take(100);
-    for (const r of reports) {
-      await ctx.db.patch(r._id, {
-        queueStatus: args.decision === "restore" ? "restored" : "removed",
-        reviewedById: ctx.viewer.actorStudent._id,
-      });
+    if (audit) {
+      const actionId = await writeAction(ctx, { action: args.decision === "suspend_student" ? "suspend" : args.decision,
+        targetType: args.decision === "suspend_student" ? "student" : args.targetType, targetKey: args.decision === "suspend_student" ? String(target.authorId) : args.targetId, subjectId: target.authorId, reasonId: args.decision === "remove" ? args.reasonId : undefined,
+        caseTargetType: args.decision === "suspend_student" ? args.targetType : undefined, caseTargetKey: args.decision === "suspend_student" ? args.targetId : undefined,
+        contentSnapshot: target.text });
+      await notice(ctx, target.authorId, actionId, args.decision === "remove" ? `Removed: ${INCIDENT_REMOVE_REASONS[args.reasonId!]}` : args.decision === "suspend_student" ? "Your account was suspended." : "Content restored.", args.decision !== "restore");
+      await closeReports(ctx, args.targetType, args.targetId, args.decision === "restore" ? "restored" : "removed", actionId);
     }
-
     return { ok: true, decision: args.decision };
-  },
-});
+}
 
 export const reviewOfficerClaim = moderatorMutation({
   args: {
@@ -675,6 +660,7 @@ export const reviewOfficerClaim = moderatorMutation({
     approve: v.boolean(),
   },
   handler: async (ctx, args) => {
+    if (!ctx.viewer.isMaintainer) throw new ConvexError({ code: "FORBIDDEN", message: "Club officer approval is maintainer-only." });
     const membership = await ctx.db.get(args.membershipId);
     if (!membership || membership.workspaceKey !== ctx.viewer.workspaceKey) {
       throw new ConvexError({
@@ -682,15 +668,18 @@ export const reviewOfficerClaim = moderatorMutation({
         message: "Officer claim not found in this workspace.",
       });
     }
+    if (membership.studentId === ctx.viewer.actorStudent._id) throw new ConvexError({ code: "FORBIDDEN", message: "Another maintainer reviews your own officer claim." });
     const role = args.approve ? "officer" : "member";
     const club = await ctx.db.get(membership.clubId);
     if (!club || (club.workspaceKey !== "ksu" && club.workspaceKey !== membership.workspaceKey)) {
       throw new ConvexError({ code: "NOT_FOUND", message: "Club not found." });
     }
-    if (membership.role !== "pending_officer_claim" && membership.role !== role) {
+    if (membership.role !== "pending_officer_claim") {
       throw new ConvexError({ code: "FORBIDDEN", message: "The officer claim has already been resolved." });
     }
     await setClubMembershipRole(ctx, club, membership.workspaceKey, membership.studentId, role, Date.now());
+    const actionId = await writeAction(ctx, { action: args.approve ? "officer_approve" : "officer_decline", targetType: "club_member", targetKey: String(membership._id), subjectId: membership.studentId });
+    await notice(ctx, membership.studentId, actionId, args.approve ? "Your Club officer claim was approved." : "Your Club officer claim was declined; you remain a member.");
     return { ok: true, role };
   },
 });

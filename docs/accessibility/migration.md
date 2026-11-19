@@ -29,7 +29,7 @@ Every route is checked whole by a `screenMatrix` spec in `tests/a11y/`. Each spe
 | Marketplace, Chats, Scrappy | `marketplace.spec.ts`, `chats.spec.ts`, `scrappy.spec.ts` |
 | Parking, Transit, shared map | `parking.spec.ts`, `transit.spec.ts`, `map.spec.ts` |
 | Study, Dining, Events, Clubs, Course Hubs | `campus-life.spec.ts` |
-| Profile, About, Moderation | `profile.spec.ts` |
+| Profile, About, Moderator console, action log and Appeals | `profile.spec.ts`, `moderation.spec.ts` |
 | Shell, Quick Sheet, Safety, Emergency Panel | `shell.spec.ts`, `safety.spec.ts` |
 
 ## Follow-ups

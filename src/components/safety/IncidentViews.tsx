@@ -30,7 +30,7 @@ function IncidentCard({ incident, details = false }: { incident: Incident; detai
     <p>Seen {date(incident.observedAt)} (claimed)</p>
     <p className="whitespace-pre-wrap">{incident.text}</p>
     {incident.updates.length > 0 && <ol className="space-y-[var(--sp-2)] border-l-2 border-[var(--line-strong)] pl-[var(--sp-3)]" aria-label="Incident Updates">
-      {incident.updates.map((update) => <li key={update._id}><p className="font-bold">{update.kind === "author_update" ? "Author Update" : "Moderator note"} · {date(update.createdAt)}</p><p>{update.text}</p></li>)}
+      {incident.updates.map((update) => <li key={update._id}><p className="font-bold">{update.kind === "author_update" ? "Author Update" : "Moderator note"} · {date(update.createdAt)}</p><p>{update.text} {update.href && <Link href={update.href}>View linked source</Link>}</p></li>)}
     </ol>}
     <p className="text-[length:var(--fs-sm)]">Community report · not verified · {incident.authorLabel}</p>
     <p className="text-[length:var(--fs-sm)]">Posted {date(incident.publishedAt)} · Updated {date(incident.lastActivityAt)}</p>

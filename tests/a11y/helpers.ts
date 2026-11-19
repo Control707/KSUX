@@ -36,7 +36,7 @@ export async function expectNoSeriousAxe(page: Page, opts: { include?: string[];
   for (const selector of opts.exclude ?? []) builder = builder.exclude(selector);
   const results = await builder.analyze();
   const blocking = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
-  const summary = blocking.map((v) => `${v.id} (${v.impact}): ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`);
+  const summary = blocking.map((v) => `${v.id} (${v.impact}): ${v.nodes.slice(0, 3).map((n) => `${n.target.join(" ")}: ${n.failureSummary}`).join(" | ")}`);
   expect(summary, `axe serious/critical violations · ${opts.label}`).toEqual([]);
 }
 
@@ -90,7 +90,17 @@ export async function expectMinTextSize(page: Page, scope: string, label: string
 
 export async function expectNoHorizontalOverflow(page: Page, label: string) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow, `horizontal overflow · ${label}`).toBeLessThanOrEqual(1);
+  const details = overflow > 1 ? await page.locator("body *").evaluateAll((nodes) => nodes.flatMap((el) => {
+    const r = el.getBoundingClientRect();
+    if (!r.width || r.right <= document.documentElement.clientWidth + 1) return [];
+    let parent = el.parentElement;
+    while (parent && parent !== document.body) {
+      if (["auto", "scroll", "hidden", "clip"].includes(getComputedStyle(parent).overflowX)) return [];
+      parent = parent.parentElement;
+    }
+    return [`${el.tagName.toLowerCase()}.${el.className} right=${Math.round(r.right)}: ${(el.textContent ?? "").slice(0, 60)}`];
+  }).slice(0, 15)) : [];
+  expect(overflow, `horizontal overflow · ${label}\n${details.join("\n")}`).toBeLessThanOrEqual(1);
 }
 
 /** The scope for shared shell chrome (everything but a legacy screen body). */

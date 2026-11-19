@@ -52,6 +52,8 @@ import type * as lib_viewer from "../lib/viewer.js";
 import type * as lib_workflowTime from "../lib/workflowTime.js";
 import type * as marketplace from "../marketplace.js";
 import type * as moderation from "../moderation.js";
+import type * as moderatorConsole from "../moderatorConsole.js";
+import type * as lib_moderationPolicy from "../lib/moderationPolicy.js";
 import type * as officialAlerts from "../officialAlerts.js";
 import type * as parking from "../parking.js";
 import type * as push from "../push.js";
@@ -125,6 +127,8 @@ declare const fullApi: ApiFromModules<{
   "lib/workflowTime": typeof lib_workflowTime;
   marketplace: typeof marketplace;
   moderation: typeof moderation;
+  moderatorConsole: typeof moderatorConsole;
+  "lib/moderationPolicy": typeof lib_moderationPolicy;
   officialAlerts: typeof officialAlerts;
   parking: typeof parking;
   push: typeof push;

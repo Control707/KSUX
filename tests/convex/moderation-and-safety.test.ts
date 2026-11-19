@@ -297,7 +297,7 @@ describe("Seam 1 — Publish Safety Guardrails, Mutual Block, 1-Tap Report & Mod
     );
     const demoQueue = await t.query(api.moderation.getModerationQueue, {
       demoShortCode: demo.shortCode,
-      demoPersonaHandle: "maya_cs",
+      demoPersonaHandle: "alex_owl",
     });
     expect(demoQueue.items.length).toBeGreaterThanOrEqual(1);
     const quarantinedDemoItem = demoQueue.items[0]!;
@@ -305,7 +305,7 @@ describe("Seam 1 — Publish Safety Guardrails, Mutual Block, 1-Tap Report & Mod
 
     await t.mutation(api.moderation.reviewModerationTarget, {
       demoShortCode: demo.shortCode,
-      demoPersonaHandle: "maya_cs",
+      demoPersonaHandle: "alex_owl",
       targetType: quarantinedDemoItem.targetType,
       targetId: quarantinedDemoItem.targetId,
       decision: "restore",
@@ -315,7 +315,7 @@ describe("Seam 1 — Publish Safety Guardrails, Mutual Block, 1-Tap Report & Mod
       api.moderation.getModerationQueue,
       {
         demoShortCode: demo.shortCode,
-        demoPersonaHandle: "maya_cs",
+        demoPersonaHandle: "alex_owl",
       }
     );
     expect(demoQueueAfterRestore.items).toHaveLength(0);
@@ -335,11 +335,10 @@ describe("Seam 1 — Publish Safety Guardrails, Mutual Block, 1-Tap Report & Mod
       decision: "suspend_student",
     });
 
-    await expect(
-      requestTestOtp(t, {
-        email: "spammer+bypass@students.kennesaw.edu",
-      })
-    ).rejects.toThrowError(/suspended/);
+    // Reauthentication reaches only the restricted notices/Appeal screen.
+    expect((await requestTestOtp(t, {
+      email: "spammer+bypass@students.kennesaw.edu",
+    })).ok).toBe(true);
 
     const suspendedView = await t.query(api.students.getProfile, {
       sessionToken: regularStudent.sessionToken,

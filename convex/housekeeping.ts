@@ -8,7 +8,7 @@ const BATCH_LIMIT = 200;
 const HOUR = 60 * 60 * 1000;
 
 const v2StudentWorkspaceTables = [
-  "incidentUpdates", "incidents", "appeals", "moderatorActions",
+  "incidentUpdates", "incidents", "appeals", "moderatorActions", "moderationNotices",
   "cloutEvents", "cloutWeeklyTotals", "cloutBoardCounts",
 ] as const;
 const v2InstitutionalTables = ["alertItems", "alertSources"] as const;
@@ -18,6 +18,7 @@ const demoIndexes = {
   incidents: "by_purge",
   appeals: "by_purge",
   moderatorActions: "by_purge",
+  moderationNotices: "by_purge",
   cloutEvents: "by_purge",
   cloutWeeklyTotals: "by_purge",
   cloutBoardCounts: "by_purge",

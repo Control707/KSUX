@@ -8,7 +8,7 @@ async function ready(page: Page, route: string) {
     await expect(page.getByTestId("clout-hide-toggle")).toBeVisible({ timeout: 20_000 });
   }
   if (route === "/moderation") {
-    await expect(page.getByTestId("moderation-queue-view")).toContainText(/Restore false positive|All clear/, { timeout: 20_000 });
+    await expect(page.getByTestId("moderation-queue-view")).toContainText(/items not shown|waiting|No pending items/, { timeout: 20_000 });
   }
 }
 
@@ -73,11 +73,15 @@ test("Profile links to the About page with the accessibility statement", async (
 test("Moderation restore announces its result", async ({ page }) => {
   await enterDemo(page);
   await page.goto("/moderation");
+  await page.getByTestId("judge-demo-pill").click();
+  await page.getByTestId("persona-switch-alex_owl").click();
+  await page.getByTestId("moderation-row").filter({ hasText: "Post report" }).click();
   const restore = page.getByTestId("moderation-restore-btn").first();
   await expect(restore).toBeVisible({ timeout: 20_000 });
   await restore.click();
-  await expect(page.getByText("Item restored to public visibility").first()).toBeAttached();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Confirm", exact: true }).click();
+  await expect(page.getByText(/Restore complete. Logged./).first()).toBeAttached();
   await page.getByTestId("judge-demo-pill").click();
   await page.getByTestId("reset-demo-state-btn").click();
-  await expect(page.getByTestId("moderation-restore-btn").first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("moderation-row").filter({ hasText: "Post report" })).toBeVisible({ timeout: 10_000 });
 });

@@ -105,7 +105,7 @@ export async function resolveViewerFromDb(
     demoShortCode?: string;
     demoPersonaHandle?: string;
   },
-  options: { isMutation?: boolean } = {}
+  options: { isMutation?: boolean; allowSuspended?: boolean } = {}
 ): Promise<ViewerContext> {
   const now = Date.now();
 
@@ -142,7 +142,7 @@ export async function resolveViewerFromDb(
     if (
       !actorStudent ||
       actorStudent.workspaceKey !== "prod" ||
-      actorStudent.accountStatus !== "active"
+      (actorStudent.accountStatus !== "active" && !(options.allowSuspended && actorStudent.accountStatus === "suspended"))
     ) {
       throw new ConvexError({
         code: "UNAUTHENTICATED",
@@ -222,7 +222,7 @@ export async function resolveViewerFromDb(
         .unique();
     }
 
-    if (!actorStudent || actorStudent.accountStatus !== "active") {
+    if (!actorStudent || (actorStudent.accountStatus !== "active" && !(options.allowSuspended && actorStudent.accountStatus === "suspended"))) {
       throw new ConvexError({
         code: "UNAUTHENTICATED",
         message: "Demo Student persona unavailable in this workspace.",
@@ -403,8 +403,10 @@ export const publicAuthAction = action;
 export function viewerQuery<ArgsValidator extends PropertyValidators, Output>({
   args,
   handler,
+  allowSuspended = false,
 }: {
   args: ArgsValidator;
+  allowSuspended?: boolean;
   handler: (
     ctx: QueryCtx & { viewer: ViewerContext },
     args: ObjectType<ArgsValidator>
@@ -420,7 +422,7 @@ export function viewerQuery<ArgsValidator extends PropertyValidators, Output>({
         sessionToken: fullArgs.sessionToken,
         demoShortCode: fullArgs.demoShortCode,
         demoPersonaHandle: fullArgs.demoPersonaHandle,
-      });
+      }, { allowSuspended });
       const enrichedCtx = Object.assign(ctx, { viewer });
       return handler(enrichedCtx, fullArgs);
     },
@@ -433,8 +435,10 @@ export function viewerMutation<
 >({
   args,
   handler,
+  allowSuspended = false,
 }: {
   args: ArgsValidator;
+  allowSuspended?: boolean;
   handler: (
     ctx: MutationCtx & { viewer: ViewerContext },
     args: ObjectType<ArgsValidator>
@@ -453,7 +457,7 @@ export function viewerMutation<
           demoShortCode: fullArgs.demoShortCode,
           demoPersonaHandle: fullArgs.demoPersonaHandle,
         },
-        { isMutation: true }
+        { isMutation: true, allowSuspended }
       );
       const enrichedCtx = Object.assign(ctx, { viewer });
       return handler(enrichedCtx, fullArgs);

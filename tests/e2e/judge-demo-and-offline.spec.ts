@@ -146,17 +146,22 @@ test.describe("Seam 3 — KSUX 2-Tab Live WebSocket & Offline Commuter PWA Smoke
     // 8. Moderation Queue (Demo) restore + Reset Demo State
     await tab1.goto(`${baseURL}/moderation`);
     await expect(tab1.getByTestId("moderation-queue-view")).toBeVisible();
+    // Maya submitted the fixture reports; Alex must review them instead.
+    await tab1.getByTestId("judge-demo-pill").click();
+    await tab1.getByTestId("persona-switch-alex_owl").click();
+    await tab1.getByTestId("moderation-row").filter({ hasText: "Post report" }).click();
     await tab1.getByTestId("moderation-restore-btn").first().click();
-    await expect(tab1.getByTestId("moderation-queue-view")).toContainText(
-      "All clear"
-    );
+    await tab1.getByRole("alertdialog").getByRole("button", { name: "Confirm", exact: true }).click();
+    await expect(tab1.getByTestId("moderation-row").filter({ hasText: "Post report" })).toHaveCount(0);
 
     await tab1.getByTestId("judge-demo-pill").click();
     await tab1.getByTestId("reset-demo-state-btn").click();
     // Pre-quarantined item re-appears cleanly after Reset Demo State!
-    await expect(tab1.getByTestId("moderation-restore-btn").first()).toBeVisible({
+    await expect(tab1.getByTestId("moderation-row").filter({ hasText: "Post report" })).toBeVisible({
       timeout: 10_000,
     });
+    await tab1.getByTestId("judge-demo-pill").click();
+    await tab1.getByTestId("persona-switch-maya_cs").click();
 
     // 9. Warm Now HUD & Parking GeoJSON, verify zero chatMessages in ksux_commuter_cache, then go Offline!
     await tab1.goto(`${baseURL}/`);
