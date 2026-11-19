@@ -102,7 +102,7 @@ export function CloutCard() {
                     <span className="font-display text-2xl font-bold">{row.counted}</span>{" "}
                     <span className="text-sm text-[var(--muted)]">Clout</span>
                     {row.held > 0 && (
-                      <span className="block text-sm text-[var(--muted)]">{row.held} pending corroboration</span>
+                      <span className="block text-sm text-[var(--muted)]">{row.held} on hold while a Listing is reviewed</span>
                     )}
                   </span>
                 </li>
@@ -120,6 +120,13 @@ export function CloutCard() {
               <dd className="font-display text-xl font-bold" data-testid="clout-lifetime">{clout.lifetime}</dd>
             </div>
           </dl>
+
+          {clout.pendingReports > 0 && (
+            <p data-testid="clout-pending" className="mt-[var(--sp-2)] text-sm text-[var(--muted)]">
+              {clout.pendingReports} {clout.pendingReports === 1 ? "report" : "reports"} pending corroboration. Clout arrives when
+              another Student confirms it.
+            </p>
+          )}
 
           <h3 className="mt-[var(--sp-3)] text-sm font-bold text-[var(--muted)]">Last 30 days</h3>
           {clout.payouts.length === 0 ? (

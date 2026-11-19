@@ -14,6 +14,7 @@ import {
   shuttleRunsToday,
 } from "./lib/shuttleRead";
 import { easternDate } from "./lib/easternDate";
+import { corroboratePulse } from "./lib/cloutLedger";
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 const THIRTY_MINUTES_MS = 30 * 60 * 1000;
@@ -446,7 +447,7 @@ export const submitDiningLineCheck = viewerMutation({
     }
 
     const allowedChips = (args.stationChips ?? []).slice(0, 3);
-    await ctx.db.insert("campusPulses", {
+    const pulseId = await ctx.db.insert("campusPulses", {
       workspaceKey: viewer.workspaceKey,
       targetType: "dining_venue",
       targetKey: cleanSlug,
@@ -457,6 +458,14 @@ export const submitDiningLineCheck = viewerMutation({
       expiresAt: now + THIRTY_MINUTES_MS,
     });
 
-    return { ok: true, expiresAt: now + THIRTY_MINUTES_MS };
+    // Clout: a different Student's Line Check on the same venue within 15 min,
+    // same or adjacent level (SPEC-v2 §12).
+    const clout = await corroboratePulse(ctx, {
+      workspaceKey: viewer.workspaceKey, pulseId, targetType: "dining_venue", targetKey: cleanSlug,
+      authorId: viewer.actorStudent._id, tierValue: args.lineTier, campus: venue.campus,
+      windowMs: FIFTEEN_MINUTES_MS, now, blocked: viewer.blockedStudentIds,
+    });
+
+    return { ok: true, expiresAt: now + THIRTY_MINUTES_MS, corroborated: clout.corroborated };
   },
 });

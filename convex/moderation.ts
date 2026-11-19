@@ -16,6 +16,7 @@ import { cleanupV2Student, closeStudentArtifactsAndMedia } from "./students";
 import { Id } from "./_generated/dataModel";
 import { getChatMembership, updateLatestMessagePreview } from "./chats";
 import { queueMediaDeletion } from "./lib/mediaCleanup";
+import { moveListingHandoffClout } from "./lib/cloutLedger";
 
 export const toggleBlockStudent = viewerMutation({
   args: {
@@ -196,7 +197,11 @@ export const submitReport = viewerMutation({
           if (listing && listing.workspaceKey === viewer.workspaceKey) {
             authorId = listing.sellerId;
             visibilityStatus = listing.visibilityStatus;
-            quarantineTarget = () => ctx.db.patch(listing._id, { visibilityStatus: "under_review", isBrowseable: false });
+            quarantineTarget = async () => {
+              await ctx.db.patch(listing._id, { visibilityStatus: "under_review", isBrowseable: false });
+              // A Listing under review holds its handoff Clout (SPEC-v2 §12).
+              await moveListingHandoffClout(ctx, listing, "hold", now);
+            };
           }
           break;
         }
@@ -540,6 +545,9 @@ export const reviewModerationTarget = moderatorMutation({
         });
       }
       targetAuthorId = listing.sellerId;
+      // Restore (or dismissing the reports) releases the held handoff Clout;
+      // removal reverses it. The buyer keeps their own payout.
+      await moveListingHandoffClout(ctx, listing, args.decision === "restore" ? "release" : "reverse", now);
       if (args.decision === "restore") {
         const nextStatus =
           listing.status === "removed" ? "available" : listing.status;

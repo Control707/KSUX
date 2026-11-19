@@ -270,7 +270,8 @@ export function ParkingView() {
   const campusFilter = (data?.campusFilter as "Kennesaw" | "Marietta" | "All KSU" | undefined) ?? "Kennesaw";
   const cloutWeek = clout?.thisWeek ?? [];
   const cloutEarned = cloutWeek.reduce((sum, row) => sum + row.counted, 0);
-  const cloutPending = cloutWeek.reduce((sum, row) => sum + row.held, 0);
+  const cloutHeld = cloutWeek.reduce((sum, row) => sum + row.held, 0);
+  const pendingReports = clout?.pendingReports ?? 0;
 
   const lotStatuses = useMemo(
     () =>
@@ -476,9 +477,11 @@ export function ParkingView() {
                 </div>
 
                 <p data-testid="parking-clout" className="text-sm text-[var(--muted)]">
-                  {cloutEarned > 0 || cloutPending > 0
-                    ? `Clout this week: ${cloutEarned} earned · ${cloutPending} pending`
+                  {cloutEarned > 0 || cloutHeld > 0
+                    ? `Clout this week: ${cloutEarned} earned${cloutHeld > 0 ? ` · ${cloutHeld} on hold` : ""}`
                     : "Clout arrives with corroboration."}
+                  {pendingReports > 0 &&
+                    ` · ${pendingReports} ${pendingReports === 1 ? "report" : "reports"} pending corroboration`}
                 </p>
 
                 {/* Lot list (the half/full sheet and the desktop side list). */}
