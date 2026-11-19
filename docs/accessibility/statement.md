@@ -11,4 +11,4 @@ Use this wording on the About page and in the README. Fill in the date and assis
 
 ## Status
 
-The statement isn't published yet. The first full manual pass in [manual-test-matrix.md](manual-test-matrix.md) must be logged before v2 launch, and screens listed in [migration.md](migration.md) are known issues until Phase 1A migrates them.
+The statement is published on the About page (`/profile/about`, from `src/components/profile/accessibilityStatement.ts`) and in the README. Both say the first full manual pass hasn't been logged yet. When it is, set `lastTested` in that file and the date in the README from [results-log.md](results-log.md), and replace the known issues with the pass's findings.

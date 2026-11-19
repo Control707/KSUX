@@ -55,6 +55,7 @@ export const bootstrapKsu = internalMutation({
         await ctx.db.insert("parkingLots", lot);
         parkingInserted++;
       } else if (existing.hourlyBaselinePrior !== undefined) {
+        // Retired per-lot hourly prior (#74): unset it on legacy deploys.
         await ctx.db.patch(existing._id, { hourlyBaselinePrior: undefined });
       }
     }

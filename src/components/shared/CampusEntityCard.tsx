@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { ArrowUpRight, MapPin } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 
 export interface CampusEntityEmbedProps {
   entityType: string;
@@ -25,6 +25,12 @@ const ENTITY_LABELS: Record<string, string> = {
   shuttle_route: "Shuttle Route",
 };
 
+function campusColors(campus: string) {
+  if (campus === "Marietta") return "bg-[var(--mar-bg)] text-[var(--mar-fg)]";
+  if (campus === "Kennesaw") return "bg-[var(--ken-bg)] text-[var(--ken-fg)]";
+  return "bg-[var(--surface-2)] text-[var(--ink)]";
+}
+
 export function CampusEntityCard({
   entityType,
   title,
@@ -33,39 +39,29 @@ export function CampusEntityCard({
   href,
 }: CampusEntityEmbedProps) {
   const badgeLabel = ENTITY_LABELS[entityType] ?? "KSUX Campus";
-  const isMarietta = campus === "Marietta";
 
   return (
     <Link
       href={href}
-      className="group mt-1.5 flex items-center justify-between gap-3 rounded-xl border border-[#E4E7EE] bg-[#F9FAFC] px-3 py-2.5 transition hover:border-[#D99B00] hover:bg-[#FFFDF7]"
+      className="group mt-[var(--sp-2)] flex min-h-[var(--target)] items-center justify-between gap-[var(--sp-3)] rounded-[var(--r-sm)] border border-[var(--line)] bg-[var(--surface-2)] px-[var(--sp-3)] py-[var(--sp-2)] hover:border-[var(--line-strong)]"
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#5E6675]">
+      <span className="block min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-[var(--sp-1)] text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
           <span>{badgeLabel}</span>
           {campus && (
-            <span
-              className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-bold normal-case ${
-                isMarietta
-                  ? "bg-[#DBEAFE] text-[#1E3A8A]"
-                  : "bg-[#FFF6DC] text-[#855A00]"
-              }`}
-            >
-              <MapPin className="h-2.5 w-2.5" />
-              {campus}
+            <span className={`inline-flex items-center rounded-full px-[var(--sp-2)] text-xs font-bold normal-case ${campusColors(campus)}`}>
+              {campus === "Both" ? "Both campuses" : `${campus} Campus`}
             </span>
           )}
-        </div>
-        <p className="mt-0.5 truncate text-[13px] font-bold text-[#111317] group-hover:underline">
+        </span>
+        <span className="mt-[var(--sp-1)] block text-sm font-bold text-[var(--ink)] [overflow-wrap:anywhere] group-hover:underline">
           {title}
-        </p>
+        </span>
         {subtitle && (
-          <p className="truncate text-[11.5px] text-[#5E6675]">{subtitle}</p>
+          <span className="block text-sm text-[var(--muted)] [overflow-wrap:anywhere]">{subtitle}</span>
         )}
-      </div>
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#111317] text-[#FDBB30]">
-        <ArrowUpRight className="h-4 w-4" />
       </span>
+      <ArrowUpRight aria-hidden="true" className="h-5 w-5 shrink-0 text-[var(--accent-ink)]" />
     </Link>
   );
 }
@@ -83,16 +79,14 @@ export function CitationPill({
     <Link
       href={href}
       data-testid="scrappy-citation-pill"
-      className="inline-flex items-center gap-1 rounded-full border border-[#FDBB30] bg-[#FFF6DC] px-2.5 py-0.5 text-[11px] font-bold text-[#111317] transition hover:bg-[#FDBB30]"
+      className="inline-flex min-h-[var(--target)] max-w-full items-center gap-[var(--sp-1)] rounded-full border border-[var(--line-strong)] bg-[var(--accent-soft)] px-[var(--sp-3)] text-sm font-bold text-[var(--ink)] hover:bg-[var(--surface-2)]"
     >
-      <span>🦉</span>
-      <span>{label}</span>
+      <span aria-hidden="true">🦉</span>
+      <span className="min-w-0 [overflow-wrap:anywhere]">{label}</span>
       {campus && (
-        <span className="text-[10px] font-semibold text-[#5E6675]">
-          · {campus}
-        </span>
+        <span className="text-sm font-semibold text-[var(--muted)]">· {campus}</span>
       )}
-      <ArrowUpRight className="h-3 w-3" />
+      <ArrowUpRight aria-hidden="true" className="h-4 w-4 shrink-0" />
     </Link>
   );
 }

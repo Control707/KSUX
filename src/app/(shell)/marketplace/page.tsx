@@ -5,9 +5,9 @@ export default function MarketplacePage() {
   return (
     <Suspense
       fallback={
-        <div className="p-4 text-xs font-semibold text-[#5E6675]">
-          Loading KSU Marketplace...
-        </div>
+        <p role="status" className="p-[var(--sp-4)] text-sm text-[var(--muted)]">
+          Loading Marketplace…
+        </p>
       }
     >
       <MarketplaceView />

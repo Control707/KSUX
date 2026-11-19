@@ -123,6 +123,75 @@ describe("Seam 1 — Big Owl Bus Shuttle Routes, 15m Stop Pulses & 17 Dining Ven
   });
 });
 
+describe("Transit v2 stop reports, run days and Shuttle Notices (#74)", () => {
+  it("relabels stop reports, keeps them anonymous, lets the author Undo, and replaces their earlier report", async () => {
+    const t = createTestConvex();
+    await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: true });
+    const maya = await createVerifiedTestStudent(t, { handle: "stop_reporter", displayName: "Stop Reporter" });
+    const other = await createVerifiedTestStudent(t, { handle: "stop_reader", displayName: "Stop Reader" });
+    const now = Date.UTC(2026, 10, 17, 19, 0); // Tue 2 PM Eastern
+
+    const first = await t.mutation(api.transitDining.submitShuttleStopPulse, {
+      sessionToken: maya.sessionToken, stopId: "361", pulseKind: "stop_clear", nowOverride: now,
+    });
+    const second = await t.mutation(api.transitDining.submitShuttleStopPulse, {
+      sessionToken: maya.sessionToken, stopId: "361", pulseKind: "bus_passed_full", nowOverride: now + 60_000,
+    });
+    expect(second.pulseId).not.toEqual(first.pulseId);
+    expect(second.expiresAt).toBe(now + 60_000 + 15 * 60_000);
+
+    const mine = await t.query(api.transitDining.listShuttleOverview, {
+      sessionToken: maya.sessionToken, campusOverride: "Kennesaw", nowOverride: now + 2 * 60_000,
+    });
+    const rec = mine.routes.find((r) => r.passioRouteId === "74760")!.stops.find((s) => s.stopId === "361")!;
+    expect(rec.reports).toEqual([{ kind: "bus_passed_full", label: "Passed full", count: 1, minutesAgo: 1 }]);
+    expect(rec.myReport).toMatchObject({ kind: "bus_passed_full", label: "Passed full", pulseId: String(second.pulseId) });
+
+    const theirs = await t.query(api.transitDining.listShuttleOverview, {
+      sessionToken: other.sessionToken, campusOverride: "Kennesaw", nowOverride: now + 2 * 60_000,
+    });
+    const seen = theirs.routes.find((r) => r.passioRouteId === "74760")!.stops.find((s) => s.stopId === "361")!;
+    expect(seen.myReport).toBeNull();
+    expect(JSON.stringify(seen)).not.toContain(String(maya.studentId));
+    await expect(t.mutation(api.transitDining.undoShuttleStopPulse, {
+      sessionToken: other.sessionToken, pulseId: second.pulseId,
+    })).rejects.toThrow(/not found/i);
+
+    await t.mutation(api.transitDining.undoShuttleStopPulse, { sessionToken: maya.sessionToken, pulseId: second.pulseId });
+    const after = await t.query(api.transitDining.listShuttleOverview, {
+      sessionToken: maya.sessionToken, campusOverride: "Kennesaw", nowOverride: now + 3 * 60_000,
+    });
+    const cleared = after.routes.find((r) => r.passioRouteId === "74760")!.stops.find((s) => s.stopId === "361")!;
+    expect(cleared.reports).toEqual([]);
+    expect(cleared.activePulse).toBeNull();
+  });
+
+  it("orders stops, reports run days, and exposes the notice retrieval time", async () => {
+    const t = createTestConvex();
+    await t.mutation(internal.seed.bootstrapKsu, { includeFixtures: true });
+    const student = await createVerifiedTestStudent(t, { handle: "run_days", displayName: "Run Days" });
+    const tuesday = Date.UTC(2026, 10, 17, 19, 0);
+    const saturday = Date.UTC(2026, 10, 21, 17, 0);
+    const tue = await t.query(api.transitDining.listShuttleOverview, {
+      sessionToken: student.sessionToken, campusOverride: "Kennesaw", nowOverride: tuesday,
+    });
+    const ks = tue.routes.find((r) => r.shortName === "KS")!;
+    expect(ks.runsToday).toBe(false);
+    expect(ks.runDaysLabel).toBe("Fri–Sun");
+    expect(tue.routes.find((r) => r.shortName === "KL")!.runsToday).toBe(true);
+    for (const r of tue.routes) {
+      const seq = r.stops.map((s) => s.sequence);
+      expect(seq).toEqual([...seq].sort((a, b) => a - b));
+    }
+    expect(typeof tue.noticesRetrievedAt).toBe("number");
+    const sat = await t.query(api.transitDining.listShuttleOverview, {
+      sessionToken: student.sessionToken, campusOverride: "Kennesaw", nowOverride: saturday,
+    });
+    expect(sat.routes.find((r) => r.shortName === "KS")!.runsToday).toBe(true);
+    expect(sat.routes.find((r) => r.shortName === "KL")!.runsToday).toBe(false);
+  });
+});
+
 describe("Shuttle catalog refresh on re-seed (#31)", () => {
   it("replaces stale stops on an already-seeded route without duplicating it", async () => {
     const t = createTestConvex();

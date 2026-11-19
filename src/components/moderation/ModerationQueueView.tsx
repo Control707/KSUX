@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import {
   Ban,
   CheckCircle2,
@@ -17,8 +17,11 @@ import {
   useViewerQuery,
 } from "@/lib/viewerClient";
 import { KsuPoliceEmergencyCallout } from "@/components/shared/ReportTrigger";
+import { useAnnouncer } from "@/components/a11y/Announcer";
+import { CampusBadge } from "@/components/a11y/controls";
 
 import { V2LaunchOps } from "./V2LaunchOps";
+
 const outcomeLabels = {
   pending: "Awaiting first sync",
   accepted: "Accepted",
@@ -33,6 +36,12 @@ const freshnessLabels = {
   unavailable: "No accepted data",
 };
 
+const card =
+  "rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] p-[var(--sp-4)]";
+const buttonBase =
+  "inline-flex min-h-[var(--target)] items-center justify-center gap-[var(--sp-2)] rounded-[var(--r-sm)] px-[var(--sp-3)] text-sm font-bold";
+const secondaryButton = `${buttonBase} border border-[var(--line-strong)] bg-[var(--surface)] text-[var(--ink)] hover:bg-[var(--surface-2)]`;
+
 function syncTime(timestamp: number | null) {
   if (timestamp === null) return "—";
   return new Intl.DateTimeFormat("en-US", {
@@ -40,8 +49,13 @@ function syncTime(timestamp: number | null) {
   }).format(timestamp) + " ET";
 }
 
+function errorMessage(err: any, fallback: string) {
+  return err?.data?.message || err?.message || fallback;
+}
+
 export function ModerationQueueView() {
   const { auth } = useViewerClient();
+  const { toast } = useAnnouncer();
   const summary = useViewerQuery(api.shell.shellSummary, {});
   const isModerator = summary?.viewer.isModerator ?? false;
 
@@ -56,66 +70,70 @@ export function ModerationQueueView() {
   const reviewOfficer = useViewerMutation(api.moderation.reviewOfficerClaim);
   const toggleBlock = useViewerMutation(api.moderation.toggleBlockStudent);
 
-  const [banner, setBanner] = useState<string | null>(null);
+  const run = async (action: () => Promise<unknown>, success: string, failure: string) => {
+    try {
+      await action();
+      toast({ message: success, tone: "success" });
+    } catch (err: any) {
+      toast({ message: errorMessage(err, failure), tone: "error" });
+    }
+  };
 
   if (summary && !isModerator) {
     return (
-      <div className="space-y-4 p-4">
-        <div className="rounded-2xl border border-[#FEE2E2] bg-white p-6">
-          <div className="flex items-center gap-2 text-sm font-black text-[#B91C1C]">
-            <ShieldAlert className="h-5 w-5" />
-            <span>Maintainer Moderation Access Required</span>
-          </div>
-          <p className="mt-2 text-xs text-[#5E6675]">
-            In production, the Moderation Queue is restricted to canonical{" "}
-            <code>.edu</code> addresses configured in{" "}
-            <code>KSUX_MAINTAINER_EMAILS</code>. Hackathon evaluators can test
-            moderation safely inside <strong>Judge Demo Mode</strong>.
+      <div className="space-y-[var(--sp-4)] p-[var(--sp-4)] [overflow-wrap:anywhere]">
+        <section className={`${card} border-[var(--bad-fg)]`}>
+          <h1 className="flex items-center gap-[var(--sp-2)] font-display text-2xl font-bold text-[var(--bad-fg)]">
+            <ShieldAlert aria-hidden="true" className="h-6 w-6 shrink-0" />
+            Moderator access required
+          </h1>
+          <p className="mt-[var(--sp-2)]">
+            In production, the Moderation Queue is restricted to appointed KSUX moderators and the addresses in{" "}
+            <code>KSUX_MAINTAINER_EMAILS</code>. Hackathon evaluators can try moderation safely in{" "}
+            <strong>Judge Demo Mode</strong>.
           </p>
-        </div>
+        </section>
       </div>
     );
   }
 
   return (
-    <div data-testid="moderation-queue-view" className="space-y-4 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#E4E7EE] bg-white px-4 py-3.5 shadow-xs">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#111317] text-[#FDBB30]">
-            <Shield className="h-5 w-5" />
-          </span>
-          <div>
-            <h1 className="text-base font-black text-[#111317]">
-              {auth.status === "demo"
-                ? "Moderation Queue (Demo)"
-                : "Maintainer Moderation Queue"}
-            </h1>
-            <p className="text-xs text-[#5E6675]">
-              Scoped strictly to workspace{" "}
-              <code className="font-mono font-bold text-[#111317]">
-                {queue?.workspaceKey ?? summary?.viewer.workspaceKey}
-              </code>{" "}
-              · 3 distinct reports auto-quarantine to Under Review.
-            </p>
-          </div>
+    <div data-testid="moderation-queue-view" className="space-y-[var(--sp-4)] p-[var(--sp-4)] [overflow-wrap:anywhere]">
+      <header className={`${card} flex flex-wrap items-start gap-[var(--sp-3)]`}>
+        <span
+          aria-hidden="true"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--accent-ink)]"
+        >
+          <Shield className="h-6 w-6" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h1 className="font-display text-2xl font-bold">
+            {auth.status === "demo" ? "Moderation Queue (Demo)" : "Moderation Queue"}
+          </h1>
+          <p className="text-sm text-[var(--muted)]">
+            Workspace <code className="font-bold text-[var(--ink)]">{queue?.workspaceKey ?? summary?.viewer.workspaceKey}</code>
+            {" "}· 3 distinct reports move an item to Under Review.
+          </p>
         </div>
-      </div>
+      </header>
 
       {isModerator && auth.status === "student" && <V2LaunchOps />}
       {showFeedHealth && (
-        <section aria-labelledby="campus-feed-health" className="rounded-2xl border border-[#E4E7EE] bg-white p-4">
-          <h2 id="campus-feed-health" className="text-sm font-black">Campus feed health</h2>
-          {feedHealth === undefined ? <p role="status">Loading campus feed health…</p> : (
-            <ul className="mt-2 grid gap-2 md:grid-cols-2">
+        <section aria-labelledby="campus-feed-health" className={card}>
+          <h2 id="campus-feed-health" className="font-display text-xl font-bold">Campus feed health</h2>
+          {feedHealth === undefined ? (
+            <p role="status" className="mt-[var(--sp-2)] text-sm">Loading campus feed health…</p>
+          ) : (
+            <ul className="lt-grid-1 mt-[var(--sp-2)] grid gap-[var(--sp-2)] md:grid-cols-2">
               {feedHealth.map((source) => (
-                <li key={source.key} className="rounded-lg border border-[#E4E7EE] p-3 text-xs">
-                  <h3 className="text-sm font-bold">{source.name}</h3>
+                <li key={source.key} className="min-w-0 rounded-[var(--r-sm)] border border-[var(--line)] p-[var(--sp-3)] text-sm">
+                  <h3 className="text-body font-bold">{source.name}</h3>
                   <p>{outcomeLabels[source.result]} · {freshnessLabels[source.freshness]}</p>
-                  <dl className="mt-2 grid grid-cols-2 gap-1">
-                    <dt>Last attempt</dt><dd>{syncTime(source.lastAttemptAt)}</dd>
-                    <dt>Last successful fetch</dt><dd>{syncTime(source.lastSuccessAt)}</dd>
-                    <dt>Accepted records</dt><dd>{source.acceptedCount ?? "—"}</dd>
-                    {source.retryAfter !== null && <><dt>Retry after</dt><dd>{syncTime(source.retryAfter)}</dd></>}
+                  <dl className="mt-[var(--sp-2)] grid grid-cols-1 gap-x-[var(--sp-3)] gap-y-[var(--sp-1)] sm:grid-cols-2">
+                    <dt className="text-[var(--muted)]">Last attempt</dt><dd>{syncTime(source.lastAttemptAt)}</dd>
+                    <dt className="text-[var(--muted)]">Last successful fetch</dt><dd>{syncTime(source.lastSuccessAt)}</dd>
+                    <dt className="text-[var(--muted)]">Accepted records</dt><dd>{source.acceptedCount ?? "—"}</dd>
+                    {source.retryAfter !== null && <><dt className="text-[var(--muted)]">Retry after</dt><dd>{syncTime(source.retryAfter)}</dd></>}
                   </dl>
                 </li>
               ))}
@@ -126,208 +144,202 @@ export function ModerationQueueView() {
 
       <KsuPoliceEmergencyCallout />
 
-      {banner && (
-        <div className="rounded-xl bg-[#DCFCE7] px-4 py-2.5 text-xs font-extrabold text-[#15803D]">
-          {banner}
-        </div>
-      )}
-
-      {/* Reported & Quarantined Items */}
-      <section className="space-y-2.5">
-        <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#5E6675]">
-          Reported &amp; Under Review Items ({queue?.items.length ?? 0})
+      <section aria-labelledby="mod-items-heading" className="space-y-[var(--sp-2)]">
+        <h2 id="mod-items-heading" className="font-display text-xl font-bold">
+          Reported and Under Review ({queue?.items.length ?? 0})
         </h2>
 
         {!queue ? (
-          <div className="rounded-2xl border border-[#E4E7EE] bg-white p-5 text-xs text-[#5E6675]">
-            Loading moderation queue...
-          </div>
+          <p role="status" className={`${card} text-sm text-[var(--muted)]`}>
+            Loading moderation queue…
+          </p>
         ) : queue.items.length === 0 ? (
-          <div className="rounded-2xl border border-[#E4E7EE] bg-white p-5 text-xs font-semibold text-[#15803D]">
-            All clear — zero open or quarantined reports in this workspace.
-          </div>
+          <p role="status" className={`${card} font-bold text-[var(--ok-fg)]`}>
+            <span aria-hidden="true">✓ </span>All clear — no open or Under Review reports in this workspace.
+          </p>
         ) : (
-          queue.items.map((item) => (
-            <div
-              key={item.targetKey}
-              data-testid={`moderation-item-${item.targetType}`}
-              className="rounded-2xl border border-[#E4E7EE] bg-white p-4 shadow-xs"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 font-extrabold uppercase ${
-                      item.queueStatus === "quarantined"
-                        ? "bg-[#FEF3C7] text-[#B45309]"
-                        : "bg-[#FEE2E2] text-[#B91C1C]"
-                    }`}
-                  >
-                    {item.queueStatus === "quarantined"
-                      ? "Under Review (Quarantined)"
-                      : "Open Report"}
-                  </span>
-                  <span className="font-bold text-[#111317]">
-                    {item.targetType.replace("_", " ").toUpperCase()}
-                  </span>
-                  <span className="text-[#5E6675]">
-                    · {item.reporterCount} distinct reporter
-                    {item.reporterCount === 1 ? "" : "s"} (
-                    {item.reasons.join(", ")})
-                  </span>
-                </div>
-
-                {item.author && (
-                  <span className="text-xs font-bold text-[#5E6675]">
-                    Author: @{item.author.handle}
-                  </span>
-                )}
-              </div>
-
-              <p className="mt-2.5 rounded-xl bg-[#F4F6FA] p-3 text-xs font-medium text-[#111317]">
-                {item.previewText || "[Content unavailable]"}
-              </p>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  data-testid="moderation-restore-btn"
-                  onClick={async () => {
-                    await reviewTarget({
-                      targetType: item.targetType,
-                      targetId: item.targetId,
-                      decision: "restore",
-                    });
-                    setBanner("Item restored to public visibility.");
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#DCFCE7] px-3 py-2 text-xs font-extrabold text-[#15803D] hover:brightness-95"
+          <ul className="space-y-[var(--sp-2)]">
+            {queue.items.map((item) => {
+              const label = item.targetType.replace(/_/g, " ");
+              const quarantined = item.queueStatus === "quarantined";
+              return (
+                <li
+                  key={item.targetKey}
+                  data-testid={`moderation-item-${item.targetType}`}
+                  className={card}
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span>Restore False Positive</span>
-                </button>
+                  <div className="flex flex-wrap items-center justify-between gap-[var(--sp-2)]">
+                    <div className="flex min-w-0 flex-wrap items-center gap-[var(--sp-2)] text-sm">
+                      <span
+                        className={`inline-flex items-center gap-[var(--sp-1)] rounded-full border px-[var(--sp-2)] font-bold ${
+                          quarantined
+                            ? "border-[var(--warn-fg)] bg-[var(--warn-bg)] text-[var(--warn-fg)]"
+                            : "border-dashed border-[var(--bad-fg)] bg-[var(--bad-bg)] text-[var(--bad-fg)]"
+                        }`}
+                      >
+                        <span aria-hidden="true">{quarantined ? "◐" : "!"}</span>
+                        {quarantined ? "Under Review (hidden)" : "Open report"}
+                      </span>
+                      <h3 className="text-body font-bold capitalize">{label}</h3>
+                      <span className="text-[var(--muted)]">
+                        {item.reporterCount} distinct reporter{item.reporterCount === 1 ? "" : "s"} ({item.reasons.join(", ")})
+                      </span>
+                    </div>
+                    {item.author && (
+                      <span className="text-sm text-[var(--muted)]">Author: @{item.author.handle}</span>
+                    )}
+                  </div>
 
-                <button
-                  type="button"
-                  data-testid="moderation-remove-btn"
-                  onClick={async () => {
-                    await reviewTarget({
-                      targetType: item.targetType,
-                      targetId: item.targetId,
-                      decision: "remove",
-                    });
-                    setBanner("Violation permanently removed.");
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#FEE2E2] px-3 py-2 text-xs font-extrabold text-[#B91C1C] hover:brightness-95"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  <span>Remove Content</span>
-                </button>
+                  <p className="mt-[var(--sp-2)] rounded-[var(--r-sm)] bg-[var(--surface-2)] p-[var(--sp-3)] text-sm">
+                    {item.previewText || "[Content unavailable]"}
+                  </p>
 
-                {item.author && !item.author.isRemoved && (
-                  <button
-                    type="button"
-                    data-testid="moderation-suspend-btn"
-                    onClick={async () => {
-                      await reviewTarget({
-                        targetType: item.targetType,
-                        targetId: item.targetId,
-                        decision: "suspend_student",
-                      });
-                      setBanner(
-                        `Suspended @${item.author?.handle} and locked handle/email.`
-                      );
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#111317] px-3 py-2 text-xs font-extrabold text-[#FDBB30]"
-                  >
-                    <UserX className="h-3.5 w-3.5" />
-                    <span>Suspend @{item.author.handle}</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          ))
+                  <div className="mt-[var(--sp-3)] flex flex-wrap gap-[var(--sp-2)]">
+                    <button
+                      type="button"
+                      data-testid="moderation-restore-btn"
+                      onClick={() =>
+                        void run(
+                          () => reviewTarget({ targetType: item.targetType, targetId: item.targetId, decision: "restore" }),
+                          "Item restored to public visibility",
+                          "Couldn't restore."
+                        )
+                      }
+                      className={`${buttonBase} border border-[var(--ok-fg)] bg-[var(--ok-bg)] text-[var(--ok-fg)]`}
+                    >
+                      <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                      Restore false positive
+                      <span className="sr-only"> · {label}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      data-testid="moderation-remove-btn"
+                      onClick={() =>
+                        void run(
+                          () => reviewTarget({ targetType: item.targetType, targetId: item.targetId, decision: "remove" }),
+                          "Content removed",
+                          "Couldn't remove."
+                        )
+                      }
+                      className={`${buttonBase} border border-[var(--bad-fg)] bg-[var(--bad-bg)] text-[var(--bad-fg)]`}
+                    >
+                      <Trash2 aria-hidden="true" className="h-4 w-4" />
+                      Remove content
+                      <span className="sr-only"> · {label}</span>
+                    </button>
+
+                    {item.author && !item.author.isRemoved && (
+                      <button
+                        type="button"
+                        data-testid="moderation-suspend-btn"
+                        onClick={() =>
+                          void run(
+                            () => reviewTarget({ targetType: item.targetType, targetId: item.targetId, decision: "suspend_student" }),
+                            `Suspended @${item.author?.handle} and locked their handle and email`,
+                            "Couldn't suspend."
+                          )
+                        }
+                        className={`${buttonBase} bg-[var(--ink)] text-[var(--bg)]`}
+                      >
+                        <UserX aria-hidden="true" className="h-4 w-4" />
+                        Suspend @{item.author.handle}
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </section>
 
-      {/* Pending Club Officer Claims */}
       {queue && queue.officerClaims.length > 0 && (
-        <section className="space-y-2.5">
-          <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#5E6675]">
-            Pending Club Officer Claims ({queue.officerClaims.length})
+        <section aria-labelledby="mod-officer-heading" className="space-y-[var(--sp-2)]">
+          <h2 id="mod-officer-heading" className="font-display text-xl font-bold">
+            Pending club officer claims ({queue.officerClaims.length})
           </h2>
-          {queue.officerClaims.map((claim) => (
-            <div
-              key={String(claim.membershipId)}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E4E7EE] bg-white p-4"
-            >
-              <div className="text-xs">
-                <div className="font-extrabold text-[#111317]">
-                  @{claim.student.handle} ({claim.student.displayName}) →{" "}
-                  {claim.club.name}
+          <ul className="space-y-[var(--sp-2)]">
+            {queue.officerClaims.map((claim) => (
+              <li
+                key={String(claim.membershipId)}
+                className={`${card} flex flex-wrap items-center justify-between gap-[var(--sp-3)]`}
+              >
+                <div className="min-w-0 text-sm">
+                  <h3 className="text-body font-bold">
+                    @{claim.student.handle} ({claim.student.displayName}) → {claim.club.name}
+                  </h3>
+                  <p className="flex flex-wrap items-center gap-[var(--sp-1)] text-[var(--muted)]">
+                    <CampusBadge campus={claim.club.campus} /> Requested manual officer review
+                  </p>
                 </div>
-                <div className="text-[#5E6675]">
-                  {claim.club.campus} Campus · Requested manual officer review
+                <div className="flex flex-wrap gap-[var(--sp-2)]">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void run(
+                        () => reviewOfficer({ membershipId: claim.membershipId, approve: true }),
+                        `Approved @${claim.student.handle} as officer`,
+                        "Couldn't approve."
+                      )
+                    }
+                    className={`${buttonBase} border border-[var(--ok-fg)] bg-[var(--ok-bg)] text-[var(--ok-fg)]`}
+                  >
+                    <UserCheck aria-hidden="true" className="h-4 w-4" />
+                    Approve officer
+                    <span className="sr-only"> @{claim.student.handle}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void run(
+                        () => reviewOfficer({ membershipId: claim.membershipId, approve: false }),
+                        `Kept @${claim.student.handle} as member`,
+                        "Couldn't update the claim."
+                      )
+                    }
+                    className={secondaryButton}
+                  >
+                    Keep as member
+                    <span className="sr-only"> @{claim.student.handle}</span>
+                  </button>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    void reviewOfficer({
-                      membershipId: claim.membershipId,
-                      approve: true,
-                    })
-                  }
-                  className="inline-flex items-center gap-1 rounded-xl bg-[#DCFCE7] px-3 py-1.5 text-xs font-extrabold text-[#15803D]"
-                >
-                  <UserCheck className="h-3.5 w-3.5" />
-                  <span>Approve Officer</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    void reviewOfficer({
-                      membershipId: claim.membershipId,
-                      approve: false,
-                    })
-                  }
-                  className="rounded-xl border border-[#E4E7EE] px-3 py-1.5 text-xs font-bold text-[#5E6675]"
-                >
-                  Keep as Member
-                </button>
-              </div>
-            </div>
-          ))}
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
-      {/* Personal Blocked Students */}
       {blockedList && blockedList.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#5E6675]">
-            Your Blocked Students ({blockedList.length})
+        <section aria-labelledby="mod-blocked-heading" className="space-y-[var(--sp-2)]">
+          <h2 id="mod-blocked-heading" className="font-display text-xl font-bold">
+            Your blocked Students ({blockedList.length})
           </h2>
-          <div className="rounded-2xl border border-[#E4E7EE] bg-white p-3">
+          <ul className={`${card} divide-y divide-[var(--line)] py-[var(--sp-1)]`}>
             {blockedList.map((b) => (
-              <div
+              <li
                 key={String(b.blockId)}
-                className="flex items-center justify-between py-1.5 text-xs"
+                className="flex flex-wrap items-center justify-between gap-[var(--sp-2)] py-[var(--sp-2)] text-sm"
               >
-                <span className="flex items-center gap-1.5 font-bold text-[#111317]">
-                  <Ban className="h-3.5 w-3.5 text-[#B91C1C]" />@
-                  {b.student.handle}
+                <span className="flex min-w-0 items-center gap-[var(--sp-1)] font-bold">
+                  <Ban aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--bad-fg)]" />@{b.student.handle}
                 </span>
                 <button
                   type="button"
                   onClick={() =>
-                    void toggleBlock({ targetStudentId: b.student._id })
+                    void run(
+                      () => toggleBlock({ targetStudentId: b.student._id }),
+                      `Unblocked @${b.student.handle}`,
+                      "Couldn't unblock."
+                    )
                   }
-                  className="rounded-lg border border-[#E4E7EE] px-2.5 py-1 text-[11px] font-bold text-[#5E6675]"
+                  className={secondaryButton}
                 >
-                  Unblock
+                  Unblock<span className="sr-only"> @{b.student.handle}</span>
                 </button>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       )}
     </div>

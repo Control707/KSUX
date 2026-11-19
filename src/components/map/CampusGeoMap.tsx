@@ -14,7 +14,10 @@ import {
 } from "@/components/a11y/controls";
 import {
   KIND_LABEL,
+  PATTERN_LABEL,
+  badgeTextColor,
   buildMapItems,
+  routeStyle,
   itemsToFeatureCollection,
   unionBBox,
   type BBox,
@@ -39,6 +42,22 @@ export interface CampusMapVehicleMarker {
   longitude: number;
   colorHex?: string;
   loadLabel?: string;
+  /** Route code shown under the marker (Transit). */
+  routeCode?: string;
+  /** Direction of travel in degrees; omit when the data has none. */
+  heading?: number;
+  /** No update for 36 s or the feed is down: dashed, faded ring, no wedge. */
+  stale?: boolean;
+}
+
+/** Parts of the shared map that a screen can place in its own panel or sheet. */
+export interface CampusGeoMapPanelParts {
+  /** The always-on synced HTML list (every feature, same order, no cap). */
+  list: React.ReactNode;
+  /** The "Key" legend disclosure. */
+  legend: React.ReactNode;
+  /** The building search box, when enabled. */
+  search: React.ReactNode;
 }
 
 export interface CampusGeoMapProps {
@@ -56,6 +75,32 @@ export interface CampusGeoMapProps {
   mode?: "live" | "static";
   /** Specific accessible title for the canvas and list. */
   title?: string;
+  /** `source` says whether the tap came from the map canvas or the synced list. */
+  onSelectStopId?: (stopId: string, source: "map" | "list") => void;
+  onSelectRouteId?: (passioRouteId: string, source: "map" | "list") => void;
+  onSelectBusId?: (busId: string, source: "map" | "list") => void;
+  /**
+   * Controlled selection: an item id such as `stop:361`, `route:74760`,
+   * `bus:bob-401` or `lot:<slug>`. When it changes the map centres on it
+   * ("Show on map"). Omit to let the map own its selection.
+   */
+  selectedItemId?: string | null;
+  /** Only draw these route codes (stops follow). Undefined shows every route. */
+  routeCodeFilter?: string[] | null;
+  /** Only draw these stop ids (pair with routeCodeFilter). */
+  stopIdFilter?: string[] | null;
+  /** Fill the parent's height instead of the default 18/22rem canvas. */
+  fill?: boolean;
+  /** Classes for the outer section (e.g. a map + side-panel grid with `fill`). */
+  className?: string;
+  /**
+   * Render the synced list, legend and search somewhere else (a bottom sheet
+   * or side panel). The returned node is rendered inside the map section,
+   * after the canvas, so the Skip map link still lands on the list.
+   */
+  renderPanel?: (parts: CampusGeoMapPanelParts) => React.ReactNode;
+  /** Extra padding (px) for camera fits, e.g. the height of a bottom sheet. */
+  fitPadding?: { top?: number; bottom?: number; left?: number; right?: number };
 }
 
 const CAMPUS_CENTERS = {
@@ -63,9 +108,45 @@ const CAMPUS_CENTERS = {
   Marietta: { lng: -84.5198, lat: 33.9401, zoom: 15.1 },
   "All KSU": { lng: -84.551, lat: 33.989, zoom: 11.4 },
 } as const;
-// Positron while host screens are still light-only legacy (Phase 1A adds the
-// dark style alongside the dark theme on Parking and Transit).
-const ONLINE_MAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
+// OpenFreeMap positron or dark, following the theme (SPEC-v2 §4).
+const mapStyleUrl = (dark: boolean) => `https://tiles.openfreemap.org/styles/${dark ? "dark" : "positron"}`;
+
+function usePrefersDark(): boolean {
+  const [dark, setDark] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const query = window.matchMedia("(prefers-color-scheme: dark)");
+    const update = () => setDark(query.matches && document.documentElement.dataset.theme !== "light");
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  return dark;
+}
+
+/** Resolved CSS token values: MapLibre paint can't read CSS variables. */
+function readTokens() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback;
+  return {
+    ink: v("--ink", "#1F1A14"),
+    surface: v("--surface", "#FFFFFF"),
+    muted: v("--line-strong", "#8A7E6B"),
+    focus: v("--focus", "#0B57D0"),
+    land: v("--map-land", "#EFE8D8"),
+    bldg: v("--map-bldg", "#D9CDB6"),
+    accent: v("--accent", "#FDBB30"),
+    open: v("--open-mark", "#0072B2"),
+    filling: v("--filling-mark", "#B07A00"),
+    nearly: v("--nearly-mark", "#D55E00"),
+    full: v("--full-mark", "#A23B84"),
+    fillingBg: v("--filling-bg", "#FCEFD2"),
+    nearlyBg: v("--nearly-bg", "#FBE1D3"),
+    openBg: v("--open-bg", "#E2F0F9"),
+    noneBg: v("--surface-2", "#F3ECDD"),
+  };
+}
+type MapTokens = ReturnType<typeof readTokens>;
 
 // Zero-external-tile offline style (renders precached campus GeoJSON offline).
 export const EMBEDDED_ZERO_TILE_STYLE = {
@@ -81,21 +162,74 @@ export const EMBEDDED_ZERO_TILE_STYLE = {
   ],
 };
 
-// Okabe–Ito-derived marks (light set), each ≥3:1 against the basemap.
-const MARK = {
-  open: "#0072B2",
-  filling: "#B07A00",
-  nearly: "#D55E00",
-  full: "#A23B84",
-  none: "#8A7E6B",
-} as const;
-const FOCUS_BLUE = "#0B57D0";
-const INK = "#1F1A14";
+function offlineStyle_(land: string) {
+  const style = structuredClone(EMBEDDED_ZERO_TILE_STYLE);
+  style.layers[0]!.paint["background-color"] = land;
+  return style;
+}
+
+const BUS_ICON_SIZE = 48;
+
+/** Ringed bus glyph (live: solid ring; stale: dashed, faded ring). */
+function busImage(stale: boolean, t: MapTokens) {
+  const canvas = document.createElement("canvas");
+  canvas.width = BUS_ICON_SIZE;
+  canvas.height = BUS_ICON_SIZE;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const c = BUS_ICON_SIZE / 2;
+  ctx.globalAlpha = stale ? 0.6 : 1;
+  ctx.beginPath();
+  ctx.arc(c, c, 15, 0, Math.PI * 2);
+  ctx.fillStyle = t.surface;
+  ctx.fill();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = t.ink;
+  if (stale) ctx.setLineDash([5, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // Bus body
+  ctx.fillStyle = t.ink;
+  ctx.fillRect(c - 7, c - 8, 14, 13);
+  ctx.fillStyle = t.surface;
+  ctx.fillRect(c - 5, c - 6, 10, 5);
+  ctx.fillStyle = t.ink;
+  ctx.beginPath();
+  ctx.arc(c - 4, c + 7, 2, 0, Math.PI * 2);
+  ctx.arc(c + 4, c + 7, 2, 0, Math.PI * 2);
+  ctx.fill();
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  return { width: canvas.width, height: canvas.height, data: new Uint8Array(data.data.buffer) };
+}
+
+/** Heading wedge drawn above the ring, rotated by the bus heading. */
+function headingImage(t: MapTokens) {
+  const size = 64;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.beginPath();
+  ctx.moveTo(size / 2, 2);
+  ctx.lineTo(size / 2 + 10, 16);
+  ctx.lineTo(size / 2 - 10, 16);
+  ctx.closePath();
+  ctx.fillStyle = t.ink;
+  ctx.strokeStyle = t.surface;
+  ctx.lineWidth = 2;
+  ctx.fill();
+  ctx.stroke();
+  const data = ctx.getImageData(0, 0, size, size);
+  return { width: size, height: size, data: new Uint8Array(data.data.buffer) };
+}
 
 const ITEM_LAYERS = [
   "ksux-items-lot-solid",
   "ksux-items-lot-pattern",
-  "ksux-items-route",
+  "ksux-items-route-solid",
+  "ksux-items-route-dashed",
+  "ksux-items-route-dotted",
   "ksux-items-stop",
   "ksux-items-bus",
   "ksux-items-meetup",
@@ -134,6 +268,16 @@ export function CampusGeoMap({
   onSelectMeetupSlug,
   mode = "live",
   title,
+  onSelectStopId,
+  onSelectRouteId,
+  onSelectBusId,
+  selectedItemId,
+  routeCodeFilter,
+  stopIdFilter,
+  fill = false,
+  className,
+  renderPanel,
+  fitPadding,
 }: CampusGeoMapProps) {
   const uid = useId().replace(/:/g, "");
   const listId = `campus-map-list-${uid}`;
@@ -151,12 +295,19 @@ export function CampusGeoMap({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
   const setMapOfflineRef = useRef<((offline: boolean) => void) | null>(null);
+  const setMapDarkRef = useRef<((dark: boolean) => void) | null>(null);
   const selectFromMapRef = useRef<(itemId: string) => void>(() => {});
   const listRef = useRef<HTMLUListElement | null>(null);
   const fittedCampusRef = useRef<string | null>(null);
   const reducedMotion = usePrefersReducedMotion();
   const reducedMotionRef = useRef(reducedMotion);
   const { announce } = useAnnouncer();
+  const prefersDark = usePrefersDark();
+  const darkRef = useRef(prefersDark);
+  const fitPaddingRef = useRef(fitPadding);
+  useEffect(() => {
+    fitPaddingRef.current = fitPadding;
+  }, [fitPadding]);
 
   const [isOffline, setIsOffline] = useState(false);
   const [usingOfflineStyle, setUsingOfflineStyle] = useState(false);
@@ -165,7 +316,10 @@ export function CampusGeoMap({
   const [mapReady, setMapReady] = useState(false);
   const [placeQuery, setPlaceQuery] = useState("");
   const [selectedPlace, setSelectedPlace] = useState<CampusPlace | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [ownSelectedId, setOwnSelectedId] = useState<string | null>(null);
+  const controlled = selectedItemId !== undefined;
+  const selectedId = controlled ? selectedItemId : ownSelectedId;
+  const setSelectedId = setOwnSelectedId;
   const [geoCollections, setGeoCollections] = useState<{
     buildings: any | null;
     lots: any | null;
@@ -194,6 +348,11 @@ export function CampusGeoMap({
     setMapOfflineRef.current?.(isOffline);
   }, [isOffline]);
 
+  useEffect(() => {
+    darkRef.current = prefersDark;
+    setMapDarkRef.current?.(prefersDark);
+  }, [prefersDark]);
+
   // Precached /public/data/*.geojson (served from the SW cache when offline).
   useEffect(() => {
     let cancelled = false;
@@ -217,17 +376,50 @@ export function CampusGeoMap({
     [lotStatuses]
   );
 
+  // Optional route filter ("Show only <code>"): drops other routes and stops not on the kept routes.
+  const shuttles = useMemo(() => {
+    const data = geoCollections.shuttles;
+    if (!data || (!routeCodeFilter && !stopIdFilter)) return data;
+    const keep = new Set(routeCodeFilter ?? data.features.map((f: any) => f.properties?.shortName));
+    const stopKeep = stopIdFilter ? new Set(stopIdFilter) : null;
+    const keptRoutes = data.features.filter(
+      (f: any) => f.properties?.featureKind === "route" && keep.has(f.properties?.shortName)
+    );
+    const keptStopIds = new Set<string>();
+    for (const f of keptRoutes) for (const id of (f.properties?.stopIds as string[] | undefined) ?? []) keptStopIds.add(String(id));
+    const hasStopIds = keptRoutes.some((f: any) => Array.isArray(f.properties?.stopIds));
+    return {
+      ...data,
+      features: data.features.filter((f: any) => {
+        const kind = f.properties?.featureKind;
+        if (kind === "route") return keep.has(f.properties?.shortName);
+        if (kind === "stop") {
+          if (stopKeep) return stopKeep.has(String(f.properties?.stopId));
+          return !hasStopIds || keptStopIds.has(String(f.properties?.stopId));
+        }
+        return true;
+      }),
+    };
+  }, [geoCollections.shuttles, routeCodeFilter, stopIdFilter]);
+
+  const vehicles = useMemo(() => {
+    if (mode !== "live") return [];
+    if (!routeCodeFilter) return liveVehicles;
+    const keep = new Set(routeCodeFilter);
+    return liveVehicles.filter((v) => !v.routeCode || keep.has(v.routeCode));
+  }, [liveVehicles, mode, routeCodeFilter]);
+
   const items = useMemo(
     () =>
       buildMapItems({
         campus: campusFilter,
         lots: geoCollections.lots,
-        shuttles: geoCollections.shuttles,
+        shuttles,
         meetups: geoCollections.meetups,
         lotStatuses: lotStatusList,
-        vehicles: mode === "live" ? liveVehicles : [],
+        vehicles,
       }),
-    [campusFilter, geoCollections.lots, geoCollections.shuttles, geoCollections.meetups, lotStatusList, liveVehicles, mode]
+    [campusFilter, geoCollections.lots, shuttles, geoCollections.meetups, lotStatusList, vehicles]
   );
   const itemsRef = useRef(items);
   useEffect(() => {
@@ -260,12 +452,27 @@ export function CampusGeoMap({
         else map.easeTo({ ...options, duration: 400 });
         return;
       }
+      const pad = fitPaddingRef.current ?? {};
+      const canvas = map.getContainer?.() as HTMLElement | undefined;
+      const h = canvas?.clientHeight ?? 400;
+      const w = canvas?.clientWidth ?? 400;
+      // Never pad more than the canvas can hold.
+      const clamp = (n: number, total: number) => Math.max(16, Math.min(n, total * 0.45));
       map.fitBounds(
         [
           [bbox[0], bbox[1]],
           [bbox[2], bbox[3]],
         ],
-        { padding: 40, maxZoom, duration: reducedMotionRef.current ? 0 : 400 }
+        {
+          padding: {
+            top: clamp(40 + (pad.top ?? 0), h),
+            bottom: clamp(40 + (pad.bottom ?? 0), h),
+            left: clamp(40 + (pad.left ?? 0), w),
+            right: clamp(40 + (pad.right ?? 0), w),
+          },
+          maxZoom,
+          duration: reducedMotionRef.current ? 0 : 400,
+        }
       );
     } catch {
       // map not ready; the list still reflects the selection
@@ -277,18 +484,31 @@ export function CampusGeoMap({
   }, [fitTo]);
 
   const callScreen = useCallback(
-    (item: MapListItem) => {
+    (item: MapListItem, source: "map" | "list") => {
       if (item.kind === "lot") onSelectLotSlug?.(item.key);
       if (item.kind === "meetup") onSelectMeetupSlug?.(item.key);
+      if (item.kind === "stop") onSelectStopId?.(item.key, source);
+      if (item.kind === "route") onSelectRouteId?.(item.key, source);
+      if (item.kind === "bus") onSelectBusId?.(item.key, source);
     },
-    [onSelectLotSlug, onSelectMeetupSlug]
+    [onSelectLotSlug, onSelectMeetupSlug, onSelectStopId, onSelectRouteId, onSelectBusId]
   );
+
+  // Controlled "Show on map": centre on the item the screen selected.
+  const lastControlledRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!controlled || selectedItemId === lastControlledRef.current) return;
+    const item = selectedItemId ? items.find((i) => i.id === selectedItemId) : undefined;
+    if (selectedItemId && !item) return; // data still loading
+    lastControlledRef.current = selectedItemId;
+    if (item) fitTo(item.bbox);
+  }, [controlled, selectedItemId, items, fitTo, styleRevision]);
 
   // List → map: select, centre and highlight.
   const selectFromList = (item: MapListItem) => {
     setSelectedId(item.id);
     fitTo(item.bbox);
-    callScreen(item);
+    callScreen(item, "list");
     announce(`${item.name} shown on the map`);
   };
 
@@ -298,15 +518,18 @@ export function CampusGeoMap({
       const item = itemsRef.current.find((i) => i.id === itemId);
       if (!item) return;
       setSelectedId(item.id);
-      callScreen(item);
+      callScreen(item, "map");
       const status = item.status ? ` · ${FULLNESS[item.status].word}` : "";
-      announce(`Selected ${KIND_LABEL[item.kind]} ${item.name}${status}`);
+      // Screens that open their own card (a stop card) announce richer text themselves.
+      const screenAnnounces = (item.kind === "stop" && onSelectStopId) || (item.kind === "route" && onSelectRouteId)
+        || (item.kind === "bus" && onSelectBusId);
+      if (!screenAnnounces) announce(`Selected ${KIND_LABEL[item.kind]} ${item.name}${status}`);
       requestAnimationFrame(() => {
         const row = listRef.current?.querySelector<HTMLElement>(`[data-item-id="${CSS.escape(item.id)}"]`);
         row?.scrollIntoView({ block: "nearest", behavior: reducedMotionRef.current ? "auto" : "smooth" });
       });
     };
-  }, [announce, callScreen]);
+  }, [announce, callScreen, onSelectStopId, onSelectRouteId, onSelectBusId]);
 
   const selectPlace = (place: CampusPlace) => {
     setSelectedPlace(place);
@@ -327,8 +550,9 @@ export function CampusGeoMap({
 
         const center = CAMPUS_CENTERS[campusFilter];
         let offlineStyle = !navigator.onLine;
+        let styledDark = darkRef.current;
         const getStyle = (offline: boolean) =>
-          offline ? structuredClone(EMBEDDED_ZERO_TILE_STYLE) : ONLINE_MAP_STYLE;
+          offline ? offlineStyle_(readTokens().land) : mapStyleUrl(styledDark);
 
         const map = new maplibregl.Map({
           container: containerRef.current,
@@ -354,6 +578,11 @@ export function CampusGeoMap({
           map.setStyle(getStyle(offline), { diff: false });
         };
         setMapOfflineRef.current = setMapOffline;
+        setMapDarkRef.current = (dark: boolean) => {
+          if (disposed || dark === styledDark) return;
+          styledDark = dark;
+          map.setStyle(getStyle(offlineStyle), { diff: false });
+        };
         map.on("error", () => setMapOffline(true));
         map.on("style.load", () => {
           if (!disposed) setStyleRevision((revision) => revision + 1);
@@ -364,7 +593,13 @@ export function CampusGeoMap({
         map.on("click", (ev: any) => {
           const layers = ITEM_LAYERS.filter((id) => map.getLayer(id));
           if (layers.length === 0) return;
-          const hit = map.queryRenderedFeatures(ev.point, { layers })[0];
+          const box: [[number, number], [number, number]] = [
+            [ev.point.x - 8, ev.point.y - 8],
+            [ev.point.x + 8, ev.point.y + 8],
+          ];
+          const hits = map.queryRenderedFeatures(box, { layers });
+          const rank = (k: string) => ({ bus: 0, stop: 1, meetup: 1, lot: 2, route: 3 } as Record<string, number>)[k] ?? 4;
+          const hit = [...hits].sort((a: any, b: any) => rank(a.properties?.kind) - rank(b.properties?.kind))[0];
           const itemId = hit?.properties?.itemId;
           if (itemId) selectFromMapRef.current(String(itemId));
         });
@@ -414,14 +649,14 @@ export function CampusGeoMap({
           id: "ksu-buildings-fill",
           type: "fill",
           source: "ksu-buildings",
-          paint: { "fill-color": "#D9CDB6", "fill-opacity": 0.8 },
+          paint: { "fill-color": readTokens().bldg, "fill-opacity": 0.8 },
         });
         map.addLayer({
           id: "ksu-buildings-selected",
           type: "line",
           source: "ksu-buildings",
           filter: ["==", ["get", "geoFeatureId"], ""],
-          paint: { "line-color": FOCUS_BLUE, "line-width": 4 },
+          paint: { "line-color": readTokens().focus, "line-width": 4 },
         });
         if (!usingOfflineStyle) {
           map.addLayer({
@@ -436,7 +671,7 @@ export function CampusGeoMap({
               "text-max-width": 8,
               "text-optional": true,
             },
-            paint: { "text-color": INK, "text-halo-color": "#FFFFFF", "text-halo-width": 1.5 },
+            paint: { "text-color": readTokens().ink, "text-halo-color": readTokens().surface, "text-halo-width": 1.5 },
           });
         }
       }
@@ -450,16 +685,27 @@ export function CampusGeoMap({
     const map = mapRef.current;
     if (!map || styleRevision === 0) return;
     try {
+      const t = readTokens();
       for (const [name, color, bg, stripe, gap] of [
-        ["ksux-hatch-filling", MARK.filling, "#FCEFD2", 2, 5],
-        ["ksux-hatch-nearly", MARK.nearly, "#FBE1D3", 3, 3],
+        ["ksux-hatch-filling", t.filling, t.fillingBg, 2, 5],
+        ["ksux-hatch-nearly", t.nearly, t.nearlyBg, 3, 3],
       ] as const) {
         if (!map.hasImage(name)) {
           const image = hatchImage(color, bg, stripe, gap);
           if (image) map.addImage(name, image);
         }
       }
-      const data = itemsToFeatureCollection(items, selectedId);
+      for (const [name, make] of [
+        ["ksux-bus-live", () => busImage(false, t)],
+        ["ksux-bus-stale", () => busImage(true, t)],
+        ["ksux-bus-heading", () => headingImage(t)],
+      ] as const) {
+        if (!map.hasImage(name)) {
+          const image = make();
+          if (image) map.addImage(name, image, { pixelRatio: 2 });
+        }
+      }
+      const data = itemsToFeatureCollection(items, selectedId ?? null, { dark: prefersDark, surface: t.surface, muted: t.muted });
       const source = map.getSource("ksux-items");
       if (source) {
         source.setData(data);
@@ -473,7 +719,7 @@ export function CampusGeoMap({
         source: "ksux-items",
         filter: ["all", isKind("lot"), ["in", ["get", "status"], ["literal", ["open", "full", "none"]]]],
         paint: {
-          "fill-color": ["match", ["get", "status"], "open", MARK.open, "full", MARK.full, "#F3ECDD"],
+          "fill-color": ["match", ["get", "status"], "open", t.open, "full", t.full, t.noneBg],
           "fill-opacity": ["match", ["get", "status"], "open", 0.35, "full", 0.75, 0.55],
         },
       });
@@ -494,7 +740,7 @@ export function CampusGeoMap({
         source: "ksux-items",
         filter: ["all", isKind("lot"), ["!=", ["get", "status"], "none"]],
         paint: {
-          "line-color": ["match", ["get", "status"], "open", MARK.open, "filling", MARK.filling, "nearly", MARK.nearly, MARK.full],
+          "line-color": ["match", ["get", "status"], "open", t.open, "filling", t.filling, "nearly", t.nearly, t.full],
           "line-width": 2,
         },
       });
@@ -503,44 +749,95 @@ export function CampusGeoMap({
         type: "line",
         source: "ksux-items",
         filter: ["all", isKind("lot"), ["==", ["get", "status"], "none"]],
-        paint: { "line-color": MARK.none, "line-width": 2, "line-dasharray": [2, 2] },
+        paint: { "line-color": t.muted, "line-width": 2, "line-dasharray": [2, 2] },
       });
+      // Every route line has a casing so it holds 3:1 against both base maps.
       map.addLayer({
         id: "ksux-items-route-casing",
         type: "line",
         source: "ksux-items",
         filter: isKind("route"),
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#FFFFFF", "line-width": 7 },
+        paint: {
+          "line-color": ["case", ["get", "casingInk"], t.ink, t.surface],
+          "line-width": ["*", ["get", "widthScale"], 8],
+          "line-opacity": 0.95,
+        },
       });
-      map.addLayer({
-        id: "ksux-items-route",
-        type: "line",
-        source: "ksux-items",
-        filter: isKind("route"),
-        layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": ["get", "colorHex"], "line-width": 4 },
-      });
+      for (const [pattern, dash] of [
+        ["solid", null],
+        ["dashed", [2.2, 1.4]],
+        ["dotted", [0.6, 1.1]],
+      ] as const) {
+        map.addLayer({
+          id: `ksux-items-route-${pattern}`,
+          type: "line",
+          source: "ksux-items",
+          filter: ["all", isKind("route"), ["==", ["get", "pattern"], pattern]],
+          layout: { "line-cap": pattern === "dotted" ? "round" : "butt", "line-join": "round" },
+          paint: {
+            "line-color": ["get", "colorHex"],
+            "line-width": ["*", ["get", "widthScale"], pattern === "dotted" ? 5 : 4.5],
+            ...(dash ? { "line-dasharray": dash } : {}),
+          },
+        });
+      }
       map.addLayer({
         id: "ksux-items-stop",
         type: "circle",
         source: "ksux-items",
         filter: isKind("stop"),
-        paint: { "circle-radius": 6, "circle-color": "#FFFFFF", "circle-stroke-width": 3, "circle-stroke-color": INK },
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 4, 16, 7],
+          "circle-color": t.surface,
+          "circle-stroke-width": 2.5,
+          "circle-stroke-color": t.ink,
+        },
       });
       map.addLayer({
         id: "ksux-items-meetup",
         type: "circle",
         source: "ksux-items",
         filter: isKind("meetup"),
-        paint: { "circle-radius": 7, "circle-color": "#FDBB30", "circle-stroke-width": 2, "circle-stroke-color": INK },
+        paint: { "circle-radius": 7, "circle-color": t.accent, "circle-stroke-width": 2, "circle-stroke-color": t.ink },
+      });
+      // Buses: heading wedge (live with a heading only), ringed glyph, code label.
+      map.addLayer({
+        id: "ksux-items-bus-heading",
+        type: "symbol",
+        source: "ksux-items",
+        filter: ["all", isKind("bus"), ["==", ["get", "hasHeading"], true]],
+        layout: {
+          "icon-image": "ksux-bus-heading",
+          "icon-rotate": ["get", "heading"],
+          "icon-rotation-alignment": "map",
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        },
       });
       map.addLayer({
         id: "ksux-items-bus",
-        type: "circle",
+        type: "symbol",
         source: "ksux-items",
         filter: isKind("bus"),
-        paint: { "circle-radius": 8, "circle-color": INK, "circle-stroke-width": 3, "circle-stroke-color": "#FFFFFF" },
+        layout: {
+          "icon-image": ["case", ["get", "stale"], "ksux-bus-stale", "ksux-bus-live"],
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          ...(usingOfflineStyle
+            ? {}
+            : {
+                "text-field": ["get", "code"],
+                "text-font": ["Noto Sans Bold"],
+                "text-size": labelSize(),
+                "text-offset": [0, 1.5],
+                "text-anchor": "top",
+                "text-allow-overlap": true,
+              }),
+        },
+        paint: usingOfflineStyle
+          ? {}
+          : { "text-color": t.ink, "text-halo-color": t.surface, "text-halo-width": 2.5 },
       });
       // Selection is a focus-blue outline, never a status colour.
       map.addLayer({
@@ -548,43 +845,54 @@ export function CampusGeoMap({
         type: "line",
         source: "ksux-items",
         filter: ["all", ["==", ["get", "selected"], true], ["!=", ["geometry-type"], "Point"]],
-        paint: { "line-color": FOCUS_BLUE, "line-width": 4 },
+        paint: { "line-color": t.focus, "line-width": 4 },
       });
       map.addLayer({
         id: "ksux-items-selected-point",
         type: "circle",
         source: "ksux-items",
         filter: ["all", ["==", ["get", "selected"], true], ["==", ["geometry-type"], "Point"]],
-        paint: { "circle-radius": 12, "circle-color": "rgba(0,0,0,0)", "circle-stroke-width": 4, "circle-stroke-color": FOCUS_BLUE },
+        paint: { "circle-radius": 13, "circle-color": "rgba(0,0,0,0)", "circle-stroke-width": 4, "circle-stroke-color": t.focus },
       });
       if (!usingOfflineStyle) {
-        // Text labels carry the status word and route code, so nothing is colour-only.
+        // Route codes along each line at zoom ≥13.6 (code text before colour).
+        map.addLayer({
+          id: "ksux-items-route-labels",
+          type: "symbol",
+          source: "ksux-items",
+          filter: isKind("route"),
+          minzoom: 13.6,
+          layout: {
+            "symbol-placement": "line",
+            "symbol-spacing": 220,
+            "text-field": ["get", "code"],
+            "text-font": ["Noto Sans Bold"],
+            "text-size": labelSize(),
+            "text-keep-upright": true,
+          },
+          paint: { "text-color": t.ink, "text-halo-color": t.surface, "text-halo-width": 2.5 },
+        });
+        // Text labels carry the status word, so nothing is colour-only.
         map.addLayer({
           id: "ksux-items-labels",
           type: "symbol",
           source: "ksux-items",
-          filter: ["in", ["get", "kind"], ["literal", ["lot", "bus", "route"]]],
+          filter: isKind("lot"),
           minzoom: 13.6,
           layout: {
             "symbol-placement": "point",
-            "text-field": [
-              "case",
-              ["==", ["get", "kind"], "lot"],
-              ["concat", ["get", "label"], " · ", ["match", ["get", "status"], "open", "Open", "filling", "Filling", "nearly", "Nearly Full", "full", "Full", "No reports"]],
-              ["get", "label"],
-            ],
+            "text-field": ["concat", ["get", "label"], " · ", ["match", ["get", "status"], "open", "Open", "filling", "Filling", "nearly", "Nearly Full", "full", "Full", "No reports"]],
             "text-font": ["Noto Sans Bold"],
             "text-size": labelSize(),
-            "text-offset": ["case", ["==", ["get", "kind"], "bus"], ["literal", [0, 1.4]], ["literal", [0, 0]]],
             "text-optional": true,
           },
-          paint: { "text-color": INK, "text-halo-color": "#FFFFFF", "text-halo-width": 2 },
+          paint: { "text-color": t.ink, "text-halo-color": t.surface, "text-halo-width": 2 },
         });
       }
     } catch {
       // Ignore transient style reload races
     }
-  }, [items, selectedId, styleRevision, usingOfflineStyle]);
+  }, [items, selectedId, styleRevision, usingOfflineStyle, prefersDark]);
 
   // Highlight the searched building's outline.
   useEffect(() => {
@@ -609,10 +917,137 @@ export function CampusGeoMap({
   };
 
   const showsRoutes = items.some((i) => i.kind === "route" || i.kind === "stop");
+  const routeItems = items.filter((i) => i.kind === "route");
   const offlineMode = usingOfflineStyle || isOffline;
   const buildingCount = geoCollections.buildings?.features?.length ?? 0;
   const controlClass =
     "inline-flex h-[var(--target)] w-[var(--target)] items-center justify-center rounded-[var(--r-sm)] border border-[var(--line-strong)] bg-[var(--surface)] text-[var(--ink)] shadow hover:bg-[var(--surface-2)] disabled:opacity-60";
+  const canvasHeight = fill ? "h-full min-h-[16rem]" : "h-[18rem] sm:h-[22rem]";
+
+  const legend = (
+    <details className="rounded-[var(--r-md)] border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]">
+      <summary className="flex min-h-[var(--target)] cursor-pointer items-center px-[var(--sp-3)] text-sm font-bold">
+        Key
+      </summary>
+      <ul className="space-y-[var(--sp-1)] px-[var(--sp-3)] pb-[var(--sp-3)] text-sm">
+        {showParkingLots &&
+          (["open", "filling", "nearly", "full", "none"] as const).map((status) => (
+            <li key={status}>
+              <StatusChip status={status} />
+            </li>
+          ))}
+        {showParkingLots && <li>Solid edge: live Student reports. Dashed edge: no recent reports.</li>}
+        {showsRoutes && <li>Routes are named by their code first, then line pattern, then colour.</li>}
+        {routeItems.map((route) => (
+          <li key={route.id} className="flex flex-wrap items-center gap-[var(--sp-2)]">
+            <RouteBadge code={route.code ?? "?"} colorHex={route.colorHex} />
+            <span>
+              {route.name} · {PATTERN_LABEL[routeStyle(route.code, prefersDark).pattern]}
+            </span>
+          </li>
+        ))}
+        {mode === "live" && showShuttleRoutes && (
+          <li>A bus with a solid ring and a pointer is live. A dashed, faded ring means its position is not updating.</li>
+        )}
+        <li>A blue outline marks your selection.</li>
+      </ul>
+    </details>
+  );
+
+  const search =
+    showPlaceSearch && places.length > 0 ? (
+      <div className="min-w-[12rem] flex-1">
+        <label htmlFor={`campus-place-search-${uid}`} className="sr-only">
+          Find a campus building
+        </label>
+        <input
+          id={`campus-place-search-${uid}`}
+          type="search"
+          data-testid="campus-place-search"
+          value={placeQuery}
+          onChange={(e) => {
+            setPlaceQuery(e.target.value);
+            if (selectedPlace) setSelectedPlace(null);
+          }}
+          placeholder="Find a building…"
+          autoComplete="off"
+          className="min-h-[var(--target)] w-full rounded-[var(--r-md)] border border-[var(--line-strong)] bg-[var(--surface)] px-[var(--sp-3)] text-[length:var(--fs-body)] text-[var(--ink)]"
+        />
+        {placeQuery.trim() !== "" && !selectedPlace && (
+          <ul data-testid="campus-place-results" aria-label="Matching buildings" className="mt-[var(--sp-1)] rounded-[var(--r-md)] border border-[var(--line)] bg-[var(--surface)]">
+            {placeResults.length === 0 ? (
+              <li role="status" className="px-[var(--sp-3)] py-[var(--sp-2)] text-sm text-[var(--muted)]">
+                No matching building
+              </li>
+            ) : (
+              placeResults.map((place) => (
+                <li key={place.id}>
+                  <button
+                    type="button"
+                    onClick={() => selectPlace(place)}
+                    className="min-h-[var(--target)] w-full px-[var(--sp-3)] text-left text-sm hover:bg-[var(--surface-2)]"
+                  >
+                    <span className="font-bold">{place.name}</span>
+                    <span className="ml-[var(--sp-2)] text-[var(--muted)]">{place.campus}</span>
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        )}
+      </div>
+    ) : null;
+
+  const list = (
+    <div className="rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]">
+      <h3 id={listHeadingId} className="px-[var(--sp-3)] pt-[var(--sp-2)] text-sm font-bold">
+        {items.length} places on this map
+      </h3>
+      <ul
+        id={listId}
+        ref={listRef}
+        tabIndex={-1}
+        data-testid="campus-map-list"
+        aria-labelledby={listHeadingId}
+        className={`${renderPanel ? "" : "max-h-[20rem] overflow-y-auto"} p-[var(--sp-2)] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[var(--focus)]`}
+      >
+        {items.length === 0 && (
+          <li className="px-[var(--sp-2)] py-[var(--sp-2)] text-sm text-[var(--muted)]">
+            {(geoCollections.lots || geoCollections.shuttles || geoCollections.meetups) ? "Nothing on this map for this Campus." : "Loading places…"}
+          </li>
+        )}
+        {items.map((item) => {
+          const selected = item.id === selectedId;
+          return (
+            <li key={item.id} data-item-id={item.id} data-testid="campus-map-list-item">
+              <button
+                type="button"
+                aria-pressed={selected}
+                onClick={() => selectFromList(item)}
+                className={`flex min-h-[var(--target)] w-full min-w-0 flex-wrap items-center gap-x-[var(--sp-2)] gap-y-[var(--sp-1)] rounded-[var(--r-sm)] px-[var(--sp-2)] py-[var(--sp-1)] text-left text-sm [overflow-wrap:anywhere] ${
+                  selected ? "outline outline-[3px] outline-[var(--focus)]" : "hover:bg-[var(--surface-2)]"
+                }`}
+              >
+                {item.code && (item.kind === "route" || item.kind === "bus") ? (
+                  <RouteBadge code={item.code} colorHex={item.colorHex} />
+                ) : item.code ? (
+                  <span className="rounded-[var(--r-sm)] border border-[var(--line-strong)] px-[var(--sp-1)] font-bold">{item.code}</span>
+                ) : null}
+                <span className="font-bold">{item.name}</span>
+                <span className="text-[var(--muted)]">
+                  {KIND_LABEL[item.kind]}
+                  {item.kind === "route" ? ` · ${PATTERN_LABEL[routeStyle(item.code, prefersDark).pattern]}` : ""}
+                  {item.detail ? ` · ${item.detail}` : ""}
+                </span>
+                {item.status && <StatusChip status={item.status} />}
+                <span className="sr-only">{selected ? ", shown on map" : ", show on map"}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 
   return (
     <section
@@ -620,15 +1055,16 @@ export function CampusGeoMap({
       data-offline-style={offlineMode ? "embedded-zero-tile" : "openfreemap"}
       data-loaded-buildings={buildingCount}
       data-map-feature-count={items.length}
+      data-map-mode={mode}
       aria-label={mapTitle}
-      className="theme-light space-y-[var(--sp-2)]"
+      className={className ?? (fill ? "relative h-full" : "space-y-[var(--sp-2)]")}
     >
-      <a href={`#${listId}`} data-testid="skip-map-link" className="sr-only font-bold text-[var(--ink)] underline focus:not-sr-only focus:inline-flex focus:min-h-[var(--target)] focus:items-center">
+      <a href={`#${listId}`} data-testid="skip-map-link" className={`sr-only font-bold text-[var(--ink)] underline focus:not-sr-only focus:inline-flex focus:min-h-[var(--target)] focus:items-center focus:bg-[var(--surface)] focus:px-[var(--sp-2)] ${fill ? "!absolute left-[var(--sp-2)] top-[var(--sp-2)] z-30" : ""}`}>
         Skip map, go to the list of {items.length} places
       </a>
 
-      <div className="relative overflow-hidden rounded-[var(--r-lg)] border border-[var(--line)] bg-[#EFE8D8]">
-        <div className="absolute left-[var(--sp-2)] top-[var(--sp-2)] z-10 flex flex-wrap items-center gap-[var(--sp-1)]">
+      <div className={`relative overflow-hidden bg-[var(--map-land)] ${fill ? "h-full" : "rounded-[var(--r-lg)] border border-[var(--line)]"}`}>
+        <div className="absolute left-[var(--sp-2)] top-[var(--sp-2)] z-10 flex max-w-[calc(100%-4rem)] flex-wrap items-center gap-[var(--sp-1)]">
           <span className="rounded-full bg-[var(--surface)] px-[var(--sp-2)] py-[var(--sp-1)] text-sm font-bold text-[var(--ink)] shadow">
             {campusFilter} · {buildingCount} buildings
           </span>
@@ -642,24 +1078,27 @@ export function CampusGeoMap({
           )}
           {mode === "static" && (
             <span className="rounded-full bg-[var(--surface)] px-[var(--sp-2)] py-[var(--sp-1)] text-sm font-bold text-[var(--ink)] shadow">
-              Static map · no live times
+              Static map · routes, stops and hours only
             </span>
           )}
         </div>
 
         {!webglFallback ? (
-          <div ref={containerRef} data-testid="campus-map-canvas" className="h-[18rem] w-full sm:h-[22rem]" />
+          <div ref={containerRef} data-testid="campus-map-canvas" className={`${canvasHeight} w-full`} />
         ) : (
           <div
             data-testid="campus-map-svg-fallback"
             role="note"
-            className="flex h-[18rem] w-full items-center justify-center bg-[#EFE8D8] p-[var(--sp-4)] text-center text-[length:var(--fs-body)] font-bold text-[var(--ink)] sm:h-[22rem]"
+            className={`flex ${canvasHeight} w-full items-center justify-center bg-[var(--map-land)] p-[var(--sp-4)] text-center text-[length:var(--fs-body)] font-bold text-[var(--ink)]`}
           >
-            The map couldn’t load on this device. Every place is in the list below.
+            The map couldn’t load on this device. Every place is in the list.
           </div>
         )}
 
-        <div className="absolute bottom-[var(--sp-6)] right-[var(--sp-2)] z-10 flex flex-col gap-[var(--sp-1)]">
+        <div
+          className="absolute right-[var(--sp-2)] z-10 flex flex-col gap-[var(--sp-1)]"
+          style={{ bottom: `calc(var(--sp-6) + ${Math.max(0, fitPadding?.bottom ?? 0)}px)` }}
+        >
           <button type="button" aria-label="Zoom in" data-testid="map-zoom-in" disabled={!mapReady} onClick={() => zoomBy(1)} className={controlClass}>
             <Plus aria-hidden="true" className="h-5 w-5" />
           </button>
@@ -683,7 +1122,8 @@ export function CampusGeoMap({
 
         <p
           data-testid="map-attribution"
-          className="absolute inset-x-0 bottom-0 z-10 bg-[var(--surface)]/95 px-[var(--sp-2)] py-[2px] text-right text-[length:var(--fs-xs)] text-[var(--ink)]"
+          className="absolute inset-x-0 top-auto z-10 bg-[var(--surface)] px-[var(--sp-2)] py-[2px] text-right text-[length:var(--fs-xs)] text-[var(--ink)] opacity-95"
+          style={{ bottom: `${Math.max(0, fitPadding?.bottom ?? 0)}px` }}
         >
           ©{" "}
           <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="underline">
@@ -701,119 +1141,48 @@ export function CampusGeoMap({
         </p>
       </div>
 
-      <div className="flex flex-wrap items-start gap-[var(--sp-2)]">
-        <details className="rounded-[var(--r-md)] border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]">
-          <summary className="flex min-h-[var(--target)] cursor-pointer items-center px-[var(--sp-3)] text-sm font-bold">
-            Key
-          </summary>
-          <ul className="space-y-[var(--sp-1)] px-[var(--sp-3)] pb-[var(--sp-3)] text-sm">
-            {showParkingLots &&
-              (["open", "filling", "nearly", "full", "none"] as const).map((status) => (
-                <li key={status}>
-                  <StatusChip status={status} />
-                </li>
-              ))}
-            {showParkingLots && <li>Solid edge: live Student reports. Dashed edge: no recent reports.</li>}
-            {showsRoutes && <li>Routes are named by their code first, then colour.</li>}
-            <li>A blue outline marks your selection.</li>
-          </ul>
-        </details>
-
-        {showPlaceSearch && places.length > 0 && (
-          <div className="min-w-[12rem] flex-1">
-            <label htmlFor={`campus-place-search-${uid}`} className="sr-only">
-              Find a campus building
-            </label>
-            <input
-              id={`campus-place-search-${uid}`}
-              type="search"
-              data-testid="campus-place-search"
-              value={placeQuery}
-              onChange={(e) => {
-                setPlaceQuery(e.target.value);
-                if (selectedPlace) setSelectedPlace(null);
-              }}
-              placeholder="Find a building…"
-              autoComplete="off"
-              className="min-h-[var(--target)] w-full rounded-[var(--r-md)] border border-[var(--line-strong)] bg-[var(--surface)] px-[var(--sp-3)] text-[length:var(--fs-body)] text-[var(--ink)]"
-            />
-            {placeQuery.trim() !== "" && !selectedPlace && (
-              <ul data-testid="campus-place-results" aria-label="Matching buildings" className="mt-[var(--sp-1)] rounded-[var(--r-md)] border border-[var(--line)] bg-[var(--surface)]">
-                {placeResults.length === 0 ? (
-                  <li role="status" className="px-[var(--sp-3)] py-[var(--sp-2)] text-sm text-[var(--muted)]">
-                    No matching building
-                  </li>
-                ) : (
-                  placeResults.map((place) => (
-                    <li key={place.id}>
-                      <button
-                        type="button"
-                        onClick={() => selectPlace(place)}
-                        className="min-h-[var(--target)] w-full px-[var(--sp-3)] text-left text-sm hover:bg-[var(--surface-2)]"
-                      >
-                        <span className="font-bold">{place.name}</span>
-                        <span className="ml-[var(--sp-2)] text-[var(--muted)]">{place.campus}</span>
-                      </button>
-                    </li>
-                  ))
-                )}
-              </ul>
-            )}
+      {renderPanel ? (
+        renderPanel({ list, legend, search })
+      ) : (
+        <>
+          <div className="flex flex-wrap items-start gap-[var(--sp-2)]">
+            {legend}
+            {search}
           </div>
-        )}
-      </div>
-
-      <div className="rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]">
-        <h3 id={listHeadingId} className="px-[var(--sp-3)] pt-[var(--sp-2)] text-sm font-bold">
-          {items.length} places on this map
-        </h3>
-        <ul
-          id={listId}
-          ref={listRef}
-          tabIndex={-1}
-          data-testid="campus-map-list"
-          aria-labelledby={listHeadingId}
-          className="max-h-[20rem] overflow-y-auto p-[var(--sp-2)] outline-none"
-        >
-          {items.length === 0 && (
-            <li className="px-[var(--sp-2)] py-[var(--sp-2)] text-sm text-[var(--muted)]">
-              {(geoCollections.lots || geoCollections.shuttles || geoCollections.meetups) ? "Nothing on this map for this Campus." : "Loading places…"}
-            </li>
-          )}
-          {items.map((item) => {
-            const selected = item.id === selectedId;
-            return (
-              <li key={item.id} data-item-id={item.id} data-testid="campus-map-list-item">
-                <button
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => selectFromList(item)}
-                  className={`flex min-h-[var(--target)] w-full flex-wrap items-center gap-x-[var(--sp-2)] gap-y-[var(--sp-1)] rounded-[var(--r-sm)] px-[var(--sp-2)] py-[var(--sp-1)] text-left text-sm ${
-                    selected ? "outline outline-[3px] outline-[var(--focus)]" : "hover:bg-[var(--surface-2)]"
-                  }`}
-                >
-                  {item.code && (
-                    <span
-                      className="rounded-[6px] border border-[var(--line-strong)] px-[var(--sp-1)] font-bold"
-                      style={item.colorHex ? { borderLeft: `6px solid ${item.colorHex}` } : undefined}
-                    >
-                      {item.code}
-                    </span>
-                  )}
-                  <span className="font-bold">{item.name}</span>
-                  <span className="text-[var(--muted)]">
-                    {KIND_LABEL[item.kind]}
-                    {item.detail ? ` · ${item.detail}` : ""}
-                  </span>
-                  {item.status && <StatusChip status={item.status} />}
-                  <span className="sr-only">{selected ? ", shown on map" : ", show on map"}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+          {list}
+        </>
+      )}
     </section>
+  );
+}
+
+/**
+ * Route code badge: the code text first, a pattern strip, then colour. The text
+ * is ink or white, whichever reaches ≥4.5:1 on the route colour.
+ */
+export function RouteBadge({ code, colorHex, size = "md" }: { code: string; colorHex?: string; size?: "sm" | "md" }) {
+  const dark = usePrefersDark();
+  const style = routeStyle(code, dark, colorHex);
+  const text = badgeTextColor(style.color);
+  const strip = {
+    solid: "linear-gradient(90deg, currentColor 0 100%)",
+    dashed: "repeating-linear-gradient(90deg, currentColor 0 6px, transparent 6px 10px)",
+    dotted: "repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 6px)",
+  }[style.pattern];
+  return (
+    <span
+      data-testid="route-badge"
+      data-route-code={code}
+      data-pattern={style.pattern}
+      aria-hidden="true"
+      className={`inline-flex shrink-0 flex-col items-center justify-center rounded-[var(--r-sm)] font-bold leading-none ring-2 ring-[var(--ink)] ${
+        size === "sm" ? "min-w-[2.25rem] px-[var(--sp-1)] py-[var(--sp-1)] text-sm" : "min-w-[2.75rem] px-[var(--sp-2)] py-[var(--sp-1)] text-sm"
+      }`}
+      style={{ backgroundColor: style.color, color: text }}
+    >
+      <span>{code}</span>
+      <span className="mt-[2px] block h-[3px] w-full" style={{ backgroundImage: strip }} />
+    </span>
   );
 }
 

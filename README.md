@@ -5,10 +5,16 @@ Unified Kennesaw State University campus social network and daily-life companion
 ## Capabilities
 
 - **Dual-Path Identity & Instant Evaluation**: 6-digit numeric `.edu` email OTP (`@students.kennesaw.edu` & `@kennesaw.edu`) + 1-click isolated 3-persona **Judge Demo Mode** (`/?demo=1` & 2-tab `?demo=<shortCode>&persona=alex_owl` WebSocket co-testing).
-- **5-Slot Mobile Shell & 3-Column Desktop Workspace**: 0-tap **Now** Commuter Bento HUD, 3-stream **Feed** (`Campus` | `Following` | `Trending (24h)`), center **Scrappy** + 10-module Quick Sheet, peer-to-peer **Marketplace**, and unified **Chats** (`Direct Messages`, `Group Chats`, and per-buyer `Deal Chats`), scoped by a sticky `Kennesaw` | `Marietta` | `All KSU` **Campus** switcher.
+- **5-Slot Mobile Shell & 3-Column Desktop Workspace**: 0-tap **Now** Commuter Bento HUD, 3-stream **Feed** (`All KSU` | `Following` | `Trending (24h)`), center **Scrappy** + 10-module Quick Sheet, peer-to-peer **Marketplace**, and unified **Chats** (`Direct Messages`, `Group Chats`, and per-buyer `Deal Chats`), with a `Kennesaw` | `Marietta` **Campus** switcher on location screens only (ADR-0008).
 - **Public Campus Feeds and Student Reports**: **Parking Reports** and **Spot Openings**, Big Owl Bus **Shuttle Routes**, LibCal **Study Rooms** and **Study Sessions**, Nutrislice **Dining Venues**, **Clubs**, university calendar **Events**, and **Course Hubs** with a verified Banner subset, stateless `.ics` import, and Simple Syllabus lookup. An isolated fixture deployment supports the full judge scenario. [Data provenance](./KSUX.md#campus-data-provenance)
 - **Chat-Isolated Scrappy the Owl AI**: 3-tier OpenAI-compatible router (Groq `openai/gpt-oss-120b` / `openai/gpt-oss-20b` → PII-stripped Gemini → Cloudflare Workers AI) with clickable Citation Pills and client-confirmed Pre-Filled Draft Cards, architecturally excluded from all `Chats` and database mutations.
 - **Installable Offline Commuter PWA**: Versioned Service Worker (`public/sw.js`), zero-external-tile offline `MapLibre GL JS` campus GeoJSON map, and privacy-safe read-only `ksux_commuter_cache`.
+
+## Accessibility
+
+KSUX is built to WCAG 2.2 AA. Every route and dialog is checked automatically in light and dark themes at 390 px and 1440 px (axe, 44 px targets, no text under 13 px, reflow at 320 px and 200% text); last automated pass **2026-11-18**. The first full manual pass with VoiceOver on iOS Safari and the Home Screen app, TalkBack on Chrome for Android, keyboard only, and 200% zoom with text-spacing overrides **hasn't been logged yet**.
+
+Known issues are listed on the in-app About page (`/profile/about`) and in [`docs/accessibility/`](./docs/accessibility/README.md). Tell us about a barrier: [open an accessibility issue](https://github.com/Control707/KSUX/issues/new?labels=accessibility&title=Accessibility%20barrier%3A%20).
 
 ## Provisioning & production deployment
 

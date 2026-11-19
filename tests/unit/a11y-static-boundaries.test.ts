@@ -20,33 +20,10 @@ const rel = (file: string) => path.relative(root, file).split(path.sep).join("/"
 const PX_TEXT = /text-\[\d+(?:\.\d+)?px\]|fontSize:\s*["']?\d|font-size:\s*\d+(?:\.\d+)?px/;
 
 /**
- * Screens that still carry v1 px text. Phase 1A migrates each to Direction C
- * and removes it here; this list may only shrink (docs/accessibility/migration.md).
+ * Screens that still carry v1 px text. Phase 1A (#74) migrated every screen,
+ * so this is empty and must stay empty (docs/accessibility/migration.md).
  */
-const LEGACY_PX_TEXT = new Set([
-  "src/components/auth/EduOtpModal.tsx",
-  "src/components/auth/OnboardingFlow.tsx",
-  "src/components/chats/ChatThreadView.tsx",
-  "src/components/chats/ChatsInboxView.tsx",
-  "src/components/communities/ClubsViews.tsx",
-  "src/components/communities/EventsViews.tsx",
-  "src/components/courses/CourseHubView.tsx",
-  "src/components/dining/DiningView.tsx",
-  "src/components/feed/FeedView.tsx",
-  "src/components/marketplace/DealHandoffPanel.tsx",
-  "src/components/marketplace/MarketplaceView.tsx",
-  "src/components/moderation/ModerationQueueView.tsx",
-  "src/components/now/NowHudView.tsx",
-  "src/components/parking/ParkingView.tsx",
-  "src/components/profile/ProfileView.tsx",
-  "src/components/pwa/PwaSupport.tsx",
-  "src/components/scrappy/ScrappyView.tsx",
-  "src/components/shared/CampusEntityCard.tsx",
-  "src/components/shared/ReportTrigger.tsx",
-  "src/components/shell/WelcomeGate.tsx",
-  "src/components/study/StudyView.tsx",
-  "src/components/transit/TransitView.tsx",
-]);
+const LEGACY_PX_TEXT = new Set<string>([]);
 
 describe("Layer 2 — accessibility static boundaries", () => {
   const files = sourceFiles(srcDir);
@@ -68,6 +45,24 @@ describe("Layer 2 — accessibility static boundaries", () => {
       }
     });
     expect(stale, "Remove migrated files from LEGACY_PX_TEXT").toEqual([]);
+  });
+
+  it("keeps hex colours out of migrated screens so both themes come from tokens", () => {
+    // Only the token sheet, the browser theme-color meta and the MapLibre
+    // paint expressions (which can't read CSS variables) may hold literals.
+    const HEX_ALLOWED = new Set([
+      "src/app/globals.css",
+      "src/app/layout.tsx",
+      "src/components/map/CampusGeoMap.tsx",
+      "src/components/map/mapFeatures.ts",
+      ...LEGACY_PX_TEXT,
+    ]);
+    const HEX = /#[0-9A-Fa-f]{6}\b|#[0-9A-Fa-f]{3}\b(?![0-9A-Za-z])/;
+    const offenders = files
+      .filter((file) => file.endsWith(".tsx") && !HEX_ALLOWED.has(rel(file)))
+      .filter((file) => readFileSync(file, "utf8").split("\n").some((line) => HEX.test(line)))
+      .map(rel);
+    expect(offenders).toEqual([]);
   });
 
   it("defines Direction C type tokens in rem with nothing under 13 px", () => {

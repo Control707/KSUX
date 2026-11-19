@@ -5,9 +5,9 @@ export default function ProfilePage() {
   return (
     <Suspense
       fallback={
-        <div className="p-4 text-xs font-semibold text-[#5E6675]">
-          Loading profile...
-        </div>
+        <p role="status" className="p-[var(--sp-4)] text-sm text-[var(--muted)]">
+          Loading profile…
+        </p>
       }
     >
       <ProfileView />

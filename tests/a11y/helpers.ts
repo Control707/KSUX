@@ -14,7 +14,15 @@ export async function enterDemo(page: Page, path = "/") {
   const url = new URL(path, "http://x");
   url.searchParams.set("demo", "1");
   await page.goto(url.pathname + url.search);
-  await expect(page.getByTestId("judge-demo-pill")).toBeVisible({ timeout: 30_000 });
+  const pill = page.getByTestId("judge-demo-pill");
+  try {
+    await expect(pill).toBeVisible({ timeout: 30_000 });
+  } catch {
+    // A cold `next dev` compile or a busy local Convex can stall the first
+    // Demo provision; one reload is enough to recover.
+    await page.reload();
+    await expect(pill).toBeVisible({ timeout: 30_000 });
+  }
 }
 
 /**

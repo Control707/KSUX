@@ -1,32 +1,39 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Bell,
-  BellOff,
-  MessageSquarePlus,
-  Users,
-} from "lucide-react";
+import { Bell, BellOff, MessageSquarePlus, Users } from "lucide-react";
 import { api } from "@convex/_generated/api";
-import {
-  useViewerClient,
-  useViewerMutation,
-  useViewerQuery,
-} from "@/lib/viewerClient";
+import { useViewerClient, useViewerMutation, useViewerQuery } from "@/lib/viewerClient";
+import { Dialog } from "@/components/a11y/Dialog";
+import { useAnnouncer } from "@/components/a11y/Announcer";
+import { SegmentedControl } from "@/components/a11y/controls";
+import { BTN_ACCENT, BTN_PRIMARY, BTN_SECONDARY, FIELD, LABEL } from "@/components/marketplace/styles";
+
+type Tab = "all" | "dm" | "group" | "deal";
+
+const KIND_LABEL: Record<string, string> = {
+  dm: "Direct Message",
+  group: "Group Chat",
+  custom_group: "Group Chat",
+  study_session: "Study Session",
+  deal: "Deal Chat",
+};
 
 export function ChatsInboxView() {
   const router = useRouter();
   const { auth } = useViewerClient();
-  const [tab, setTab] = useState<"all" | "dm" | "group" | "deal">("all");
+  const { toast } = useAnnouncer();
+  const ids = { dmHandle: useId(), dmOpener: useId(), groupTitle: useId(), groupInvites: useId() };
+  const [tab, setTab] = useState<Tab>("all");
   const [newDmOpen, setNewDmOpen] = useState(false);
   const [newGroupOpen, setNewGroupOpen] = useState(false);
   const [dmTargetHandle, setDmTargetHandle] = useState("");
   const [dmOpener, setDmOpener] = useState("");
   const [groupTitle, setGroupTitle] = useState("");
   const [groupInvites, setGroupInvites] = useState("");
-  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const inbox = useViewerQuery(api.chats.listInbox, { tabFilter: tab });
   const pushInfo = useViewerQuery(api.push.getMyPushSubscriptions, {});
@@ -35,312 +42,243 @@ export function ChatsInboxView() {
   const toggleMute = useViewerMutation(api.chats.toggleChatMute);
   const registerPush = useViewerMutation(api.push.registerPushSubscription);
 
+  const info = (message: string, tone: "info" | "success" | "error" = "info") => toast({ message, tone });
+
   const handleStartDm = async (e: React.FormEvent) => {
     e.preventDefault();
-    setStatusMsg(null);
+    setFormError(null);
     try {
-      const res = await startDm({
-        recipientHandleOrId: dmTargetHandle,
-        openerBody: dmOpener || undefined,
-      });
+      const res = await startDm({ recipientHandleOrId: dmTargetHandle, openerBody: dmOpener || undefined });
       setNewDmOpen(false);
       setDmTargetHandle("");
       setDmOpener("");
       router.push(`/chats/${res.chatId}`);
     } catch (err: any) {
-      setStatusMsg(err?.data?.message || err?.message || "Could not open DM.");
+      setFormError(err?.data?.message || err?.message || "Could not open the Direct Message.");
     }
   };
 
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setStatusMsg(null);
+    setFormError(null);
     try {
-      const handles = groupInvites
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const res = await createGroup({
-        title: groupTitle,
-        inviteHandles: handles,
-      });
+      const handles = groupInvites.split(",").map((s) => s.trim()).filter(Boolean);
+      const res = await createGroup({ title: groupTitle, inviteHandles: handles });
       setNewGroupOpen(false);
       setGroupTitle("");
       setGroupInvites("");
       router.push(`/chats/${res.chatId}`);
     } catch (err: any) {
-      setStatusMsg(
-        err?.data?.message || err?.message || "Could not create Group Chat."
-      );
+      setFormError(err?.data?.message || err?.message || "Could not create the Group Chat.");
     }
   };
 
   const handleEnableWebPush = async () => {
-    if (
-      typeof window === "undefined" ||
-      !("serviceWorker" in navigator) ||
-      !("PushManager" in window)
-    ) {
-      setStatusMsg(
-        "Web Push requires an installed PWA or supported browser context (iOS Safari: Share → Add to Home Screen first)."
-      );
+    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+      info("Notifications need the installed app or a supported browser. On iPhone: Share, then Add to Home Screen.");
       return;
     }
     const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
     if (!vapidKey) {
-      setStatusMsg(
-        "NEXT_PUBLIC_VAPID_PUBLIC_KEY not configured — universal Tier-0 in-app Slide-Down Toasts remain active!"
-      );
+      info("Push notifications are not set up here. In-app message alerts still work.");
       return;
     }
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
-        setStatusMsg("Notification permission was not granted.");
+        info("Notification permission was not granted.");
         return;
       }
       const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: vapidKey,
-      });
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey });
       const json = sub.toJSON();
       if (json.endpoint && json.keys?.p256dh && json.keys?.auth) {
-        await registerPush({
-          endpoint: json.endpoint,
-          p256dh: json.keys.p256dh,
-          auth: json.keys.auth,
-          userAgent: navigator.userAgent,
-        });
-        setStatusMsg("Privacy-safe VAPID Web Push enabled on this device!");
+        await registerPush({ endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth, userAgent: navigator.userAgent });
+        info("Notifications are on for this device.", "success");
       }
     } catch (err: any) {
-      setStatusMsg(err?.message || "Could not register Web Push.");
+      info(err?.message || "Could not turn on notifications.", "error");
     }
   };
 
+  const formErrorEl = formError && (
+    <p role="alert" className="rounded-[var(--r-sm)] bg-[var(--bad-bg)] px-[var(--sp-3)] py-[var(--sp-2)] text-sm font-bold text-[var(--bad-fg)]">
+      {formError}
+    </p>
+  );
+
   return (
-    <div data-testid="chats-inbox-view" className="space-y-3.5 p-4">
-      <div className="rounded-2xl border border-[#E4E7EE] bg-white p-4 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h1 className="text-base font-black text-[#111317]">
-              Unified Campus Chats
+    <div data-testid="chats-inbox-view" className="space-y-[var(--sp-4)] p-[var(--sp-4)]">
+      <section aria-labelledby="chats-heading" className="space-y-[var(--sp-3)]">
+        <div className="flex flex-wrap items-end justify-between gap-[var(--sp-3)]">
+          <div className="min-w-0 space-y-[var(--sp-1)]">
+            <h1 id="chats-heading" data-route-heading="" tabIndex={-1} className="font-display text-2xl font-bold">
+              Chats
             </h1>
-            <p className="text-xs text-[#5E6675]">
-              Direct Messages, Message Requests, Group Chats &amp; Marketplace
-              Deal Chats · Intact across Campus switches.
-            </p>
+            <p className="text-sm text-[var(--muted)]">Direct Messages, Group Chats and Deal Chats across KSU. They stay when you switch Campus.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-[var(--sp-2)]">
             {auth.status === "student" && pushInfo?.supportedInMode && (
-              <button
-                type="button"
-                onClick={handleEnableWebPush}
-                className="inline-flex items-center gap-1 rounded-xl border border-[#E4E7EE] bg-[#F4F6FA] px-2.5 py-1.5 text-xs font-bold text-[#111317]"
-              >
-                <Bell className="h-3.5 w-3.5 text-[#D99B00]" />
-                <span>
-                  {pushInfo.endpoints.length > 0
-                    ? `Push Active (${pushInfo.endpoints.length}/3)`
-                    : "Enable Web Push"}
-                </span>
+              <button type="button" onClick={handleEnableWebPush} className={BTN_SECONDARY}>
+                <Bell aria-hidden="true" className="h-4 w-4" />
+                {pushInfo.endpoints.length > 0 ? `Notifications on (${pushInfo.endpoints.length} of 3 devices)` : "Turn on notifications"}
               </button>
             )}
             <button
               type="button"
+              data-testid="new-dm-btn"
               onClick={() => {
-                setNewGroupOpen(false);
-                setNewDmOpen((v) => !v);
+                setFormError(null);
+                setNewDmOpen(true);
               }}
-              className="inline-flex items-center gap-1 rounded-xl bg-[#FDBB30] px-3 py-1.5 text-xs font-extrabold text-[#111317]"
+              className={BTN_ACCENT}
             >
-              <MessageSquarePlus className="h-3.5 w-3.5" />
-              <span>+ DM</span>
+              <MessageSquarePlus aria-hidden="true" className="h-4 w-4" />
+              New message
             </button>
             <button
               type="button"
+              data-testid="new-group-btn"
               onClick={() => {
-                setNewDmOpen(false);
-                setNewGroupOpen((v) => !v);
+                setFormError(null);
+                setNewGroupOpen(true);
               }}
-              className="inline-flex items-center gap-1 rounded-xl bg-[#111317] px-3 py-1.5 text-xs font-extrabold text-[#FDBB30]"
+              className={BTN_PRIMARY}
             >
-              <Users className="h-3.5 w-3.5" />
-              <span>+ Group Chat</span>
+              <Users aria-hidden="true" className="h-4 w-4" />
+              New group
             </button>
           </div>
         </div>
 
-        {/* Segment Tabs */}
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {(
-            [
-              ["all", "All"],
-              ["dm", "Direct Messages"],
-              ["group", "Group Chats"],
-              ["deal", "Deal Chats"],
-            ] as const
-          ).map(([val, label]) => (
-            <button
-              key={val}
-              type="button"
-              data-testid={`chats-filter-${val}`}
-              onClick={() => setTab(val)}
-              className={`rounded-full px-3 py-1 text-xs font-extrabold ${
-                tab === val
-                  ? "bg-[#111317] text-[#FDBB30]"
-                  : "border border-[#E4E7EE] bg-[#F4F6FA] text-[#5E6675]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          label="Show chats"
+          options={[
+            { value: "all", label: "All" },
+            { value: "dm", label: "Direct" },
+            { value: "group", label: "Groups" },
+            { value: "deal", label: "Deals" },
+          ] as const}
+          value={tab}
+          onChange={setTab}
+          testIdPrefix="chats-filter"
+        />
+      </section>
 
-        {statusMsg && (
-          <p className="mt-2.5 rounded-xl bg-[#FFF6DC] px-3 py-2 text-xs font-bold text-[#855A00]">
-            {statusMsg}
+      <Dialog open={newDmOpen} onClose={() => setNewDmOpen(false)} title="New Direct Message" variant="sheet" testId="new-dm-dialog">
+        <form onSubmit={handleStartDm} className="space-y-[var(--sp-3)]">
+          <div>
+            <label htmlFor={ids.dmHandle} className={LABEL}>
+              Student @handle
+            </label>
+            <input id={ids.dmHandle} type="text" required value={dmTargetHandle} onChange={(e) => setDmTargetHandle(e.target.value)} placeholder="jordan_me" className={`${FIELD} mt-[var(--sp-1)]`} />
+          </div>
+          <div>
+            <label htmlFor={ids.dmOpener} className={LABEL}>
+              First message (optional)
+            </label>
+            <input id={ids.dmOpener} type="text" value={dmOpener} onChange={(e) => setDmOpener(e.target.value)} className={`${FIELD} mt-[var(--sp-1)]`} />
+            <p className="mt-[var(--sp-1)] text-sm text-[var(--muted)]">If you haven&apos;t chatted before, this is sent as a Message Request with one text-only opener.</p>
+          </div>
+          {formErrorEl}
+          <div className="flex justify-end">
+            <button type="submit" className={BTN_PRIMARY}>
+              Open Direct Message
+            </button>
+          </div>
+        </form>
+      </Dialog>
+
+      <Dialog open={newGroupOpen} onClose={() => setNewGroupOpen(false)} title="New Group Chat" variant="sheet" testId="new-group-dialog">
+        <form onSubmit={handleCreateGroup} className="space-y-[var(--sp-3)]">
+          <div>
+            <label htmlFor={ids.groupTitle} className={LABEL}>
+              Group name
+            </label>
+            <input id={ids.groupTitle} type="text" required value={groupTitle} onChange={(e) => setGroupTitle(e.target.value)} className={`${FIELD} mt-[var(--sp-1)]`} />
+          </div>
+          <div>
+            <label htmlFor={ids.groupInvites} className={LABEL}>
+              Invite @handles, separated by commas
+            </label>
+            <input id={ids.groupInvites} type="text" value={groupInvites} onChange={(e) => setGroupInvites(e.target.value)} className={`${FIELD} mt-[var(--sp-1)]`} />
+            <p className="mt-[var(--sp-1)] text-sm text-[var(--muted)]">Up to 50 students.</p>
+          </div>
+          {formErrorEl}
+          <div className="flex justify-end">
+            <button type="submit" className={BTN_PRIMARY}>
+              Create Group Chat
+            </button>
+          </div>
+        </form>
+      </Dialog>
+
+      <section aria-labelledby="chats-list-heading">
+        <h2 id="chats-list-heading" className="sr-only">
+          Conversations
+        </h2>
+        {inbox === undefined ? (
+          <p role="status" className="text-sm text-[var(--muted)]">
+            Loading chats…
           </p>
-        )}
-
-        {newDmOpen && (
-          <form
-            onSubmit={handleStartDm}
-            className="mt-3 space-y-2 rounded-2xl border border-[#D99B00] bg-[#FFFDF7] p-3"
-          >
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <input
-                type="text"
-                required
-                value={dmTargetHandle}
-                onChange={(e) => setDmTargetHandle(e.target.value)}
-                placeholder="Classmate @handle (e.g. jordan_me)"
-                className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs font-semibold"
-              />
-              <input
-                type="text"
-                value={dmOpener}
-                onChange={(e) => setDmOpener(e.target.value)}
-                placeholder="Optional opener message..."
-                className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs"
-              />
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                className="rounded-xl bg-[#111317] px-3.5 py-1.5 text-xs font-extrabold text-[#FDBB30]"
-              >
-                Open Direct Message
-              </button>
-            </div>
-          </form>
-        )}
-
-        {newGroupOpen && (
-          <form
-            onSubmit={handleCreateGroup}
-            className="mt-3 space-y-2 rounded-2xl border border-[#D99B00] bg-[#FFFDF7] p-3"
-          >
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <input
-                type="text"
-                required
-                value={groupTitle}
-                onChange={(e) => setGroupTitle(e.target.value)}
-                placeholder="Closed Group Chat Title (≤50 Students)"
-                className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs font-semibold"
-              />
-              <input
-                type="text"
-                value={groupInvites}
-                onChange={(e) => setGroupInvites(e.target.value)}
-                placeholder="Invite @handles, comma-separated"
-                className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs"
-              />
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                className="rounded-xl bg-[#111317] px-3.5 py-1.5 text-xs font-extrabold text-[#FDBB30]"
-              >
-                Create Custom Group Chat
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-
-      {/* Thread Rows */}
-      <div className="space-y-2">
-        {(inbox ?? []).length === 0 ? (
-          <div className="rounded-2xl border border-[#E4E7EE] bg-white p-6 text-center text-xs font-semibold text-[#5E6675]">
-            No conversations in this filter yet.
-          </div>
+        ) : inbox.length === 0 ? (
+          <p data-testid="chats-empty" className="rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] p-[var(--sp-4)] text-body">
+            No conversations here yet.
+          </p>
         ) : (
-          inbox!.map((row) => (
-            <div
-              key={String(row.chatId)}
-              data-testid={`inbox-row-${row.kind}`}
-              className="flex items-center justify-between gap-3 rounded-2xl border border-[#E4E7EE] bg-white p-3.5 shadow-xs transition hover:border-[#D99B00]"
-            >
-              <Link
-                href={`/chats/${row.chatId}`}
-                className="min-w-0 flex-1 space-y-1"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="truncate text-sm font-black text-[#111317]">
-                    {row.title}
-                  </span>
-                  <span className="rounded-full bg-[#F4F6FA] px-2 py-0.5 text-[10px] font-extrabold uppercase text-[#5E6675]">
-                    {row.kind.replace("_", " ")}
-                  </span>
-                  {row.isPendingIncomingRequest && (
-                    <span className="rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[10px] font-extrabold text-[#B45309]">
-                      Message Request
-                    </span>
-                  )}
-                  {row.handoffStatus && (
-                    <span className="rounded-full bg-[#DCFCE7] px-2 py-0.5 text-[10px] font-extrabold text-[#15803D]">
-                      Meetup: {row.handoffStatus}
-                    </span>
-                  )}
-                </div>
-                <p className="truncate text-xs text-[#5E6675]">
-                  {row.lastSenderHandle ? `@${row.lastSenderHandle}: ` : ""}
-                  {row.lastMessagePreview ?? "No messages yet"}
-                </p>
-              </Link>
-
-              <div className="flex shrink-0 items-center gap-2">
-                {row.unreadCount > 0 ? (
-                  <span className="rounded-full bg-[#DC2626] px-2 py-0.5 text-[11px] font-black text-white">
-                    {row.unreadCount}
-                  </span>
-                ) : row.hasDotUnread ? (
-                  <span
-                    title="Unread activity (dot mode)"
-                    className="h-2.5 w-2.5 rounded-full bg-[#FDBB30]"
-                  />
-                ) : null}
-
-                <button
-                  type="button"
-                  onClick={() => void toggleMute({ chatId: row.chatId })}
-                  className="rounded-lg p-1.5 text-[#5E6675] hover:bg-[#F4F6FA]"
-                  title={row.isMuted ? "Unmute" : "Mute notifications"}
+          <ul data-testid="chats-inbox-list" className="space-y-[var(--sp-2)]">
+            {inbox.map((row) => {
+              const kind = KIND_LABEL[row.kind] ?? row.kind.replace("_", " ");
+              return (
+                <li
+                  key={String(row.chatId)}
+                  data-testid={`inbox-row-${row.kind}`}
+                  className="flex min-w-0 items-center gap-[var(--sp-2)] rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] p-[var(--sp-2)] hover:border-[var(--line-strong)]"
                 >
-                  {row.isMuted ? (
-                    <BellOff className="h-4 w-4 text-[#B45309]" />
-                  ) : (
-                    <Bell className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-          ))
+                  <Link href={`/chats/${row.chatId}`} className="flex min-h-[var(--target)] min-w-0 flex-1 flex-col justify-center gap-[var(--sp-1)] rounded-[var(--r-sm)] px-[var(--sp-2)] py-[var(--sp-1)]">
+                    <span className="flex min-w-0 flex-wrap items-center gap-[var(--sp-2)]">
+                      <span className="min-w-0 font-bold [overflow-wrap:anywhere]">{row.title}</span>
+                      <span className="rounded-full bg-[var(--surface-2)] px-[var(--sp-2)] text-sm text-[var(--muted)]">{kind}</span>
+                      {row.isPendingIncomingRequest && (
+                        <span className="rounded-full bg-[var(--warn-bg)] px-[var(--sp-2)] text-sm font-bold text-[var(--warn-fg)]">Message Request</span>
+                      )}
+                      {row.handoffStatus && (
+                        <span className="rounded-full bg-[var(--ok-bg)] px-[var(--sp-2)] text-sm font-bold text-[var(--ok-fg)]">
+                          Meetup {row.handoffStatus === "confirmed" ? "confirmed ✓" : row.handoffStatus}
+                        </span>
+                      )}
+                      {row.unreadCount > 0 ? (
+                        <span className="rounded-full bg-[var(--bad-fg)] px-[var(--sp-2)] text-sm font-bold text-[var(--bad-bg)]">
+                          {row.unreadCount}
+                          <span className="sr-only"> unread</span>
+                        </span>
+                      ) : row.hasDotUnread ? (
+                        <span className="text-sm font-bold">
+                          <span aria-hidden="true">●</span>
+                          <span className="sr-only">New activity</span>
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="truncate text-sm text-[var(--muted)]">
+                      {row.lastSenderHandle ? `@${row.lastSenderHandle}: ` : ""}
+                      {row.lastMessagePreview ?? "No messages yet"}
+                    </span>
+                  </Link>
+                  <button
+                    type="button"
+                    aria-pressed={row.isMuted}
+                    aria-label={`Mute ${row.title}`}
+                    onClick={() => void toggleMute({ chatId: row.chatId })}
+                    className="min-target inline-flex shrink-0 items-center justify-center rounded-full text-[var(--muted)] hover:bg-[var(--surface-2)]"
+                  >
+                    {row.isMuted ? <BellOff aria-hidden="true" className="h-5 w-5" /> : <Bell aria-hidden="true" className="h-5 w-5" />}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         )}
-      </div>
+      </section>
     </div>
   );
 }

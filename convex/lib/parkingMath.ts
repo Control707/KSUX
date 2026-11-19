@@ -1,9 +1,15 @@
+/**
+ * Tier words only (SPEC-v2 §4). Fullness comes only from Student Parking
+ * Reports, so there is no percentage or range to show.
+ */
 export const FULLNESS_TIER_LABELS: Record<0 | 1 | 2 | 3, string> = {
-  0: "Open (<60%)",
-  1: "Filling (60–85%)",
-  2: "Nearly Full (85–98%)",
-  3: "Full (Circling)",
+  0: "Open",
+  1: "Filling",
+  2: "Nearly Full",
+  3: "Full",
 };
+
+export const NO_RECENT_REPORTS_LABEL = "No recent reports";
 
 const DAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -46,6 +52,8 @@ export interface EvaluatedParkingStatus {
   tierLabel: string;
   provenanceKind: "verified_multi" | "single_report" | "no_recent_reports";
   provenanceLabel: string;
+  /** True when no Student Parking Report is active in the 45-min window. */
+  noRecentReports: boolean;
   activeReportCount: number;
   latestReportMinutesAgo?: number;
   latestDeckLevel?: string;
@@ -82,9 +90,10 @@ export function evaluateParkingLotFullness(
   if (valid.length === 0) {
     return {
       effectiveTier: null,
-      tierLabel: "No recent reports",
+      tierLabel: NO_RECENT_REPORTS_LABEL,
       provenanceKind: "no_recent_reports",
-      provenanceLabel: "Parking Lot availability unavailable",
+      provenanceLabel: NO_RECENT_REPORTS_LABEL,
+      noRecentReports: true,
       activeReportCount: 0,
     };
   }
@@ -101,7 +110,8 @@ export function evaluateParkingLotFullness(
       effectiveTier,
       tierLabel: FULLNESS_TIER_LABELS[effectiveTier],
       provenanceKind: "single_report",
-      provenanceLabel: `Live · 1 Student report (${minsAgo}m ago)`,
+      provenanceLabel: `Live · 1 Student report (${minsAgo} min ago) · unconfirmed`,
+      noRecentReports: false,
       activeReportCount: 1,
       latestReportMinutesAgo: minsAgo,
       latestDeckLevel: latest.deckLevel,
@@ -152,7 +162,8 @@ export function evaluateParkingLotFullness(
     effectiveTier,
     tierLabel: FULLNESS_TIER_LABELS[effectiveTier],
     provenanceKind: "verified_multi",
-    provenanceLabel: `Live · Student-verified (${minsAgo}m ago)`,
+    provenanceLabel: `Live · Student-verified · ${valid.length} Student reports (latest ${minsAgo} min ago)`,
+    noRecentReports: false,
     activeReportCount: valid.length,
     latestReportMinutesAgo: minsAgo,
     latestDeckLevel: latest.deckLevel,

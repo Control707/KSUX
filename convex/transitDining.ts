@@ -5,12 +5,30 @@ import { evaluateDiningOpenStatus } from "./lib/parkingMath";
 import { formatStalenessBadge } from "./lib/syncGuard";
 import { viewerMutation, viewerQuery } from "./lib/viewer";
 import { Doc } from "./_generated/dataModel";
-import { freshShuttleNotices, freshShuttleEta, freshShuttleVehicles } from "./lib/shuttleRead";
+import {
+  freshShuttleNotices,
+  freshShuttleEta,
+  freshShuttleStopEtas,
+  freshShuttleVehicles,
+  shuttleNoticesRetrievedAt,
+  shuttleRunsToday,
+} from "./lib/shuttleRead";
 import { easternDate } from "./lib/easternDate";
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 const THIRTY_MINUTES_MS = 30 * 60 * 1000;
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+const STOP_REPORT_LABEL: Record<string, string> = {
+  stop_clear: "No line",
+  long_line: "Long line",
+  bus_passed_full: "Passed full",
+};
+const stopReportKind = v.union(
+  v.literal("stop_clear"),
+  v.literal("long_line"),
+  v.literal("bus_passed_full")
+);
 
 export const listShuttleOverview = viewerQuery({
   args: {
@@ -20,6 +38,7 @@ export const listShuttleOverview = viewerQuery({
   handler: async (ctx, args) => {
     const now = workflowTime(args.nowOverride);
     const { viewer } = ctx;
+    const demo = viewer.mode === "demo";
     const campusFilter =
       args.campusOverride ?? viewer.actorStudent.activeCampusFilter;
 
@@ -38,23 +57,19 @@ export const listShuttleOverview = viewerQuery({
       return r.campusScope === campusFilter;
     });
 
-    // Collect unique stopIds across scoped routes and evaluate 15m rider stop pulses
-    const uniqueStops = new Map<
-      string,
-      Doc<"shuttleRoutes">["stops"][number]
-    >();
-    for (const r of scopedRoutes) {
-      for (const s of r.stops) {
-        uniqueStops.set(s.stopId, s);
-      }
-    }
+    const uniqueStops = new Set<string>();
+    for (const r of scopedRoutes) for (const s of r.stops) uniqueStops.add(s.stopId);
 
-    const stopPulseMap = new Map<
-      string,
-      { tierValue: string; label: string; count: number }
-    >();
+    // Stop reports from the last 15 min. Anonymous: authors are never returned,
+    // except that the viewer learns which report is their own (for Undo).
+    type StopReports = {
+      activePulse: { tierValue: string; label: string; count: number } | null;
+      reports: { kind: string; label: string; count: number; minutesAgo: number }[];
+      myReport: { pulseId: string; kind: string; label: string } | null;
+    };
+    const reportsByStop = new Map<string, StopReports>();
     await Promise.all(
-      Array.from(uniqueStops.keys()).map(async (stopId) => {
+      Array.from(uniqueStops).map(async (stopId) => {
         const pulses = await ctx.db
           .query("campusPulses")
           .withIndex("by_target_active", (q) =>
@@ -64,23 +79,34 @@ export const listShuttleOverview = viewerQuery({
               .eq("targetKey", stopId)
               .gt("expiresAt", now)
           )
-          .take(10);
-        if (pulses.length > 0) {
-          const latest = pulses.sort(
-            (a, b) => b.publishedAt - a.publishedAt
-          )[0]!;
-          const label =
-            latest.tierValue === "stop_clear"
-              ? "Stop clear"
-              : latest.tierValue === "long_line"
-                ? "Long line"
-                : "Bus just passed full";
-          stopPulseMap.set(stopId, {
-            tierValue: latest.tierValue,
-            label,
-            count: pulses.length,
-          });
+          .take(20);
+        const active = pulses.filter((p) => p.publishedAt <= now).sort((a, b) => b.publishedAt - a.publishedAt);
+        if (active.length === 0) return;
+        const latest = active[0]!;
+        const byKind = new Map<string, { count: number; latestAt: number }>();
+        for (const p of active) {
+          const row = byKind.get(p.tierValue) ?? { count: 0, latestAt: p.publishedAt };
+          row.count += 1;
+          row.latestAt = Math.max(row.latestAt, p.publishedAt);
+          byKind.set(p.tierValue, row);
         }
+        const mine = active.find((p) => p.authorId === viewer.actorStudent._id);
+        reportsByStop.set(stopId, {
+          activePulse: {
+            tierValue: latest.tierValue,
+            label: STOP_REPORT_LABEL[latest.tierValue] ?? "Stop report",
+            count: active.length,
+          },
+          reports: Array.from(byKind, ([kind, row]) => ({
+            kind,
+            label: STOP_REPORT_LABEL[kind] ?? "Stop report",
+            count: row.count,
+            minutesAgo: Math.max(0, Math.floor((now - row.latestAt) / 60_000)),
+          })).sort((a, b) => a.minutesAgo - b.minutesAgo),
+          myReport: mine
+            ? { pulseId: String(mine._id), kind: mine.tierValue, label: STOP_REPORT_LABEL[mine.tierValue] ?? "Stop report" }
+            : null,
+        });
       })
     );
 
@@ -89,55 +115,104 @@ export const listShuttleOverview = viewerQuery({
       now,
       FIFTEEN_MINUTES_MS
     );
+    const noticesRetrievedAt = shuttleNoticesRetrievedAt(latestSnap);
 
     return {
       campusFilter,
       staleness,
+      serverNow: now,
       routes: scopedRoutes.map((r) => {
-        const eta = freshShuttleEta(latestSnap, r.passioRouteId, now, viewer.mode === "demo");
+        const eta = freshShuttleEta(latestSnap, r.passioRouteId, now, demo);
+        const { runsToday, runDaysLabel } = shuttleRunsToday(r.operatingHoursSummary, now);
         return {
           ...r,
+          runsToday,
+          runDaysLabel,
           nextEtaMinutes: eta?.etaMinutes ?? null,
           loadLabel: eta?.loadLabel ?? "Live ETA unavailable",
-          stops: r.stops.map((st) => ({
-            ...st,
-            activePulse: stopPulseMap.get(st.stopId) ?? null,
-          })),
+          stops: [...r.stops]
+            .sort((a, b) => a.sequence - b.sequence)
+            .map((st) => {
+              const reports = reportsByStop.get(st.stopId);
+              return {
+                ...st,
+                etaMinutes: freshShuttleStopEtas(latestSnap, r.passioRouteId, st.stopId, now, demo),
+                activePulse: reports?.activePulse ?? null,
+                reports: reports?.reports ?? [],
+                myReport: reports?.myReport ?? null,
+              };
+            }),
         };
       }),
-      vehicles: freshShuttleVehicles(latestSnap, now, viewer.mode === "demo"),
-      shuttleNotices: freshShuttleNotices(latestSnap, now, viewer.mode === "demo"),
+      vehicles: freshShuttleVehicles(latestSnap, now, demo),
+      shuttleNotices: freshShuttleNotices(latestSnap, now, demo),
+      noticesRetrievedAt,
       fetchedAt: latestSnap?.vehiclesFetchedAt ?? null,
-      isFixture: viewer.mode === "demo" && Boolean(latestSnap?.isFixture),
+      isFixture: demo && Boolean(latestSnap?.isFixture),
     };
   },
 });
 
+/**
+ * One-tap stop report (No line / Long line / Passed full). Lasts 15 min, is
+ * anonymous to other Students, earns no Clout, and is never sent to Big Owl
+ * Bus or KSU. A new report replaces the Student's own active report at that stop.
+ */
 export const submitShuttleStopPulse = viewerMutation({
   args: {
     stopId: v.string(),
-    pulseKind: v.union(
-      v.literal("stop_clear"),
-      v.literal("long_line"),
-      v.literal("bus_passed_full")
-    ),
+    pulseKind: stopReportKind,
     nowOverride: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const now = workflowTime(args.nowOverride);
     const { viewer } = ctx;
+    const stopId = args.stopId.trim();
 
-    await ctx.db.insert("campusPulses", {
+    const active = await ctx.db
+      .query("campusPulses")
+      .withIndex("by_target_active", (q) =>
+        q
+          .eq("workspaceKey", viewer.workspaceKey)
+          .eq("targetType", "shuttle_stop")
+          .eq("targetKey", stopId)
+          .gt("expiresAt", now)
+      )
+      .take(50);
+    for (const pulse of active) {
+      if (pulse.authorId === viewer.actorStudent._id) await ctx.db.delete(pulse._id);
+    }
+
+    const pulseId = await ctx.db.insert("campusPulses", {
       workspaceKey: viewer.workspaceKey,
       targetType: "shuttle_stop",
-      targetKey: args.stopId.trim(),
+      targetKey: stopId,
       authorId: viewer.actorStudent._id,
       tierValue: args.pulseKind,
       publishedAt: now,
       expiresAt: now + FIFTEEN_MINUTES_MS,
     });
 
-    return { ok: true, expiresAt: now + FIFTEEN_MINUTES_MS };
+    return { ok: true, pulseId, expiresAt: now + FIFTEEN_MINUTES_MS };
+  },
+});
+
+/** Undo the viewer's own stop report. */
+export const undoShuttleStopPulse = viewerMutation({
+  args: { pulseId: v.id("campusPulses") },
+  handler: async (ctx, args) => {
+    const { viewer } = ctx;
+    const pulse = await ctx.db.get(args.pulseId);
+    if (
+      !pulse ||
+      pulse.targetType !== "shuttle_stop" ||
+      pulse.workspaceKey !== viewer.workspaceKey ||
+      pulse.authorId !== viewer.actorStudent._id
+    ) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Stop report not found." });
+    }
+    await ctx.db.delete(pulse._id);
+    return { ok: true };
   },
 });
 

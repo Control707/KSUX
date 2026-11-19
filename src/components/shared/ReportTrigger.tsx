@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
-import { Flag, PhoneCall, ShieldAlert, X } from "lucide-react";
+import React, { useId, useState } from "react";
+import { Flag, ShieldAlert } from "lucide-react";
+import { Dialog } from "@/components/a11y/Dialog";
+import { useAnnouncer } from "@/components/a11y/Announcer";
 
 export type ReportReason =
   | "harassment"
@@ -55,24 +57,35 @@ const REPORT_REASONS: Array<{
   {
     value: "campus_safety",
     label: "Campus Safety",
-    helper: "Urgent physical safety concern on Kennesaw or Marietta Campus",
+    helper: "A physical safety concern on Kennesaw or Marietta Campus",
   },
 ];
 
+export const REPORT_MENU_LABEL = "Report to KSUX moderators";
+export const REPORT_SENT_MESSAGE = "Sent to KSUX moderators";
+
+/**
+ * "Report to KSUX moderators" trigger and form dialog (SPEC-v2 §2). The props
+ * API is shared by every screen that lets a Student report content.
+ */
 export function ReportTrigger({
   targetType,
   targetId,
   targetLabel,
   onSubmitReport,
 }: ReportTriggerProps) {
+  const { toast } = useAnnouncer();
+  const formId = useId();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<ReportReason>("scam_spam");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const subject = targetLabel ?? targetType.replace("_", " ");
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (event: React.FormEvent) => {
+    event.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
@@ -85,130 +98,147 @@ export function ReportTrigger({
         });
       }
       setSubmitted(true);
+      // Screens often hide the reported item at once, which unmounts this
+      // dialog, so the toast carries the emergency reminder for Campus Safety.
+      toast({
+        tone: "success",
+        message: REPORT_SENT_MESSAGE,
+        detail:
+          reason === "campus_safety"
+            ? "Emergency? Call 911 or KSU Public Safety at 470-578-6666."
+            : "Hidden from your view while moderators review it.",
+        durationMs: reason === "campus_safety" ? 15000 : undefined,
+        testId: "report-sent-toast",
+      });
+      // Campus Safety keeps the dialog open so the emergency contacts stay visible.
+      if (reason !== "campus_safety") setOpen(false);
     } catch (err: any) {
-      setError(err?.message || "Could not submit report.");
+      setError(err?.data?.message || err?.message || "Could not submit report.");
     } finally {
       setSubmitting(false);
     }
   };
 
+  const secondaryButton =
+    "min-h-[var(--target)] rounded-[var(--r-sm)] border border-[var(--line-strong)] px-[var(--sp-4)] text-sm font-bold text-[var(--ink)] hover:bg-[var(--surface-2)]";
+
   return (
     <>
       <button
         type="button"
+        data-testid="report-trigger-btn"
         onClick={() => {
           setOpen(true);
           setSubmitted(false);
           setError(null);
         }}
-        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-[#5E6675] hover:bg-[#FEE2E2] hover:text-[#B91C1C]"
-        title="Report content"
+        className="inline-flex min-h-[var(--target)] min-w-[var(--target)] items-center justify-center gap-[var(--sp-1)] rounded-[var(--r-sm)] px-[var(--sp-2)] text-sm font-semibold text-[var(--muted)] hover:bg-[var(--bad-bg)] hover:text-[var(--bad-fg)]"
       >
-        <Flag className="h-3 w-3" />
+        <Flag aria-hidden="true" className="h-4 w-4" />
         <span>Report</span>
+        <span className="sr-only"> to KSUX moderators</span>
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-[#E4E7EE] bg-white p-5 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-extrabold text-[#111317]">
-                Report {targetLabel ?? targetType.replace("_", " ")}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-lg p-1 text-[#5E6675] hover:bg-[#F4F6FA]"
-              >
-                <X className="h-4 w-4" />
-              </button>
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={REPORT_MENU_LABEL}
+        description={`Reporting ${subject}. KSUX is a Student-run community app; moderators are Students and staff volunteers, not KSU police.`}
+        testId="report-dialog"
+      >
+        {submitted ? (
+          <div className="space-y-[var(--sp-3)]">
+            <p
+              role="status"
+              className="rounded-[var(--r-sm)] border border-[var(--ok-fg)] bg-[var(--ok-bg)] p-[var(--sp-3)] text-sm font-semibold text-[var(--ok-fg)]"
+            >
+              <span aria-hidden="true">✓ </span>
+              {REPORT_SENT_MESSAGE}. It is hidden from your view while they review it.
+            </p>
+            {reason === "campus_safety" && <KsuPoliceEmergencyCallout />}
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="min-h-[var(--target)] w-full rounded-[var(--r-sm)] bg-[var(--accent)] text-sm font-bold text-[var(--on-accent)]"
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleConfirm} className="space-y-[var(--sp-3)]">
+            <fieldset className="min-w-0 space-y-[var(--sp-2)]">
+              <legend className="mb-[var(--sp-2)] text-sm font-bold">Why are you reporting this?</legend>
+              {REPORT_REASONS.map((opt) => {
+                const helperId = `${formId}-${opt.value}-help`;
+                return (
+                  <label
+                    key={opt.value}
+                    className={`flex min-h-[var(--target)] cursor-pointer items-start gap-[var(--sp-3)] rounded-[var(--r-sm)] border p-[var(--sp-3)] ${
+                      reason === opt.value
+                        ? "border-[var(--ink)] bg-[var(--accent-soft)]"
+                        : "border-[var(--line)] hover:bg-[var(--surface-2)]"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={`${formId}-reason`}
+                      value={opt.value}
+                      checked={reason === opt.value}
+                      onChange={() => setReason(opt.value)}
+                      aria-describedby={helperId}
+                      className="mt-[0.15rem] h-5 w-5 shrink-0 accent-[var(--ink)]"
+                      data-target-exempt=""
+                    />
+                    <span className="min-w-0 [overflow-wrap:anywhere]">
+                      <span className="block text-sm font-bold">{opt.label}</span>
+                      <span id={helperId} className="block text-sm text-[var(--muted)]">
+                        {opt.helper}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </fieldset>
+
+            {reason === "campus_safety" && <KsuPoliceEmergencyCallout />}
+
+            <div>
+              <label htmlFor={`${formId}-notes`} className="block text-sm font-bold">
+                Notes for moderators (optional)
+              </label>
+              <textarea
+                id={`${formId}-notes`}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                maxLength={300}
+                className="mt-[var(--sp-1)] w-full rounded-[var(--r-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-[var(--sp-3)] py-[var(--sp-2)] text-body text-[var(--ink)]"
+              />
             </div>
 
-            {submitted ? (
-              <div className="mt-4 space-y-3">
-                <div className="rounded-xl bg-[#DCFCE7] p-3 text-xs font-semibold text-[#15803D]">
-                  Report received. This item has been immediately hidden from
-                  your view and queued for review.
-                </div>
-                {reason === "campus_safety" && <KsuPoliceEmergencyCallout />}
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="w-full rounded-xl bg-[#111317] py-2.5 text-xs font-bold text-[#FDBB30]"
-                >
-                  Done
-                </button>
-              </div>
-            ) : (
-              <div className="mt-3 space-y-3">
-                <div className="space-y-1.5">
-                  {REPORT_REASONS.map((opt) => (
-                    <label
-                      key={opt.value}
-                      className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-2.5 text-left transition ${
-                        reason === opt.value
-                          ? "border-[#111317] bg-[#FFF6DC]/60"
-                          : "border-[#E4E7EE] hover:bg-[#F4F6FA]"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="report-reason"
-                        checked={reason === opt.value}
-                        onChange={() => setReason(opt.value)}
-                        className="mt-0.5"
-                      />
-                      <div>
-                        <div className="text-xs font-bold text-[#111317]">
-                          {opt.label}
-                        </div>
-                        <div className="text-[11px] text-[#5E6675]">
-                          {opt.helper}
-                        </div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-
-                {reason === "campus_safety" && <KsuPoliceEmergencyCallout />}
-
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={2}
-                  maxLength={300}
-                  placeholder="Optional context for moderators..."
-                  className="w-full rounded-xl border border-[#E4E7EE] px-3 py-2 text-xs text-[#111317] focus:border-[#111317] focus:outline-none"
-                />
-
-                {error && (
-                  <p className="text-xs font-semibold text-[#B91C1C]">
-                    {error}
-                  </p>
-                )}
-
-                <div className="flex justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setOpen(false)}
-                    className="rounded-xl border border-[#E4E7EE] px-3.5 py-2 text-xs font-bold text-[#5E6675]"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    disabled={submitting}
-                    onClick={handleConfirm}
-                    className="rounded-xl bg-[#B91C1C] px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
-                  >
-                    {submitting ? "Submitting..." : "Submit & Hide Item"}
-                  </button>
-                </div>
-              </div>
+            {error && (
+              <p role="alert" className="rounded-[var(--r-sm)] border border-[var(--bad-fg)] bg-[var(--bad-bg)] p-[var(--sp-2)] text-sm font-semibold text-[var(--bad-fg)]">
+                <span aria-hidden="true">⚠ </span>
+                {error}
+              </p>
             )}
-          </div>
-        </div>
-      )}
+
+            <div className="flex flex-wrap justify-end gap-[var(--sp-2)] pt-[var(--sp-1)]">
+              <button type="button" onClick={() => setOpen(false)} className={secondaryButton}>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                data-testid="report-submit-btn"
+                className="min-h-[var(--target)] rounded-[var(--r-sm)] bg-[var(--bad-fg)] px-[var(--sp-4)] text-sm font-bold text-[var(--bad-bg)] disabled:opacity-60"
+              >
+                {submitting ? "Sending…" : "Send report"}
+              </button>
+            </div>
+          </form>
+        )}
+      </Dialog>
     </>
   );
 }
@@ -217,23 +247,18 @@ export function KsuPoliceEmergencyCallout() {
   return (
     <div
       data-testid="ksu-police-callout"
-      className="rounded-xl border-2 border-[#B91C1C] bg-[#FEE2E2] p-3 text-[#7F1D1D]"
+      className="rounded-[var(--r-sm)] border-2 border-[var(--bad-fg)] bg-[var(--bad-bg)] p-[var(--sp-3)] text-[var(--bad-fg)]"
     >
-      <div className="flex items-center gap-1.5 text-xs font-extrabold">
-        <ShieldAlert className="h-4 w-4 shrink-0 text-[#B91C1C]" />
-        <span>Emergency? KSUX reports do NOT dispatch police or EMS.</span>
-      </div>
-      <p className="mt-1 text-[11.5px] leading-snug">
-        Contact <strong>KSU Department of Public Safety</strong> immediately at{" "}
-        <a
-          href="tel:470-578-6666"
-          className="inline-flex items-center gap-0.5 font-extrabold underline"
-        >
-          <PhoneCall className="h-3 w-3" />
+      <p className="flex items-start gap-[var(--sp-2)] text-sm font-bold">
+        <ShieldAlert aria-hidden="true" className="mt-[0.1rem] h-4 w-4 shrink-0" />
+        <span>Emergency? KSUX reports do not reach police or EMS.</span>
+      </p>
+      <p className="mt-[var(--sp-1)] text-sm leading-snug [overflow-wrap:anywhere]">
+        Call <strong>911</strong>, or contact the KSU Department of Public Safety at{" "}
+        <a href="tel:4705786666" className="inline font-bold underline">
           470-578-6666
         </a>
-        , dial <strong>911</strong>, or use the official <strong>LiveSafe</strong>{" "}
-        campus app.
+        .
       </p>
     </div>
   );

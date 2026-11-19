@@ -1,25 +1,39 @@
-# Remaining screen migrations
+# Screen migrations
 
-Phase 0 ([#72](https://github.com/Control707/KSUX/issues/72)) shipped the Direction C tokens, the shell, the shared primitives and the shared map frame. These screens still carry v1 styling and are Phase 1A work. Until each one migrates, the `a11y` job checks only the shell chrome around it, and its file stays on the px-text allow-list in `tests/unit/a11y-static-boundaries.test.ts`.
+Phase 0 ([#72](https://github.com/Control707/KSUX/issues/72)) shipped the Direction C tokens, the shell, the shared primitives and the shared map frame. Phase 1A ([#74](https://github.com/Control707/KSUX/issues/74)) migrated every remaining screen. The px-text allow-list in `tests/unit/a11y-static-boundaries.test.ts` is now empty and must stay empty. The same test also blocks hex colours outside the token sheet and the MapLibre paint code.
 
-When a screen migrates: use the tokens and primitives, remove its file from the allow-list, and move its route into the full-page axe list in `tests/a11y/shell.spec.ts`.
+Every route is checked whole by a `screenMatrix` spec in `tests/a11y/`. Each spec covers light and dark at 390 px and 1440 px (axe with zero serious or critical, 44 px targets, no text under 13 px, one `h1`) plus reflow at 320 px and 200% text.
 
-| Screen | File | Known v1 gaps |
+## Baseline findings (#45) closed
+
+| Baseline finding | Where it was fixed | Checked by |
 |---|---|---|
-| Welcome, OTP, onboarding | `shell/WelcomeGate.tsx`, `auth/EduOtpModal.tsx`, `auth/OnboardingFlow.tsx` | px text; the OTP modal must move to `Dialog` with paste and `autocomplete="one-time-code"` |
-| Now | `now/NowHudView.tsx` | px text; Scrappy brief headline; "All KSU" scope copy |
-| Feed | `feed/FeedView.tsx` | px text; composer and replies must use `Dialog`; stream rename to "All KSU" |
-| Marketplace | `marketplace/MarketplaceView.tsx`, `DealHandoffPanel.tsx` | px text; photo-first Listings and gallery; sell form in `Dialog` |
-| Chats | `chats/ChatsInboxView.tsx`, `ChatThreadView.tsx` | px text; pinned composer; message announcements |
-| Scrappy | `scrappy/ScrappyView.tsx` | px text; pinned composer; streamed-answer announcements |
-| Parking | `parking/ParkingView.tsx` | Layout A bottom sheet; no-estimate display; reuse `StatusChip` |
-| Transit | `transit/TransitView.tsx` | Layout A; route code/pattern identity; stale-bus rules; ≤2 min announcements |
-| Study, Dining, Events, Clubs, Course Hubs | `study/`, `dining/`, `communities/`, `courses/` | px text; unlabelled selects; campus badges |
-| Profile, Moderation | `profile/ProfileView.tsx`, `moderation/ModerationQueueView.tsx` | px text; Report dialog moves to `Dialog` |
-| Shared | `shared/CampusEntityCard.tsx`, `shared/ReportTrigger.tsx`, `pwa/PwaSupport.tsx` | px text; Report menu rename to "Report to KSUX moderators" |
+| 1. Fixed 9–11 px text; clipping at 200% | Every screen on the rem type tokens | `a11y-static-boundaries.test.ts` (no px text); every `screenMatrix` reflow test |
+| 2. Targets under 44 px | Every screen (`min-h-[var(--target)]`) | `expectTargetSizes` in every `screenMatrix` |
+| 3. 14 unlabelled `<select>`s | `MarketplaceView`, `ParkingView` ("Your permit"), `DiningView`, `ClubsViews`, `CourseHubView`, `OnboardingFlow` | axe `label` / `select-name` rules in `marketplace`, `parking`, `campus-life`, `onboarding` specs |
+| 4. 13 unnamed icon buttons | `EduOtpModal` (Close sign-in), `QuickSheet`, `FeedView` (post actions), `MarketplaceView`, `ChatThreadView` (Delete your message) | axe `button-name`; `feed`, `chats`, `onboarding` specs |
+| 5. OTP modal and Quick Sheet not dialogs | `EduOtpModal` and every other modal and sheet now use `Dialog` | `onboarding.spec.ts`, `shell.spec.ts`, `feed`, `marketplace`, `campus-life`, `profile`, `parking`, `report-dialog` dialog tests |
+| 6. Maps: no zoom, attribution off, colour-only status | `CampusGeoMap` (#72), `ParkingView`, `TransitView` | `map.spec.ts`, `parking.spec.ts`, `transit.spec.ts` |
+| 7. 46 contrast failures; 1.7:1 route badges | Tokens in both themes; `RouteBadge` picks ink or white text to reach 4.5:1 | axe `color-contrast` in every spec; badge-contrast test in `transit.spec.ts` |
+| 8. No live regions | Toast host and announcer (#72); Feed publish, Report sent, OTP sent and errors, Scrappy answer, new chat message, Parking and Transit announcements | `feed`, `report-dialog`, `onboarding`, `scrappy`, `chats`, `parking`, `transit` specs |
+| 9. Duplicate nav landmark, Feed without `h1`, skipped levels | Shell (#72); one `h1` per screen | one-`h1` check in every `screenMatrix`; axe `heading-order`, `landmark-unique` |
+| 10. No reduced-motion handling | Global CSS (#72); Transit markers jump; Parking and Transit sheets do not animate movement | `shell.spec.ts`, `map.spec.ts` reduced-motion tests |
 
-## Shared-map follow-ups
+## Specs per area
 
-- The map follows the light Positron basemap until Parking and Transit gain the dark theme in Phase 1A; then switch to OpenFreeMap dark with the theme.
-- Route line patterns (solid, dashed, dotted) and bus stale styling arrive with the Transit Layout A work ([#67](https://github.com/Control707/KSUX/issues/67)).
-- The Incidents layer arrives with Phase 1B.
+| Area | Spec |
+|---|---|
+| Welcome, OTP, onboarding | `onboarding.spec.ts`, `tests/unit/onboarding-markup.test.ts` (onboarding needs a real `.edu` Student, so its markup is checked statically) |
+| Report to KSUX moderators | `report-dialog.spec.ts` |
+| Now, Feed | `now.spec.ts`, `feed.spec.ts` |
+| Marketplace, Chats, Scrappy | `marketplace.spec.ts`, `chats.spec.ts`, `scrappy.spec.ts` |
+| Parking, Transit, shared map | `parking.spec.ts`, `transit.spec.ts`, `map.spec.ts` |
+| Study, Dining, Events, Clubs, Course Hubs | `campus-life.spec.ts` |
+| Profile, About, Moderation | `profile.spec.ts` |
+| Shell, Quick Sheet, Safety, Emergency Panel | `shell.spec.ts`, `safety.spec.ts` |
+
+## Follow-ups
+
+- Parking does not yet use the shared map's `fill` and `renderPanel` props, so its map is not full-bleed under the sheet and the map list sits beside the sheet rather than in it.
+- The Transit "posted" time on a Shuttle Notice is the time KSUX retrieved it. Passio GO does not supply a posted time.
+- The Incidents map layer arrives with Phase 1B.

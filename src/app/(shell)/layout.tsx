@@ -17,7 +17,7 @@ export default function ShellLayout({
     >
       <Suspense
         fallback={
-          <div className="p-4 text-xs text-[#5E6675]">Loading...</div>
+          <div className="p-[var(--sp-4)] text-sm text-[var(--muted)]" role="status">Loading…</div>
         }
       >
         {children}

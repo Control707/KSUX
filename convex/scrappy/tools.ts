@@ -5,6 +5,7 @@ import {
   evaluateDiningOpenStatus,
   evaluateParkingLotFullness,
 } from "../lib/parkingMath";
+import { evaluateCampusLine } from "../lib/parkingCampusLine";
 import { freshShuttleEta } from "../lib/shuttleRead";
 import {
   filterVisibleContent,
@@ -95,7 +96,7 @@ const PUBLIC_SIX_TOOL_SPECS: ScrappyToolSpec[] = [
   {
     name: "getCampusDailyPulse",
     description:
-      "Inspect live Parking Lot fullness, Big Owl Bus Shuttle Routes, Study Rooms, and Dining Venues.",
+      "Inspect Parking Lot fullness from Student Parking Reports (noRecentReports when none; plus the dated campus-wide class-enrollment line), Big Owl Bus Shuttle Routes, Study Rooms, and Dining Venues.",
     parameters: {
       type: "object",
       properties: {
@@ -490,9 +491,13 @@ export const getCampusDailyPulse = internalQuery({
           slug: lot.slug,
           status: ev.tierLabel,
           provenance: ev.provenanceLabel,
+          noRecentReports: ev.noRecentReports,
         };
       })
     );
+    // Fullness comes only from Student Parking Reports (SPEC-v2 §4): no estimate.
+    const parkingNoRecentReports = parking.every((lot) => lot.noRecentReports);
+    const parkingCampusLine = evaluateCampusLine(now)?.text ?? null;
 
     const scopedRoutes = routes
       .filter(
@@ -540,6 +545,8 @@ export const getCampusDailyPulse = internalQuery({
     return {
       campus: targetCampus,
       parking,
+      parkingNoRecentReports,
+      parkingCampusLine,
       shuttles,
       study,
       dining,
@@ -682,6 +689,8 @@ export const getEntityDetail = internalQuery({
           permitTiers: lot.permitTiers,
           status: ev.tierLabel,
           provenance: ev.provenanceLabel,
+          noRecentReports: ev.noRecentReports,
+          campusLine: evaluateCampusLine(now)?.text ?? null,
         },
         citations: [
           {

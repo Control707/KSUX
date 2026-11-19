@@ -23,6 +23,108 @@ import {
 } from "@/lib/viewerClient";
 import { saveCommuterSnapshot } from "@/lib/commuterCache";
 import { InstallHomeScreenCard } from "@/components/pwa/PwaSupport";
+import {
+  FillBar,
+  StatusChip,
+  fullnessFromTier,
+  type FullnessStatus,
+} from "@/components/a11y/controls";
+
+const card =
+  "min-w-0 rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] p-[var(--sp-4)]";
+const tileHead = "flex flex-wrap items-center justify-between gap-[var(--sp-2)]";
+const tileTitle =
+  "flex min-w-0 items-center gap-[var(--sp-2)] font-display text-[length:var(--fs-lg)] font-bold text-[var(--ink)]";
+const tileLink =
+  "inline-flex min-h-[var(--target)] items-center gap-[var(--sp-1)] rounded-[var(--r-sm)] text-sm font-bold text-[var(--accent-ink)] underline underline-offset-2";
+const muted = "text-sm text-[var(--muted)] [overflow-wrap:anywhere]";
+const inner =
+  "min-w-0 rounded-[var(--r-md)] border border-[var(--line)] bg-[var(--surface-2)] p-[var(--sp-3)]";
+
+type ParkingCard = {
+  _id: unknown;
+  name: string;
+  effectiveTier: 0 | 1 | 2 | 3 | null;
+  tierLabel: string;
+  provenanceKind?: "verified_multi" | "single_report" | "no_recent_reports";
+  provenanceLabel: string;
+  activeReportCount?: number;
+  latestReportMinutesAgo?: number;
+  noRecentReports?: boolean;
+  spotOpening?: { deckLevel?: string } | null;
+  overflowSuggestion?: {
+    name: string;
+    tierLabel: string;
+    shuttleName?: string;
+    shuttleEtaMinutes?: number;
+  } | null;
+};
+
+/** Neutral parking state (SPEC-v2 §4): only Student Parking Reports, no estimate. */
+export function parkingDisplay(lot: ParkingCard): {
+  status: FullnessStatus;
+  line: string;
+} {
+  const count = lot.activeReportCount ?? (lot.effectiveTier === null ? 0 : 1);
+  const none =
+    lot.noRecentReports === true ||
+    lot.provenanceKind === "no_recent_reports" ||
+    count === 0 ||
+    lot.effectiveTier === null;
+  if (none) {
+    return { status: "none", line: "No Student Parking Reports in the last 45 minutes. No estimate shown." };
+  }
+  const status = fullnessFromTier(lot.effectiveTier);
+  // The server owns the wording ("· unconfirmed" for 1 report, "Student-verified" for ≥2).
+  if (/unconfirmed|Student-verified/.test(lot.provenanceLabel)) {
+    return { status, line: lot.provenanceLabel };
+  }
+  const ago = lot.latestReportMinutesAgo != null ? ` (${lot.latestReportMinutesAgo} min ago)` : "";
+  if (lot.provenanceKind === "single_report" || count === 1) {
+    return { status, line: `Live · 1 Student report${ago} · unconfirmed` };
+  }
+  return { status, line: `Live · Student-verified${ago}` };
+}
+
+/** Strip a percentage range ("Open (<60%)") down to its word. */
+function tierWord(label: string): string {
+  return label.replace(/\s*\(.*\)\s*$/, "");
+}
+
+/** Scrappy's logistics-only brief (SPEC-v2 §3): parking and buses, never Incidents, Alerts or Clout. */
+function buildBrief(parking: ParkingCard[], shuttles: Array<{ name: string; nextStopName?: string | null; etaMinutes?: number | null }>): string {
+  const parts: string[] = [];
+  const live = parking.filter((lot) => parkingDisplay(lot).status !== "none");
+  const busy = live.filter((lot) => (lot.effectiveTier ?? 0) >= 2);
+  const room = live.filter((lot) => (lot.effectiveTier ?? 3) <= 1);
+  if (live.length === 0) {
+    parts.push(
+      parking.length
+        ? "No recent Parking Reports for your lots yet."
+        : "No Parking Lots to show here."
+    );
+  } else {
+    if (busy.length) {
+      parts.push(`${busy.map((l) => l.name).join(" and ")} ${busy.length > 1 ? "are" : "is"} ${tierWord(busy[0]!.tierLabel).toLowerCase()}, per Student reports.`);
+    }
+    if (room.length) {
+      parts.push(`${room[0]!.name} has room (${tierWord(room[0]!.tierLabel)}).`);
+    }
+  }
+  const bus = shuttles.find((s) => s.etaMinutes != null);
+  if (bus) {
+    parts.push(
+      `The ${bus.name} reaches ${bus.nextStopName ?? "its next stop"} in ${bus.etaMinutes} min.`
+    );
+  } else if (shuttles.length) {
+    parts.push("No live Big Owl Bus times right now.");
+  }
+  return parts.join(" ");
+}
+
+function scopeName(campus: string): string {
+  return campus === "All KSU" ? "Kennesaw and Marietta" : campus;
+}
 
 export function NowHudView() {
   const { auth } = useViewerClient();
@@ -33,428 +135,375 @@ export function NowHudView() {
     if (scope && hud) saveCommuterSnapshot(scope, hud);
   }, [auth, hud]);
 
-  const activeData = hud;
-
-  if (!activeData) {
+  if (!hud) {
     return (
-      <div className="p-4">
-        <div className="rounded-2xl border border-[#E4E7EE] bg-white p-6 text-sm font-semibold text-[#5E6675]">
-          Loading your KSU Now Commuter HUD...
-        </div>
+      <div className="space-y-[var(--sp-3)] p-[var(--sp-4)]">
+        <h1 data-route-heading="" tabIndex={-1} className="font-display text-[length:var(--fs-2xl)] font-bold">
+          Now
+        </h1>
+        <p role="status" className={`${card} ${muted}`}>
+          Loading parking, buses and your classes…
+        </p>
       </div>
     );
   }
 
-  const campusFilter: string = activeData.campusFilter ?? "Kennesaw";
-  const enrolledCourses = activeData.schedule?.enrolledCourses ?? [];
-  const privateClasses = activeData.schedule?.privateClasses ?? [];
+  const campusFilter: string = hud.campusFilter ?? "Kennesaw";
+  const scope = scopeName(campusFilter);
+  const enrolledCourses = hud.schedule?.enrolledCourses ?? [];
+  const privateClasses = hud.schedule?.privateClasses ?? [];
   const standaloneClasses = privateClasses.filter((entry) =>
     !entry.sectionId || !enrolledCourses.some((course) => course.sectionId === entry.sectionId));
-  const personalDeadlines = activeData.schedule?.personalDeadlines ?? [];
-  const parkingCards = activeData.parkingCards ?? [];
-  const shuttleCards = activeData.shuttleCards ?? [];
-  const studySummary = activeData.studySummary;
-  const diningCards = activeData.diningCards ?? [];
-  const eventCards = activeData.eventCards ?? [];
+  const personalDeadlines = hud.schedule?.personalDeadlines ?? [];
+  const parkingCards = (hud.parkingCards ?? []) as unknown as ParkingCard[];
+  const shuttleCards = hud.shuttleCards ?? [];
+  const studySummary = hud.studySummary;
+  const diningCards = hud.diningCards ?? [];
+  const eventCards = hud.eventCards ?? [];
+  const brief = buildBrief(parkingCards.slice(0, 2), shuttleCards);
+  const briefTime = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
   return (
-    <div data-testid="now-bento-hud" className="space-y-3.5 p-3.5 sm:p-4">
+    <div data-testid="now-bento-hud" className="space-y-[var(--sp-4)] p-[var(--sp-4)]">
       <InstallHomeScreenCard />
-      {/* Scope Context Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#E4E7EE] bg-white px-4 py-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-base font-black text-[#111317]">
-              Now on {campusFilter}
-            </h1>
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${
-                campusFilter === "Marietta"
-                  ? "bg-[#DBEAFE] text-[#1E3A8A]"
-                  : campusFilter === "All KSU"
-                    ? "bg-[#F3E8FF] text-[#6B21A8]"
-                    : "bg-[#FFF6DC] text-[#855A00]"
-              }`}
-            >
-              0-Tap Commuter HUD
-            </span>
-          </div>
-          <p className="text-xs text-[#5E6675]">
-            Live Student crowdsourcing + public KSU feeds · Chats, Course Hubs
-            &amp; KM Shuttle stay synced across Campus switches.
-          </p>
-        </div>
-        <Link
-          href="/scrappy"
-          className="inline-flex items-center gap-1.5 rounded-xl bg-[#111317] px-3 py-2 text-xs font-extrabold text-[#FDBB30] hover:opacity-95"
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          <span>Ask Scrappy</span>
-        </Link>
+
+      <div className="min-w-0">
+        <p className="text-sm font-bold text-[var(--muted)]">{scope}{campusFilter === "All KSU" ? " · pick one with the Campus switcher" : " Campus"}</p>
+        <h1 data-route-heading="" tabIndex={-1} className="font-display text-[length:var(--fs-2xl)] font-bold leading-tight text-[var(--ink)] [overflow-wrap:anywhere]">
+          {campusFilter === "All KSU" ? "Now at Kennesaw and Marietta" : `Now on ${campusFilter}`}
+        </h1>
       </div>
 
-      {/* Bento Grid */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        {/* Tile 1: Next Class & Private Schedule (Wide) */}
-        <section
-          data-testid="bento-schedule-tile"
-          className="rounded-2xl border border-[#E4E7EE] bg-white p-4 shadow-xs md:col-span-2"
+      <section aria-labelledby="now-brief-h" data-testid="now-scrappy-brief" className={`${card} space-y-[var(--sp-2)] border-l-4 border-l-[var(--accent)]`}>
+        <h2 id="now-brief-h" className="sr-only">Scrappy&apos;s brief</h2>
+        <p className="font-display text-[length:var(--fs-xl)] font-bold leading-snug text-[var(--ink)] [overflow-wrap:anywhere]">
+          {brief}
+        </p>
+        <p className={muted}>
+          <Sparkles aria-hidden="true" className="mr-[var(--sp-1)] inline h-4 w-4 align-[-0.15em] text-[var(--accent-ink)]" />
+          Scrappy · from Student Parking Reports and Big Owl Bus via Passio GO · {briefTime} · may be out of date
+        </p>
+        <Link
+          href="/scrappy"
+          className="inline-flex min-h-[var(--target)] items-center gap-[var(--sp-2)] rounded-[var(--r-pill)] border border-[var(--line-strong)] px-[var(--sp-4)] text-sm font-bold text-[var(--ink)] hover:bg-[var(--surface-2)]"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-[#5E6675]">
-              <GraduationCap className="h-4 w-4 text-[#111317]" />
-              <span>My Course Hubs &amp; Private Schedule</span>
-            </div>
+          Ask a follow-up
+          <ArrowRight aria-hidden="true" className="h-4 w-4" />
+        </Link>
+      </section>
+
+      <div className="lt-grid-1 grid grid-cols-1 gap-[var(--sp-3)] md:grid-cols-2">
+        <section data-testid="bento-schedule-tile" aria-labelledby="now-classes-h" className={`${card} md:col-span-2`}>
+          <div className={tileHead}>
+            <h2 id="now-classes-h" className={tileTitle}>
+              <GraduationCap aria-hidden="true" className="h-5 w-5 shrink-0" />
+              Your classes
+            </h2>
             <Link
               href={
                 enrolledCourses[0]
                   ? `/courses/${encodeURIComponent(enrolledCourses[0].subjectCourse)}`
                   : "/courses/CS%203305"
               }
-              className="inline-flex items-center gap-1 text-xs font-bold text-[#1E3A8A] hover:underline"
+              className={tileLink}
             >
-              <span>Manage Schedule / .ics</span>
-              <ArrowRight className="h-3.5 w-3.5" />
+              Manage schedule / import .ics
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
           </div>
 
           {enrolledCourses.length === 0 ? (
-            <p className="mt-2 text-xs text-[#5E6675]">
-              No Course Hubs joined yet. Search by 5-digit CRN or upload your
-              Owl Express / D2L <code>.ics</code> file.
+            <p className={`mt-[var(--sp-2)] ${muted}`}>
+              No Course Hubs joined yet. Search by 5-digit CRN or upload your Owl Express / D2L .ics file.
             </p>
           ) : (
-            <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <ul aria-label="Course Hubs" className="lt-grid-1 mt-[var(--sp-2)] grid grid-cols-1 gap-[var(--sp-2)] sm:grid-cols-2">
               {enrolledCourses.map((c) => {
                 const imported = c.sectionId ? privateClasses.filter((entry) => entry.sectionId === c.sectionId) : [];
-                return <Link
-                  key={String(c.enrollmentId)}
-                  href={`/courses/${encodeURIComponent(c.subjectCourse)}`}
-                  className="rounded-xl border border-[#E4E7EE] bg-[#F9FAFC] p-3 transition hover:border-[#D99B00]"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-black text-[#111317]">
-                      {c.subjectCourse} · {c.title}
-                    </span>
-                    <span className="rounded-full bg-[#FFF6DC] px-2 py-0.5 text-[10px] font-bold text-[#855A00]">
-                      {c.campus}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-[11.5px] text-[#5E6675]">
-                    {imported.length ? imported.map((entry) => (
-                      <div key={entry.key}>{formatPrivateClassMeeting(entry)}</div>
-                    )) : c.meetings?.[0]
-                      ? `${c.meetings[0].timeLabel} · ${c.meetings[0].buildingName} ${c.meetings[0].roomNumber}`
-                      : `CRN ${c.crn ?? "Enrolled"} · ${c.instructorName ?? "KSU Faculty"}`}
-                  </div>
-                </Link>;
+                return (
+                  <li key={String(c.enrollmentId)} className="min-w-0">
+                    <Link
+                      href={`/courses/${encodeURIComponent(c.subjectCourse)}`}
+                      className={`${inner} block min-h-[var(--target)] hover:border-[var(--line-strong)]`}
+                    >
+                      <span className="flex flex-wrap items-center justify-between gap-[var(--sp-2)]">
+                        <span className="min-w-0 text-sm font-bold text-[var(--ink)] [overflow-wrap:anywhere]">
+                          {c.subjectCourse} · {c.title}
+                        </span>
+                        <span className="text-sm font-bold text-[var(--muted)]">{c.campus}</span>
+                      </span>
+                      <span className={`mt-[var(--sp-1)] block ${muted}`}>
+                        {imported.length
+                          ? imported.map((entry) => (
+                              <span key={entry.key} className="block">{formatPrivateClassMeeting(entry)}</span>
+                            ))
+                          : c.meetings?.[0]
+                            ? `${c.meetings[0].timeLabel} · ${c.meetings[0].buildingName} ${c.meetings[0].roomNumber}`
+                            : `CRN ${c.crn ?? "Enrolled"} · ${c.instructorName ?? "KSU Faculty"}`}
+                      </span>
+                    </Link>
+                  </li>
+                );
               })}
-            </div>
+            </ul>
           )}
 
           {standaloneClasses.length > 0 && (
-            <ul aria-label="Private classes" className="mt-2.5 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+            <ul aria-label="Private classes" className="lt-grid-1 mt-[var(--sp-2)] grid grid-cols-1 gap-[var(--sp-2)] sm:grid-cols-2">
               {standaloneClasses.map((entry) => (
-                <li key={entry.termCode + ":" + entry.key} className="rounded-xl border border-[#E4E7EE] bg-[#F9FAFC] p-3">
-                  <strong>{entry.title}</strong>
-                  <div>{formatPrivateClassMeeting(entry)}</div>
+                <li key={entry.termCode + ":" + entry.key} className={`${inner} text-sm`}>
+                  <strong className="[overflow-wrap:anywhere]">{entry.title}</strong>
+                  <div className={muted}>{formatPrivateClassMeeting(entry)}</div>
                 </li>
               ))}
             </ul>
           )}
 
           {personalDeadlines.length > 0 && (
-            <div className="mt-2.5 flex flex-wrap gap-2 border-t border-[#E4E7EE] pt-2.5">
+            <ul aria-label="Upcoming deadlines" className="mt-[var(--sp-3)] flex flex-wrap gap-[var(--sp-2)] border-t border-[var(--line)] pt-[var(--sp-3)]">
               {personalDeadlines.map((dl: any) => (
-                <span
+                <li
                   key={dl.uid}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#FEF3C7] px-2.5 py-1 text-[11px] font-bold text-[#92400E]"
+                  className="inline-flex max-w-full items-center gap-[var(--sp-1)] rounded-[var(--r-pill)] bg-[var(--warn-bg)] px-[var(--sp-3)] py-[var(--sp-1)] text-sm font-bold text-[var(--warn-fg)]"
                 >
-                  <Clock className="h-3 w-3" />
-                  <span>{dl.title}</span>
-                </span>
+                  <Clock aria-hidden="true" className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0 [overflow-wrap:anywhere]">{dl.title}</span>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </section>
 
-        {/* Tile 2: Pinned Parking Lots, Spot Opening, & Overflow Shuttle Reroute */}
-        <section
-          data-testid="bento-parking-tile"
-          className="rounded-2xl border border-[#E4E7EE] bg-white p-4 shadow-xs"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-[#5E6675]">
-              <Car className="h-4 w-4 text-[#111317]" />
-              <span>Parking Lots · {campusFilter}</span>
-            </div>
-            <Link
-              href="/parking"
-              className="text-xs font-bold text-[#1E3A8A] hover:underline"
-            >
-              Map &amp; Report →
+        <section data-testid="bento-parking-tile" aria-labelledby="now-parking-h" className={card}>
+          <div className={tileHead}>
+            <h2 id="now-parking-h" className={tileTitle}>
+              <Car aria-hidden="true" className="h-5 w-5 shrink-0" />
+              Parking
+            </h2>
+            <Link href="/parking" className={tileLink}>
+              Map &amp; Parking Report
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
           </div>
 
-          <div className="mt-2.5 space-y-2.5">
-            {parkingCards.slice(0, 2).map((lot: any) => {
-              const badgeCls =
-                lot.effectiveTier === null ? "bg-[#E4E7EE] text-[#5E6675]" : lot.effectiveTier === 0
-                  ? "bg-[#DCFCE7] text-[#15803D]"
-                  : lot.effectiveTier === 1
-                    ? "bg-[#FEF3C7] text-[#B45309]"
-                    : "bg-[#FEE2E2] text-[#B91C1C]";
+          <ul aria-label={`Parking Lots on ${scope}`} className="mt-[var(--sp-2)] space-y-[var(--sp-2)]">
+            {parkingCards.slice(0, 2).map((lot) => {
+              const display = parkingDisplay(lot);
               return (
-                <div
+                <li
                   key={String(lot._id)}
-                  className="rounded-xl border border-[#E4E7EE] p-3"
+                  data-testid="now-parking-card"
+                  data-status={display.status}
+                  className={`${inner} space-y-[var(--sp-2)] ${display.status === "none" ? "border-dashed border-[var(--line-strong)]" : ""}`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-extrabold text-[#111317]">
-                      {lot.name}
-                    </span>
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${badgeCls}`}
-                    >
-                      {lot.tierLabel}
-                    </span>
+                  <div className="flex flex-wrap items-center justify-between gap-[var(--sp-2)]">
+                    <span className="min-w-0 text-body font-bold text-[var(--ink)] [overflow-wrap:anywhere]">{lot.name}</span>
+                    <StatusChip status={display.status} />
                   </div>
-                  <p className="mt-1 text-[11px] font-medium text-[#5E6675]">
-                    {lot.provenanceLabel}
-                  </p>
+                  <FillBar status={display.status} />
+                  <p className={muted}>{display.line}</p>
 
                   {lot.spotOpening && (
-                    <div
+                    <p
                       data-testid="now-spot-opening-badge"
-                      className="mt-2 flex items-center gap-1.5 rounded-lg bg-[#DCFCE7] px-2.5 py-1.5 text-[11.5px] font-extrabold text-[#15803D]"
+                      className="flex items-center gap-[var(--sp-1)] rounded-[var(--r-sm)] bg-[var(--ok-bg)] px-[var(--sp-2)] py-[var(--sp-1)] text-sm font-bold text-[var(--ok-fg)]"
                     >
-                      <Zap className="h-3.5 w-3.5" />
-                      <span>
-                        Spot opening in ~5 min{" "}
-                        {lot.spotOpening.deckLevel
-                          ? `on ${lot.spotOpening.deckLevel}`
-                          : ""}
+                      <Zap aria-hidden="true" className="h-4 w-4 shrink-0" />
+                      <span className="min-w-0 [overflow-wrap:anywhere]">
+                        Spot opening in ~5 min{lot.spotOpening.deckLevel ? ` on ${lot.spotOpening.deckLevel}` : ""} · 1 Student
                       </span>
-                    </div>
+                    </p>
                   )}
 
                   {lot.overflowSuggestion && (
-                    <div
+                    <p
                       data-testid="now-overflow-reroute"
-                      className="mt-2 rounded-lg border border-[#FDBB30] bg-[#FFF6DC] px-2.5 py-1.5 text-[11.5px] text-[#111317]"
+                      className="rounded-[var(--r-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-[var(--sp-2)] py-[var(--sp-1)] text-sm text-[var(--ink)] [overflow-wrap:anywhere]"
                     >
-                      <span className="font-extrabold">Overflow Reroute:</span>{" "}
-                      <strong>{lot.overflowSuggestion.name}</strong> is{" "}
-                      {lot.overflowSuggestion.tierLabel}
+                      <span className="font-bold">Overflow reroute:</span>{" "}
+                      <strong>{lot.overflowSuggestion.name}</strong> is {tierWord(lot.overflowSuggestion.tierLabel)}
                       {lot.overflowSuggestion.shuttleName
-                        ? ` · ${lot.overflowSuggestion.shuttleName}${lot.overflowSuggestion.shuttleEtaMinutes == null ? "" : ` in ${lot.overflowSuggestion.shuttleEtaMinutes}m`}`
+                        ? ` · ${lot.overflowSuggestion.shuttleName}${lot.overflowSuggestion.shuttleEtaMinutes == null ? "" : ` in ${lot.overflowSuggestion.shuttleEtaMinutes} min`}`
                         : ""}
-                    </div>
+                    </p>
                   )}
-                </div>
+                </li>
               );
             })}
-          </div>
-        </section>
-
-        {/* Tile 3: Big Owl Bus Shuttle Routes */}
-        <section
-          data-testid="bento-shuttle-tile"
-          className="rounded-2xl border border-[#E4E7EE] bg-white p-4 shadow-xs"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-[#5E6675]">
-              <Bus className="h-4 w-4 text-[#111317]" />
-              <span>Big Owl Bus ETAs</span>
-            </div>
-            <Link
-              href="/transit"
-              className="text-xs font-bold text-[#1E3A8A] hover:underline"
-            >
-              Shuttle tracker →
-            </Link>
-          </div>
-
-          <div className="mt-2.5 space-y-2">
-            {shuttleCards.map((route: any) => (
-              <div
-                key={String(route._id)}
-                className="flex items-center justify-between rounded-xl border border-[#E4E7EE] px-3 py-2.5"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-xs font-extrabold text-[#111317]">
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: route.colorHex }}
-                    />
-                    <span className="truncate">{route.name}</span>
-                  </div>
-                  <div className="text-[11px] text-[#5E6675]">
-                    {[route.nextStopName, route.loadLabel].filter(Boolean).join(" · ")}
-                  </div>
-                </div>
-                <span className="rounded-xl bg-[#111317] px-2.5 py-1 text-xs font-black text-[#FDBB30]">
-                  {route.etaMinutes == null ? "No ETA" : `${route.etaMinutes} min`}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Tile 4: Study Rooms & Study Sessions */}
-        <section
-          data-testid="bento-study-tile"
-          className="rounded-2xl border border-[#E4E7EE] bg-white p-4 shadow-xs"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-[#5E6675]">
-              <BookOpen className="h-4 w-4 text-[#111317]" />
-              <span>Study Rooms &amp; Sessions</span>
-            </div>
-            <Link
-              href="/study"
-              className="text-xs font-bold text-[#1E3A8A] hover:underline"
-            >
-              LibCal Grid →
-            </Link>
-          </div>
-
-          {studySummary ? (
-            <div className="mt-2.5 space-y-2">
-              {studySummary.featuredRooms.length === 0 && (
-                <p className="text-xs text-[#5E6675]">No current availability shown. Check LibCal.</p>
-              )}
-              <div className="grid grid-cols-2 gap-2">
-                {studySummary.featuredRooms.slice(0, 2).map((rm: any) => (
-                  <div
-                    key={String(rm._id)}
-                    className="rounded-xl border border-[#E4E7EE] bg-[#F9FAFC] p-2.5 text-xs"
-                  >
-                    <div className="font-extrabold text-[#111317]">
-                      {rm.roomNumber}
-                    </div>
-                    <div className="truncate text-[11px] text-[#5E6675]">
-                      {rm.buildingName} · Cap {rm.capacity}{rm.isFixture ? " · Demo" : ""}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {studySummary.activeSessions.map((sess: any) => (
-                <Link
-                  key={String(sess._id)}
-                  href="/study"
-                  className="block rounded-xl border border-[#E4E7EE] p-2.5 text-xs hover:border-[#D99B00]"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-extrabold text-[#111317]">
-                      {sess.title}
-                    </span>
-                    <span className="rounded-full bg-[#DCFCE7] px-2 py-0.5 text-[10px] font-bold text-[#15803D]">
-                      {sess.seatCount}/{sess.maxSeats} seats
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-2 text-xs text-[#5E6675]">
-              Offline — open campus map for Sturgis &amp; Johnson Library
-              locations.
+          </ul>
+          {hud.campusLine && (
+            <p data-testid="now-campus-line" className={`mt-[var(--sp-2)] ${muted}`}>
+              <strong className="text-[var(--ink)]">{hud.campusLine.label}</strong> ·{" "}
+              <a href={hud.campusLine.sourceUrl} className="underline underline-offset-2">
+                {hud.campusLine.sourceText}
+              </a>
             </p>
           )}
         </section>
 
-        {/* Tile 5: Dining Venues & Line Checks */}
-        <section
-          data-testid="bento-dining-tile"
-          className="rounded-2xl border border-[#E4E7EE] bg-white p-4 shadow-xs"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-[#5E6675]">
-              <Utensils className="h-4 w-4 text-[#111317]" />
-              <span>Dining Venues</span>
-            </div>
-            <Link
-              href="/dining"
-              className="text-xs font-bold text-[#1E3A8A] hover:underline"
-            >
-              Menus &amp; Lines →
+        <section data-testid="bento-shuttle-tile" aria-labelledby="now-bus-h" className={card}>
+          <div className={tileHead}>
+            <h2 id="now-bus-h" className={tileTitle}>
+              <Bus aria-hidden="true" className="h-5 w-5 shrink-0" />
+              Big Owl Bus
+            </h2>
+            <Link href="/transit" className={tileLink}>
+              Live map
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
           </div>
 
-          <div className="mt-2.5 space-y-2">
-            {diningCards.slice(0, 3).map((v: any) => (
-              <div
-                key={String(v._id)}
-                className="flex items-center justify-between rounded-xl border border-[#E4E7EE] px-3 py-2 text-xs"
-              >
-                <div>
-                  <div className="font-extrabold text-[#111317]">{v.name}</div>
-                  <div className="text-[11px] text-[#5E6675]">
-                    {v.lineLabel}
-                    {v.stationChip ? ` · ${v.stationChip}` : ""}
+          <ul aria-label="Shuttle Routes" className="mt-[var(--sp-2)] space-y-[var(--sp-2)]">
+            {shuttleCards.map((route: any) => (
+              <li key={String(route._id)} className={`${inner} flex flex-wrap items-center justify-between gap-[var(--sp-2)]`}>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-bold text-[var(--ink)] [overflow-wrap:anywhere]">
+                    {route.shortName ? <span className="mr-[var(--sp-1)] font-display">{route.shortName}</span> : null}
+                    {route.name}
                   </div>
-                </div>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10.5px] font-extrabold ${
-                    v.openStatus.state === "open"
-                      ? "bg-[#DCFCE7] text-[#15803D]"
-                      : v.openStatus.state === "closing_soon"
-                        ? "bg-[#FEF3C7] text-[#B45309]"
-                        : "bg-[#E4E7EE] text-[#5E6675]"
-                  }`}
-                >
-                  {v.hoursAreFixture ? "Demo hours · " : ""}{v.openStatus.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Tile 6: Upcoming Campus Events (Wide) */}
-        <section
-          data-testid="bento-events-tile"
-          className="rounded-2xl border border-[#E4E7EE] bg-white p-4 shadow-xs md:col-span-2"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-[#5E6675]">
-              <Calendar className="h-4 w-4 text-[#111317]" />
-              <span>Upcoming Campus Events</span>
-            </div>
-            <Link
-              href="/events"
-              className="text-xs font-bold text-[#1E3A8A] hover:underline"
-            >
-              Full Calendar →
-            </Link>
-          </div>
-
-          <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {eventCards.slice(0, 3).map((ev: any) => (
-              <Link
-                key={String(ev._id)}
-                href={`/events/${ev._id}`}
-                className="rounded-xl border border-[#E4E7EE] p-3 text-xs hover:border-[#D99B00]"
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <span className="rounded-full bg-[#FFF6DC] px-2 py-0.5 text-[10px] font-extrabold text-[#855A00]">
-                    {ev.isVirtual ? "Virtual · Both Campuses" : ev.campus}
-                  </span>
-                  {ev.myRsvpStatus && (
-                    <span className="rounded-full bg-[#DCFCE7] px-2 py-0.5 text-[10px] font-bold text-[#15803D]">
-                      ✓ {ev.myRsvpStatus}
-                    </span>
+                  {(route.nextStopName || route.loadLabel) && (
+                    <div className={muted}>{[route.nextStopName, route.loadLabel].filter(Boolean).join(" · ")}</div>
                   )}
                 </div>
-                <div className="mt-1.5 line-clamp-2 font-extrabold text-[#111317]">
-                  {ev.title}{ev.isFixture ? " · Demo" : ""}
-                </div>
-                <div className="mt-1 truncate text-[11px] text-[#5E6675]">
-                  {ev.locationName}
-                </div>
-              </Link>
+                <span className="shrink-0 rounded-[var(--r-sm)] bg-[var(--ink)] px-[var(--sp-2)] py-[var(--sp-1)] font-display text-body font-bold text-[var(--bg)]">
+                  {route.etaMinutes == null ? "No live ETA" : `${route.etaMinutes} min`}
+                </span>
+              </li>
             ))}
+          </ul>
+          <p className={`mt-[var(--sp-2)] ${muted}`}>Times from Big Owl Bus via Passio GO.</p>
+        </section>
+
+        <section data-testid="bento-study-tile" aria-labelledby="now-study-h" className={card}>
+          <div className={tileHead}>
+            <h2 id="now-study-h" className={tileTitle}>
+              <BookOpen aria-hidden="true" className="h-5 w-5 shrink-0" />
+              Study
+            </h2>
+            <Link href="/study" className={tileLink}>
+              Rooms &amp; sessions
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
           </div>
+
+          {studySummary ? (
+            <div className="mt-[var(--sp-2)] space-y-[var(--sp-2)]">
+              {studySummary.featuredRooms.length === 0 && (
+                <p className={muted}>No current availability shown. Check LibCal.</p>
+              )}
+              {studySummary.featuredRooms.length > 0 && (
+                <ul aria-label="Study Rooms" className="lt-grid-1 grid grid-cols-2 gap-[var(--sp-2)]">
+                  {studySummary.featuredRooms.slice(0, 2).map((rm: any) => (
+                    <li key={String(rm._id)} className={`${inner} text-sm`}>
+                      <div className="font-bold text-[var(--ink)]">{rm.roomNumber}</div>
+                      <div className={muted}>
+                        {rm.buildingName} · Seats {rm.capacity}{rm.isFixture ? " · Demo" : ""}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {studySummary.activeSessions.length > 0 && (
+                <ul aria-label="Study Sessions" className="space-y-[var(--sp-2)]">
+                  {studySummary.activeSessions.map((sess: any) => (
+                    <li key={String(sess._id)}>
+                      <Link
+                        href="/study"
+                        className={`${inner} flex min-h-[var(--target)] flex-wrap items-center justify-between gap-[var(--sp-2)] text-sm hover:border-[var(--line-strong)]`}
+                      >
+                        <span className="min-w-0 font-bold text-[var(--ink)] [overflow-wrap:anywhere]">{sess.title}</span>
+                        <span className="text-sm font-bold text-[var(--muted)]">
+                          {sess.seatCount}/{sess.maxSeats} seats
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
+            <p className={`mt-[var(--sp-2)] ${muted}`}>
+              Offline. Open the campus map for Sturgis and Johnson Library locations.
+            </p>
+          )}
+        </section>
+
+        <section data-testid="bento-dining-tile" aria-labelledby="now-dining-h" className={card}>
+          <div className={tileHead}>
+            <h2 id="now-dining-h" className={tileTitle}>
+              <Utensils aria-hidden="true" className="h-5 w-5 shrink-0" />
+              Dining
+            </h2>
+            <Link href="/dining" className={tileLink}>
+              Menus &amp; lines
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <ul aria-label="Dining Venues" className="mt-[var(--sp-2)] space-y-[var(--sp-2)]">
+            {diningCards.slice(0, 3).map((v: any) => {
+              const state = v.openStatus.state as string;
+              const tone =
+                state === "open"
+                  ? { cls: "bg-[var(--ok-bg)] text-[var(--ok-fg)]", glyph: "✓" }
+                  : state === "closing_soon"
+                    ? { cls: "bg-[var(--warn-bg)] text-[var(--warn-fg)]", glyph: "◔" }
+                    : { cls: "bg-[var(--surface)] text-[var(--muted)] border border-[var(--line-strong)]", glyph: "✕" };
+              return (
+                <li key={String(v._id)} className={`${inner} flex flex-wrap items-center justify-between gap-[var(--sp-2)] text-sm`}>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-[var(--ink)] [overflow-wrap:anywhere]">{v.name}</div>
+                    <div className={muted}>
+                      {v.lineLabel}
+                      {v.stationChip ? ` · ${v.stationChip}` : ""}
+                    </div>
+                  </div>
+                  <span className={`inline-flex items-center gap-[var(--sp-1)] rounded-[var(--r-pill)] px-[var(--sp-2)] text-sm font-bold ${tone.cls}`}>
+                    <span aria-hidden="true">{tone.glyph}</span>
+                    {v.hoursAreFixture ? "Demo hours · " : ""}{v.openStatus.label}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+
+        <section data-testid="bento-events-tile" aria-labelledby="now-events-h" className={`${card} md:col-span-2`}>
+          <div className={tileHead}>
+            <h2 id="now-events-h" className={tileTitle}>
+              <Calendar aria-hidden="true" className="h-5 w-5 shrink-0" />
+              Coming up
+            </h2>
+            <Link href="/events" className={tileLink}>
+              Full calendar
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <ul aria-label="Events" className="lt-grid-1 mt-[var(--sp-2)] grid grid-cols-1 gap-[var(--sp-2)] sm:grid-cols-3">
+            {eventCards.slice(0, 3).map((ev: any) => (
+              <li key={String(ev._id)} className="min-w-0">
+                <Link
+                  href={`/events/${ev._id}`}
+                  className={`${inner} block h-full min-h-[var(--target)] text-sm hover:border-[var(--line-strong)]`}
+                >
+                  <span className="flex flex-wrap items-center gap-[var(--sp-1)] text-sm font-bold text-[var(--muted)]">
+                    <span>{ev.isVirtual ? "Virtual · Both Campuses" : ev.campus}</span>
+                    {ev.myRsvpStatus && (
+                      <span className="text-[var(--ok-fg)]">
+                        <span aria-hidden="true">✓ </span>
+                        {ev.myRsvpStatus}
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-[var(--sp-1)] block font-bold text-[var(--ink)] [overflow-wrap:anywhere]">
+                    {ev.title}{ev.isFixture ? " · Demo" : ""}
+                  </span>
+                  <span className={`mt-[var(--sp-1)] block ${muted}`}>{ev.locationName}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </section>
       </div>
     </div>

@@ -176,4 +176,83 @@ describe("Seam 1 — Parking Lots, 45m Recency Decay, Outlier Trimming, Spot Ope
         ?.spotOpenings
     ).toHaveLength(0);
   });
+
+  it("shows 0/1/≥2 report states, a no-estimate best bet with the shuttle-lot fallback, the campus line, Undo and I took this spot", async () => {
+    const t = createTestConvex();
+    await t.mutation(internal.seed.bootstrapKsu, {});
+    const [s1, s2, s3] = await Promise.all(["pk_a", "pk_b", "pk_c"].map((handle) =>
+      createVerifiedTestStudent(t, { handle, displayName: handle, homeCampus: "Kennesaw" })));
+    // Tuesday 2026-11-17 12:00 ET (EST, UTC-5): inside the Tue/Thu busy window.
+    const now = Date.UTC(2026, 10, 17, 17);
+    const list = (sessionToken: string, at = now) => t.query(api.parking.listParkingLots, {
+      sessionToken, campusOverride: "Kennesaw", permitTierFilter: "All", nowOverride: at,
+    });
+
+    const empty = await list(s1.sessionToken);
+    expect(empty.noRecentReports).toBe(true);
+    expect(empty.campusLine).toMatchObject({ state: "busy", label: "Usually busy now" });
+    expect(empty.campusLine?.text).toMatch(/^Usually busy now · per KSU class-enrollment chart, /);
+    for (const lot of empty.lots) {
+      expect(lot).toMatchObject({ effectiveTier: null, noRecentReports: true, tierLabel: "No recent reports" });
+      expect(lot.provenanceLabel).not.toMatch(/%|Estimated/);
+    }
+    expect(empty.bestBet.kind).toBe("no_recent_reports");
+    if (empty.bestBet.kind !== "no_recent_reports") throw new Error("unreachable");
+    const shuttleSlugs = new Set(empty.lots.filter((l) => l.servedByShuttle).map((l) => l.slug));
+    expect(empty.bestBet.shuttleLots.length).toBe(shuttleSlugs.size);
+    expect(empty.bestBet.shuttleLots.every((l) => shuttleSlugs.has(l.slug))).toBe(true);
+
+    // Friday and evening: no campus line.
+    expect((await list(s1.sessionToken, Date.UTC(2026, 10, 20, 17))).campusLine).toBeNull();
+    expect((await list(s1.sessionToken, Date.UTC(2026, 10, 17, 23 + 0))).campusLine).toBeNull();
+
+    const central = empty.lots.find((l) => l.slug === "central-parking-deck")!;
+    const overflow = empty.lots.find((l) => l.slug === "town-point-economy-lot")!;
+
+    // 1 report: the reported tier, unconfirmed; best bet ranks only that live lot.
+    const first = await t.mutation(api.parking.submitParkingReport, {
+      sessionToken: s1.sessionToken, parkingLotId: central._id, reportKind: "fullness", fullnessTier: 3, nowOverride: now,
+    });
+    const one = await list(s1.sessionToken, now + 2 * 60_000);
+    const centralOne = one.lots.find((l) => l.slug === central.slug)!;
+    expect(centralOne).toMatchObject({ effectiveTier: 3, tierLabel: "Full", provenanceKind: "single_report", noRecentReports: false });
+    expect(centralOne.provenanceLabel).toBe("Live · 1 Student report (2 min ago) · unconfirmed");
+    expect(one.noRecentReports).toBe(false);
+    expect(one.bestBet).toMatchObject({ kind: "live", lot: { slug: central.slug } });
+    // No live tier on the overflow lot → no reroute.
+    expect(centralOne.overflowReroute).toBeNull();
+
+    // Undo withdraws the report and lifts the cooldown.
+    await t.mutation(api.parking.undoParkingReport, { sessionToken: s1.sessionToken, reportId: first.reportId });
+    expect((await list(s1.sessionToken, now + 3 * 60_000)).lots.find((l) => l.slug === central.slug)?.noRecentReports).toBe(true);
+    await expect(t.mutation(api.parking.undoParkingReport, { sessionToken: s2.sessionToken, reportId: first.reportId }))
+      .rejects.toThrowError(/not found/);
+    await t.mutation(api.parking.submitParkingReport, {
+      sessionToken: s1.sessionToken, parkingLotId: central._id, reportKind: "fullness", fullnessTier: 3, nowOverride: now + 4 * 60_000,
+    });
+
+    // ≥2 reports: Student-verified; a live Open overflow lot reroutes; best bet is the open lot.
+    await t.mutation(api.parking.submitParkingReport, {
+      sessionToken: s2.sessionToken, parkingLotId: central._id, reportKind: "fullness", fullnessTier: 2, nowOverride: now + 5 * 60_000,
+    });
+    await t.mutation(api.parking.submitParkingReport, {
+      sessionToken: s2.sessionToken, parkingLotId: overflow._id, reportKind: "fullness", fullnessTier: 0, nowOverride: now + 5 * 60_000,
+    });
+    const many = await list(s1.sessionToken, now + 6 * 60_000);
+    const centralMany = many.lots.find((l) => l.slug === central.slug)!;
+    expect(centralMany.provenanceKind).toBe("verified_multi");
+    expect(centralMany.provenanceLabel).toMatch(/^Live · Student-verified/);
+    expect(centralMany.overflowReroute?.slug).toBe(overflow.slug);
+    expect(many.bestBet).toMatchObject({ kind: "live", lot: { slug: overflow.slug, effectiveTier: 0 } });
+
+    // I took this spot clears a Spot Opening at once; the author can't take their own.
+    const opening = await t.mutation(api.parking.submitParkingReport, {
+      sessionToken: s1.sessionToken, parkingLotId: central._id, reportKind: "spot_opening", nowOverride: now,
+    });
+    await expect(t.mutation(api.parking.takeSpotOpening, { sessionToken: s1.sessionToken, reportId: opening.reportId }))
+      .rejects.toThrowError(/You posted/);
+    expect((await list(s3.sessionToken, now + 60_000)).lots.find((l) => l.slug === central.slug)?.spotOpenings).toHaveLength(1);
+    await t.mutation(api.parking.takeSpotOpening, { sessionToken: s3.sessionToken, reportId: opening.reportId });
+    expect((await list(s3.sessionToken, now + 60_000)).lots.find((l) => l.slug === central.slug)?.spotOpenings).toHaveLength(0);
+  });
 });
