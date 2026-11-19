@@ -12,4 +12,5 @@ Add one entry per run, newest first. The automated rows record the Layer 4 `a11y
 
 | Date | Scope | Result |
 |---|---|---|
+| 2026-11-19 | #76: private agenda, reminder preferences and joined Study Session details × light/dark × 390/1440; keyboard switches/deep-link focus, 44 px targets, minimum text, 320 px and 200% reflow | 10/10 passed locally; axe reported zero serious/critical violations |
 | 2026-11-18 | #74 Phase 1A: every route, the Quick Sheet and every dialog × light/dark × 390/1440, plus 320 px and 200% text reflow (`pnpm test:e2e --project=a11y`) | See the PR for #74 |

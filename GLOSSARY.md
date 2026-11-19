@@ -84,6 +84,9 @@ _Avoid_: Appointment, class period
 A scheduled campus gathering hosted by KSU, a Club, or a Student, open for discovery and RSVP.
 _Avoid_: Calendar item, activity
 
+**Private agenda**:
+A Student-only view of upcoming class meetings, imported deadlines, RSVPed Events and joined Study Sessions across both Campuses, with Eastern times, Event-only calendar downloads and opt-in in-app reminders.
+
 **Shuttle Route**:
 A Big Owl Bus (BOB) transit route connecting stops within or between the Kennesaw and Marietta Campuses.
 _Avoid_: Bus line, commute track

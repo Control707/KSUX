@@ -556,6 +556,7 @@ export default defineSchema({
     ])
     .index("by_student_unread", ["workspaceKey", "studentId", "hasUnread"])
     .index("by_student_kind_inbox", ["workspaceKey", "studentId", "isArchived", "chatKind", "lastChatMessageAt"])
+    .index("by_student_kind", ["workspaceKey", "studentId", "chatKind"])
     .index("by_chat_student", ["workspaceKey", "chatId", "studentId"]),
 
   chatMessages: defineTable({
@@ -963,6 +964,13 @@ export default defineSchema({
   })
     .index("by_student_term", ["workspaceKey", "studentId", "termCode"])
     .index("by_student_hub", ["workspaceKey", "studentId", "courseHubId"]),
+
+  agendaReminderState: defineTable({
+    workspaceKey: v.string(),
+    studentId: v.id("students"),
+    settings: v.object({ class: v.boolean(), deadline: v.boolean(), event: v.boolean(), study: v.boolean() }),
+    deliveries: v.array(v.object({ key: v.string(), expiresAt: v.number() })),
+  }).index("by_student", ["workspaceKey", "studentId"]),
 
   privateScheduleTerms: defineTable({
     workspaceKey: v.string(),

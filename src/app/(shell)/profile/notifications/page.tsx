@@ -2,12 +2,14 @@
 
 import React from "react";
 import Link from "next/link";
+import { AgendaReminderSettings } from "@/components/agenda/AgendaReminderSettings";
 
-/** Stub for /profile/notifications with #messages and #alerts deep links. */
+/** Notifications: message and Alert handoffs, with private agenda reminder settings. */
 export default function NotificationPreferencesPage() {
   return (
     <div className="space-y-[var(--sp-4)] p-[var(--sp-4)]">
       <h1 className="font-display text-[length:var(--fs-2xl)] font-bold">Notifications</h1>
+      <AgendaReminderSettings />
       <section id="messages" aria-labelledby="notif-messages" className="scroll-mt-[var(--chrome-top)] rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] p-[var(--sp-4)]">
         <h2 id="notif-messages" className="font-display text-[length:var(--fs-xl)] font-bold">Messages</h2>
         <p>Message notification settings are on your Profile for now.</p>

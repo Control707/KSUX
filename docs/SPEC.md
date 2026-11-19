@@ -50,7 +50,7 @@ Prototype reference: [`prototype/ksux-shell.html`](https://github.com/Control707
 3. **Sticky Top Header**:
    - **3-Way `Campus` Switcher**: `Kennesaw` | `Marietta` | `All KSU` (persisted per `Student`, defaulting to `homeCampus`; stored records remain strictly `Kennesaw` or `Marietta`, with `All KSU` as a UI filter). Always preserves active `Chats`, enrolled `Course Hubs`, and the intercampus `Kennesaw–Marietta` `Shuttle Route`.
    - **`Judge Demo Mode` Chrome**: High-contrast amber pill **`⚡ JUDGE DEMO · Maya (Kennesaw) ▾`** (3-persona switcher, `Copy Co-Test Link`, `Moderation Queue (Demo)`, `Reset Demo State`, `Verify KSU .edu Email`).
-4. **Frozen URL Contract**: `/`, `/feed`, `/marketplace`, `/chats`, `/chats/[chatId]`, `/scrappy`, `/courses/[subjectCourse]`, `/clubs/[slug]`, `/events/[eventId]`, `/parking`, `/study`, `/transit`, `/dining`, `/profile`, `/moderation`.
+4. **Frozen URL Contract**: `/`, `/feed`, `/marketplace`, `/chats`, `/chats/[chatId]`, `/scrappy`, `/courses/[subjectCourse]`, `/clubs/[slug]`, `/events/[eventId]`, `/parking`, `/study`, `/study/[sessionId]`, `/agenda`, `/transit`, `/dining`, `/profile`, `/moderation`. `/agenda` is Student-private and KSU-wide, with per-item Campus badges and no location switcher (issue #76; ADR-0008).
 
 ---
 
