@@ -36,6 +36,7 @@ it("keeps emergency resources public without requiring a sign-in or gate result"
   const html = render();
   expect(html).toContain('href="tel:911"');
   expect(html).toContain('href="tel:4705786666"');
+  expect(html).toContain('href="mailto:police@kennesaw.edu"');
   expect(html).toContain('href="sms:7703563866"');
   expect(html).toContain("KSUX can’t confirm the call or a police response.");
   expect(html).toContain('href="/"');
@@ -78,4 +79,6 @@ it("labels Demo fixtures and shows contact numbers without dialling in Demo", ()
   expect(html).toContain("Sample Timely Warning");
   expect(html).toContain("470-578-6206");
   expect(html).not.toContain('href="tel:4705786206"');
+  expect(html).toContain("police@kennesaw.edu");
+  expect(html).not.toContain('href="mailto:');
 });

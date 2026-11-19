@@ -38,7 +38,7 @@ describe("Emergency Panel", () => {
     expect(html).not.toMatch(/href="(?:tel|sms):/);
   });
 
-  it("intercepts tel: and sms: taps in a Demo tab before hydration", () => {
+  it("intercepts tel:, sms: and mailto: taps in a Demo tab before hydration", () => {
     const listeners: ((event: any) => void)[] = [];
     const status = { textContent: "" };
     const panel = { querySelector: () => status };
@@ -63,5 +63,6 @@ describe("Emergency Panel", () => {
     expect(demoTap.preventDefault).toHaveBeenCalled();
     expect(status.textContent).toBe(DEMO_HANDOFF_COPY);
     expect(dispatchEvent).toHaveBeenCalledOnce();
+    expect(DEMO_CALL_INTERCEPT_SCRIPT).toContain('a[href^="mailto:"]');
   });
 });
