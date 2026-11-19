@@ -239,7 +239,7 @@ From [#46](https://github.com/Control707/KSUX/issues/46) ([verdict](https://gith
   - `/profile/notifications` (deep links `#messages`, `#alerts`, `#agenda`);
   - `/agenda` (private, KSU-wide classes, deadlines, RSVPed Events and joined Study Sessions; #76), plus `/study/<sessionId>` for a joined Study Session's details.
   - `/search` (`?q=`; KSU-wide Buildings, Events, Clubs, Course Hubs and Listings with an optional visible Campus filter; never Incidents or Alerts) and `/saved` (the private saved Posts and Listings view);
-  - `/feed?post=<postId>` opens that Post's thread and `/marketplace?q=` pre-fills the Listing search.
+  - `/feed?post=<postId>` opens that Post's thread and `/marketplace?q=<title>#listing-<listingId>` pre-fills the Listing search and anchors that card.
 
   The Incident report flow is a dialog with no route.
 - **Campus is a location setting** (ADR-0008):
