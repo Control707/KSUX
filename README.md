@@ -37,6 +37,8 @@ Preview builds or teammates' development deployments.
 
 ## Quickstart & Verification
 
+The **private agenda** at `/agenda` combines upcoming classes, imported deadlines, RSVPed Events and joined Study Sessions in Eastern time. Event-only `.ics` downloads and opt-in, per-type **in-app** reminders are available; reminder settings live at `/profile/notifications#agenda`. [Behavior and verification](./docs/RUNBOOK.md#private-agenda-76)
+
 See [`docs/RUNBOOK.md`](./docs/RUNBOOK.md), [`docs/SPEC.md`](./docs/SPEC.md), [`GLOSSARY.md`](./GLOSSARY.md), and [`docs/adr/`](./docs/adr/).
 
 ```bash

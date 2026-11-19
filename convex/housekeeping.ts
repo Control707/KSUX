@@ -35,6 +35,7 @@ const demoIndexes = {
   studySessions: "by_campus_end",
   studentEnrollments: "by_student_term",
   privateScheduleTerms: "by_student_term",
+  agendaReminderState: "by_student",
   eventRsvps: "by_event_student",
   clubMembers: "by_club_student",
   moderationReports: "by_reporter",

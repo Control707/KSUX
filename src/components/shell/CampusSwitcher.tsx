@@ -16,6 +16,7 @@ export const LOCATION_ROUTE_PREFIXES = ["/parking", "/transit", "/study", "/dini
 
 export function isLocationRoute(pathname: string): boolean {
   if (pathname === "/") return true;
+  if (pathname.startsWith("/study/")) return false; // A joined Session's detail is private and KSU-wide.
   return LOCATION_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 

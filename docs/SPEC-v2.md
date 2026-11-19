@@ -236,12 +236,13 @@ From [#46](https://github.com/Control707/KSUX/issues/46) ([verdict](https://gith
 - **URL contract** (the v1 15 routes plus):
   - `/safety`, `/safety/<incidentId>` (a details sheet over the list) and `/safety/alerts/<alertId>`;
   - `/leaderboard` (`?campus=kennesaw|marietta`);
-  - `/profile/notifications` (deep links `#messages`, `#alerts`).
+  - `/profile/notifications` (deep links `#messages`, `#alerts`, `#agenda`);
+  - `/agenda` (private, KSU-wide classes, deadlines, RSVPed Events and joined Study Sessions; #76), plus `/study/<sessionId>` for a joined Study Session's details.
 
   The Incident report flow is a dialog with no route.
 - **Campus is a location setting** (ADR-0008):
   - **Location screens** show the switcher (Kennesaw | Marietta): Now, Parking, Transit, Study, Dining, Events and `/safety` (Incidents only; Official Alerts stay KSU-wide).
-  - **KSU-wide screens** show a text campus badge on each item and no global switcher: Feed, Marketplace, Chats, Scrappy, Course Hubs, Clubs, Profile and Moderation.
+  - **KSU-wide screens** show a text campus badge on each item and no global switcher: Feed, Marketplace, Chats, Scrappy, Course Hubs, Clubs, Profile, private agenda and Moderation. Joined Study Session detail is also KSU-wide; `/study` keeps its location switcher.
   - Marketplace and Clubs keep a **local, visible** campus filter; Marketplace sorts the home Campus first.
   - `/leaderboard` has its own Kennesaw | Marietta control.
   - Stored records remain strictly `Kennesaw` or `Marietta`.
@@ -616,6 +617,8 @@ Every new index starts with the workspace key, and every demo row is purged with
   - `@jordan_me` corroborates the judge's report 4 s after it's filed, through the normal path;
   - the Demo menu lets the judge act as a Moderator, as a second Moderator persona, or as a maintainer persona;
   - demo photos are static public files, never uploads.
+
+**Private agenda addition (#76):** `agendaReminderState` stores one row per `(workspaceKey, studentId)` with four opt-in in-app reminder settings and at most 1,000 unexpired delivery keys. This durable preference table has no per-occurrence cron; keys expire at the corresponding start and are pruned during delivery checks. Rows join the existing Demo workspace purge and Student deletion/suspension cleanup. The agenda itself is a projection of the private schedule, RSVP and attendance records, never a public or Scrappy-readable schedule index.
 
 ### 15. Accessibility commitment
 
