@@ -17,9 +17,16 @@ The available checkout is configured for anonymous local Convex at
 `http://127.0.0.1:3210`. Production provisioning issue
 [#27](https://github.com/Control707/KSUX/issues/27) is closed, and GitHub reports a
 successful [Vercel deployment status for main commit `0929fbf`](https://vercel.com/control707s-projects/ksux/85C1YRDSYMhDEaKg9Xrr4aQcQZXW).
-Neither identifies an authenticated Convex target in this checkout. The existing
-Chrome session reaches Vercel's login page for the project; there is no confirmed
-authenticated Convex session or production maintainer session. No production
+The repository homepage is [ksux-sand.vercel.app](https://ksux-sand.vercel.app).
+Its deployed browser client connects to
+`https://doting-bandicoot-52.convex.cloud`; the deployment's production role still
+needs dashboard confirmation. After the requester signed into Vercel, their
+account received a 404 for `control707s-projects/ksux`. After signing into Convex,
+the requester could see only their personal team, which has no projects; its
+team switcher listed no team containing KSUX. Access to the existing deployment
+and a production maintainer session are still needed. The existing project's
+owner must provide access, or use an account that already has it. Creating a new
+project would not enable polling on the public app's backend. No production
 environment variables, source sign-offs, or subscriptions were changed during
 preparation.
 
@@ -33,11 +40,11 @@ push receipt; those acceptance checks still need devices and testers.
 | Release field | Recorded value |
 |---|---|
 | Production owner / backup | Pending |
-| Production application URL | Pending |
-| Convex team / project / production deployment | Pending |
+| Application URL | https://ksux-sand.vercel.app (repository homepage; public Safety checked) |
+| Convex team / project / production deployment | Public app uses `doting-bandicoot-52`; dashboard role and project access pending |
 | Deployed main commit / deployment evidence | Pending |
 | Window | Full 14 days selected on 2026-11-19; no hackathon exception |
-| Production copy mode / push switch / shadow override | Not inspected |
+| Public app copy mode / push switch / shadow override | `off` via public query; push switch and override not inspected |
 | ADR-0007 | Accepted in this branch; merge and deployment pending |
 
 ## Preparation evidence
@@ -53,6 +60,13 @@ they are **not** production cron evidence or the start of a shadow window.
 
 Neither check returned `unrecognized`; no parser correction or new fixture was
 needed for these observations. This does not predict subsequent page changes.
+
+At 2026-11-19 18:16:14.984Z, a read-only `officialAlerts:alertSourceStatus` query
+against the public app's backend returned `mode: "off"` and `sources: []`.
+The public `/safety` page was also checked in a browser: it showed links to both
+KSU source pages, KSU Alert (Rave), the Emergency Panel and the no-Alert-is-not-safe
+copy, with no copied Alerts. Source initialization and production mode changes
+remain pending authenticated access.
 
 Local verification on 2026-11-19:
 
