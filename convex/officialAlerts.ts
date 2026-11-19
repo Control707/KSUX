@@ -21,7 +21,7 @@ import { computeCircuitBackoffMs } from "./lib/syncGuard";
 import {
   alertCopyMode, alertPushRequested, CONFIRMATIONS_TO_PUSH, DAILY_PUSH_CAP, DEFAULT_UNAVAILABLE_BACKOFF_MS,
   FANOUT_BATCH, fetchSource, HEARTBEAT_MS, isStale, ITEM_PURGE_MS, NO_LONGER_LISTED_SHOWN_MS, OFFICIAL_SOURCE_KEYS,
-  OFFICIAL_SOURCES, officialAlertPushPayload, shadowGatePassed, shadowReadyForSignOff, sourceInfo, stableHash,
+  OFFICIAL_SOURCES, officialAlertPushPayload, SHADOW_MS, shadowGatePassed, shadowReadyForSignOff, shadowWindowMs, sourceInfo, stableHash,
   type AdapterResult, type OfficialSourceKey, type PageFetch, type ParsedAlertItem,
 } from "./lib/officialAlerts";
 
@@ -481,6 +481,7 @@ export const getAlertOps = viewerQuery({
     const sources = await sourcesFor(ctx.db, KSU);
     return {
       mode: alertCopyMode(), pushRequested: alertPushRequested(), serverNow: now,
+      shadowWindowMs: shadowWindowMs(), fullShadowMs: SHADOW_MS,
       sentToday: await pushesSentToday(ctx.db, now), dailyCap: DAILY_PUSH_CAP,
       sources: sources.map((s) => ({
         sourceKey: s.sourceKey, sourceName: sourceInfo(s.sourceKey)?.sourceName ?? s.sourceKey,
@@ -489,6 +490,7 @@ export const getAlertOps = viewerQuery({
         lastError: s.lastError ?? null, backoffUntil: s.backoffUntil ?? null,
         shadowStartedAt: s.shadowStartedAt ?? null, shadowChangeCount: s.shadowChangeCount ?? 0,
         shadowUnrecognizedCount: s.shadowUnrecognizedCount ?? 0, shadowSignedOffAt: s.shadowSignedOffAt ?? null,
+        signedOffWindowMs: s.shadowWindowMs ?? null,
         readyForSignOff: shadowReadyForSignOff(s, now), gatePassed: shadowGatePassed(s),
       })),
     };
@@ -516,10 +518,14 @@ export const signOffAlertShadow = viewerMutation({
     const source = await ksuSource(ctx.db, sourceKey);
     if (!source) throw new ConvexError({ code: "NOT_FOUND", message: "Unknown official source." });
     const now = Date.now();
-    if (!shadowReadyForSignOff(source, now)) {
-      throw new ConvexError({ code: "BAD_REQUEST", message: "The shadow poll needs 14 clean days with no unrecognized result." });
+    const windowMs = shadowWindowMs();
+    if (source.lastSuccessAt === undefined || !shadowReadyForSignOff(source, now, windowMs)) {
+      throw new ConvexError({ code: "BAD_REQUEST", message: `The shadow poll needs ${windowMs >= SHADOW_MS ? "14 clean days" : `${Math.round(windowMs / 3_600_000 * 10) / 10} clean hours`} with no unrecognized result.` });
     }
-    await ctx.db.patch(source._id, { shadowSignedOffAt: now, shadowSignedOffBy: ctx.viewer.actorStudent.canonicalEmail ?? ctx.viewer.actorStudent.handle });
+    await ctx.db.patch(source._id, {
+      shadowSignedOffAt: now, shadowWindowMs: windowMs,
+      shadowSignedOffBy: ctx.viewer.actorStudent.canonicalEmail ?? ctx.viewer.actorStudent.handle,
+    });
     return { signedOffAt: now };
   },
 });
@@ -533,7 +539,7 @@ export const restartAlertShadow = viewerMutation({
     if (!source) throw new ConvexError({ code: "NOT_FOUND", message: "Unknown official source." });
     await ctx.db.patch(source._id, {
       shadowStartedAt: Date.now(), shadowChangeCount: 0, shadowUnrecognizedCount: 0,
-      shadowSignedOffAt: undefined, shadowSignedOffBy: undefined,
+      shadowSignedOffAt: undefined, shadowSignedOffBy: undefined, shadowWindowMs: undefined,
       ...(source.killSwitch === "auto" ? { killSwitch: "off" as const, killReason: undefined } : {}),
     });
     return { ok: true };

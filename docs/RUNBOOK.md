@@ -76,6 +76,7 @@ All accounts below require **zero credit cards** and **zero custom domains**:
 | `KSUX_MAINTAINER_EMAILS` | Recommended | Comma-separated canonical `.edu` emails granted `"prod"` `Moderation Queue` access. |
 | `KSUX_ALERT_COPY_MODE` | Optional | `off` (default, links-only), `shadow` or `display`. See Official Alerts copy below. |
 | `KSUX_ALERT_PUSH` | Optional | `true` allows opt-in Alert push once the copy is displayed and signed off. |
+| `KSUX_ALERT_SHADOW_HOURS` | Hackathon only | Shortens the required shadow window, in hours (minimum 1). Unset means the full 14 days. |
 
 ---
 
@@ -187,6 +188,16 @@ Two Convex variables control rollout. Both default off.
 5. After 14 days with zero unrecognized results and every recorded change parsed correctly, select **Sign off the 14-day shadow poll** for each source. The server refuses an early sign-off. Record the date, the change count and the fixtures added in the release record.
 6. Set `KSUX_ALERT_COPY_MODE=display`. Check `/safety` shows each source's quiet line with its check time.
 7. Set `KSUX_ALERT_PUSH=true` only after the copy has been visible without issue. The Notifications switch becomes available.
+
+**Hackathon fast path (deviation from SPEC-v2 §13).** For a time-boxed event the full 14 days can be shortened. This is a recorded exception; the real 14-day poll is still owed before a public launch.
+
+1. Deploy, then set `KSUX_ALERT_SHADOW_HOURS=1` (or longer) and `KSUX_ALERT_COPY_MODE=shadow`.
+2. Wait at least one hour (12 polls). The source must have at least one successful check and zero unrecognized results; the server refuses an earlier sign-off.
+3. In Moderation › Official Alert copy, sign off each source. The panel shows the shortened window, and each sign-off records the window that applied.
+4. Set `KSUX_ALERT_COPY_MODE=display` and `KSUX_ALERT_PUSH=true`. Every other push rule is unchanged: seen twice, 3 a day, blocked when stale or switched off.
+5. Before public launch, unset `KSUX_ALERT_SHADOW_HOURS`, select **Restart shadow poll** for each source (this clears the short sign-off and returns the source to links-only), and run the full 14 days.
+
+A real Alert push fires only when KSU actually posts a notice. To show push to judges without waiting for a real notice, use a test device subscribed to a staging deployment, never a fabricated notice in production.
 
 **Behaviour to verify after each step:**
 

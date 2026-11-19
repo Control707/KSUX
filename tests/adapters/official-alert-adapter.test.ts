@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ADVISORY_QUIET_TEXT, fetchSource, officialAlertPushPayload, parseEmergencyAdvisoryPage, parseTimelyWarningsPage,
-  retryAfterMs, shadowGatePassed, SHADOW_MS, type PageFetch,
+  MIN_SHADOW_MS, retryAfterMs, shadowGatePassed, shadowWindowMs, SHADOW_MS, type PageFetch,
 } from "../../convex/lib/officialAlerts";
 
 const fixture = (name: string) => readFileSync(path.join(__dirname, "../fixtures/official-alerts", name), "utf8");
@@ -121,4 +121,18 @@ it("passes the shadow gate only after 14 signed-off days with zero unrecognized 
   expect(shadowGatePassed({ shadowStartedAt: 0, shadowSignedOffAt: SHADOW_MS - 1 })).toBe(false);
   expect(shadowGatePassed({ shadowStartedAt: 0, shadowSignedOffAt: SHADOW_MS, shadowUnrecognizedCount: 1 })).toBe(false);
   expect(shadowGatePassed({ shadowStartedAt: 0, shadowSignedOffAt: SHADOW_MS })).toBe(true);
+});
+
+it("lets a maintainer shorten the shadow window to no less than an hour, and records it per source", () => {
+  expect(shadowWindowMs(undefined)).toBe(SHADOW_MS);
+  expect(shadowWindowMs("nonsense")).toBe(SHADOW_MS);
+  expect(shadowWindowMs("2")).toBe(2 * 60 * 60_000);
+  expect(shadowWindowMs("0.1")).toBe(MIN_SHADOW_MS);
+  expect(shadowWindowMs("1000")).toBe(SHADOW_MS);
+  const hour = { shadowStartedAt: 0, shadowSignedOffAt: MIN_SHADOW_MS, shadowWindowMs: MIN_SHADOW_MS };
+  expect(shadowGatePassed(hour)).toBe(true);
+  // A stored window below the floor is still held to an hour.
+  expect(shadowGatePassed({ ...hour, shadowWindowMs: 1, shadowSignedOffAt: 30 * 60_000 })).toBe(false);
+  expect(shadowGatePassed({ ...hour, shadowSignedOffAt: MIN_SHADOW_MS - 1 })).toBe(false);
+  expect(shadowGatePassed({ ...hour, shadowUnrecognizedCount: 1 })).toBe(false);
 });

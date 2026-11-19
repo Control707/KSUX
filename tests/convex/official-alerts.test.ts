@@ -298,6 +298,43 @@ describe("opt-in Alert push", () => {
 });
 
 describe("maintainer controls", () => {
+  it("signs off after a shortened hackathon window and then displays and pushes", async () => {
+    env("shadow", false);
+    process.env.KSUX_ALERT_SHADOW_HOURS = "1";
+    process.env.KSUX_MAINTAINER_EMAILS = "keeper@students.kennesaw.edu";
+    try {
+      const { t, poll, setPages } = await setup();
+      await poll(START);
+      const keeper = await createVerifiedTestStudent(t, { handle: "keeper", displayName: "Keeper" });
+      await expect(t.mutation(api.officialAlerts.signOffAlertShadow, { sessionToken: keeper.sessionToken, sourceKey: "ksu_timely_warnings" }))
+        .rejects.toThrow(/1 clean hours/);
+      vi.setSystemTime(START + 61 * MIN);
+      await poll(START + 61 * MIN);
+      for (const sourceKey of ["ksu_timely_warnings", "ksu_emergency_advisories"]) {
+        await t.mutation(api.officialAlerts.signOffAlertShadow, { sessionToken: keeper.sessionToken, sourceKey });
+      }
+      const ops = await t.query(api.officialAlerts.getAlertOps, { sessionToken: keeper.sessionToken });
+      expect(ops?.sources.map((s) => [s.gatePassed, s.signedOffWindowMs])).toEqual([[true, 60 * MIN], [true, 60 * MIN]]);
+
+      env("display", true);
+      const status = await t.query(api.officialAlerts.alertSourceStatus, {});
+      expect(status.sources.map((s) => s.display)).toEqual(["quiet", "quiet"]);
+      await optInDevice(t, "hackathon_phone");
+      setPages(ISSUED);
+      await poll(START + 66 * MIN);
+      await poll(START + 71 * MIN);
+      expect(await scheduledPushes(t)).toHaveLength(1);
+
+      // Restarting the shadow clears the shortened sign-off.
+      await t.mutation(api.officialAlerts.restartAlertShadow, { sessionToken: keeper.sessionToken, sourceKey: "ksu_timely_warnings" });
+      const after = await t.query(api.officialAlerts.getAlertOps, { sessionToken: keeper.sessionToken });
+      expect(after?.sources[0]).toMatchObject({ gatePassed: false, signedOffWindowMs: null });
+    } finally {
+      delete process.env.KSUX_ALERT_SHADOW_HOURS;
+      delete process.env.KSUX_MAINTAINER_EMAILS;
+    }
+  });
+
   it("lets only a maintainer switch a source off, and refuses an early shadow sign-off", async () => {
     env("shadow", false);
     const { t, poll, sources } = await setup();

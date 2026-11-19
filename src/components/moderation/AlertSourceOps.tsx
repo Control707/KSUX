@@ -6,6 +6,8 @@ import { useViewerMutation, useViewerQuery } from "@/lib/viewerClient";
 import { useAnnouncer } from "@/components/a11y/Announcer";
 import { errorMessage, ui } from "@/components/communities/campusLifeUi";
 
+const span = (ms: number) => ms >= 24 * 3_600_000 ? `${Math.round(ms / 86_400_000)} days` : `${Math.round(ms / 360_000) / 10} hours`;
+
 const when = (ms: number | null) => ms === null ? "never" : new Intl.DateTimeFormat("en-US", {
   timeZone: "America/New_York", dateStyle: "medium", timeStyle: "short",
 }).format(ms);
@@ -30,6 +32,10 @@ export function AlertSourceOps() {
         Mode <strong>{ops.mode}</strong> (KSUX_ALERT_COPY_MODE). Push switch {ops.pushRequested ? "on" : "off"} (KSUX_ALERT_PUSH).
         {" "}{ops.sentToday} of {ops.dailyCap} Alert pushes sent today.
       </p>
+      <p data-testid="alert-shadow-window">
+        Required shadow window: {span(ops.shadowWindowMs)}
+        {ops.shadowWindowMs < ops.fullShadowMs ? ` (shortened from ${span(ops.fullShadowMs)} by KSUX_ALERT_SHADOW_HOURS; record this deviation from SPEC-v2 §13).` : "."}
+      </p>
       {ops.sources.length === 0 && <p>No source rows yet. Run the seed, then set the mode to shadow.</p>}
       {ops.sources.map((s) => (
         <div key={s.sourceKey} className={`${ui.subCard} space-y-[var(--sp-2)]`}>
@@ -43,7 +49,7 @@ export function AlertSourceOps() {
           </p>
           <p>
             Shadow poll from {when(s.shadowStartedAt)}: {s.shadowChangeCount} page changes, {s.shadowUnrecognizedCount} unrecognized.
-            {s.gatePassed ? ` Signed off ${when(s.shadowSignedOffAt)}.` : s.readyForSignOff ? " Ready for sign-off." : " Not ready for sign-off."}
+            {s.gatePassed ? ` Signed off ${when(s.shadowSignedOffAt)} after a ${span(s.signedOffWindowMs ?? ops.fullShadowMs)} window.` : s.readyForSignOff ? " Ready for sign-off." : " Not ready for sign-off."}
           </p>
           <div className={ui.row}>
             <button type="button" className={s.killSwitch === "off" ? ui.danger : ui.secondary}
@@ -53,7 +59,7 @@ export function AlertSourceOps() {
             </button>
             {s.readyForSignOff && !s.gatePassed && (
               <button type="button" className={ui.primary} onClick={() => act("Shadow poll signed off", () => signOff({ sourceKey: s.sourceKey }))}>
-                Sign off the 14-day shadow poll
+                Sign off the shadow poll
               </button>
             )}
             <button type="button" className={ui.secondary} onClick={() => act("Shadow poll restarted", () => restart({ sourceKey: s.sourceKey }))}>

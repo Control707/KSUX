@@ -1273,7 +1273,7 @@ export default defineSchema({
     consecutiveFailures: v.optional(v.number()), lastError: v.optional(v.string()),
     shadowStartedAt: v.optional(v.number()),
     shadowChangeCount: v.optional(v.number()), shadowUnrecognizedCount: v.optional(v.number()),
-    shadowSignedOffAt: v.optional(v.number()), shadowSignedOffBy: v.optional(v.string()),
+    shadowSignedOffAt: v.optional(v.number()), shadowSignedOffBy: v.optional(v.string()), shadowWindowMs: v.optional(v.number()),
   }).index("by_source", ["workspaceKey", "sourceKey"])
     .index("by_purge", ["workspaceKey", "purgeAt"]),
 

@@ -117,17 +117,34 @@ export interface ShadowEvidence {
   shadowStartedAt?: number;
   shadowUnrecognizedCount?: number;
   shadowSignedOffAt?: number;
+  /** The window that applied when this source was signed off. */
+  shadowWindowMs?: number;
 }
 
-/** A source may be shown only after a clean 14-day shadow poll a maintainer signed off. */
+/** The shortest shadow window a maintainer may choose: 12 polls at 5 minutes. */
+export const MIN_SHADOW_MS = 60 * 60_000;
+
+/**
+ * Required shadow window. SPEC-v2 §13 asks for 14 days; `KSUX_ALERT_SHADOW_HOURS`
+ * shortens it (never below 1 hour) for a time-boxed event such as a hackathon.
+ * A shortened window is recorded on each signed-off source and shown to maintainers.
+ */
+export function shadowWindowMs(env: string | undefined = process.env.KSUX_ALERT_SHADOW_HOURS) {
+  const hours = Number(env?.trim());
+  if (!env?.trim() || !Number.isFinite(hours) || hours <= 0) return SHADOW_MS;
+  return Math.min(SHADOW_MS, Math.max(MIN_SHADOW_MS, Math.round(hours * 60 * 60_000)));
+}
+
+/** A source may be shown only after a clean shadow poll a maintainer signed off. */
 export function shadowGatePassed(source: ShadowEvidence) {
+  const required = Math.max(MIN_SHADOW_MS, source.shadowWindowMs ?? SHADOW_MS);
   return source.shadowSignedOffAt !== undefined && source.shadowStartedAt !== undefined
-    && source.shadowSignedOffAt - source.shadowStartedAt >= SHADOW_MS
+    && source.shadowSignedOffAt - source.shadowStartedAt >= required
     && (source.shadowUnrecognizedCount ?? 0) === 0;
 }
 
-export function shadowReadyForSignOff(source: ShadowEvidence, now: number) {
-  return source.shadowStartedAt !== undefined && now - source.shadowStartedAt >= SHADOW_MS
+export function shadowReadyForSignOff(source: ShadowEvidence, now: number, windowMs = shadowWindowMs()) {
+  return source.shadowStartedAt !== undefined && now - source.shadowStartedAt >= windowMs
     && (source.shadowUnrecognizedCount ?? 0) === 0;
 }
 
