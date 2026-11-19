@@ -11,7 +11,8 @@ import {
 } from "./helpers";
 
 // Routes added by Phase 0 render fully in Direction C and are checked whole.
-const PHASE0_SHELL_ROUTES = ["/leaderboard", "/leaderboard?campus=marietta", "/profile/notifications"];
+// /leaderboard is checked whole by tests/a11y/leaderboard.spec.ts (#90).
+const PHASE0_SHELL_ROUTES = ["/profile/notifications"];
 // Every other screen migrated in Phase 1A (#74) and is checked whole by its own
 // screenMatrix spec (tests/a11y/<area>.spec.ts). Only the shell chrome is checked
 // here for screens that are still mid-migration; the list may only shrink.
@@ -140,7 +141,7 @@ test.describe("shell keyboard and announcements", () => {
   test("no horizontal overflow at 320 px or 200% text on Phase 0 routes", async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 700 });
     await enterDemo(page, "/leaderboard");
-    for (const route of ["/leaderboard", "/profile/notifications", "/safety", "/emergency"]) {
+    for (const route of ["/profile/notifications", "/safety", "/emergency"]) {
       await page.goto(route);
       await expect(page.locator("h1").first()).toBeVisible();
       await expectNoHorizontalOverflow(page, `${route} 320px`);

@@ -87,3 +87,37 @@ test("the intro card dismisses and stays dismissed", async ({ page }) => {
   await expect(page.getByTestId("emergency-panel")).toBeVisible();
   await expect(page.getByTestId("safety-intro")).toHaveCount(0);
 });
+
+test("Demo shows every Official Alert state with its source and check time, and no push", async ({ page }) => {
+  await page.goto("/safety?demo=1");
+  const copy = page.getByTestId("official-alert-copy");
+  await expect(copy).toContainText("KSUX makes no real fetch and sends no push in Demo");
+  await expect(copy.locator('[data-display="ok"]').first()).toBeVisible();
+  await expect(copy.getByTestId("alert-stale")).toContainText("KSUX’s copy is out of date");
+  await expect(copy.getByTestId("alert-quiet").first()).toContainText("Checked");
+  await expect(copy.getByTestId("alert-unavailable")).toBeVisible();
+  for (const state of ["Issued", "Updated", "All clear (quoted from the source)", "No longer listed"]) {
+    await expect(copy.getByTestId("official-alert-item").filter({ hasText: state }).first()).toBeVisible();
+  }
+  await expect(page.getByTestId("no-alert-isnt-safe")).toBeVisible();
+  await expectNoSeriousAxe(page, { label: "/safety demo alert copy" });
+
+  await copy.getByRole("link", { name: "Alert details" }).first().click();
+  await expect(page).toHaveURL(/\/safety\/alerts\//);
+  await expect(page.getByTestId("official-alert-item")).toContainText("Demo · not real");
+  await expectNoSeriousAxe(page, { label: "/safety/alerts demo" });
+});
+
+test("Notifications says Demo Mode sends no push and keeps the Alert switch disabled", async ({ page }) => {
+  await page.goto("/profile/notifications?demo=1#alerts");
+  await expect(page.getByTestId("push-phone-state")).toHaveAttribute("data-state", "demo");
+  const toggle = page.getByTestId("alert-push-switch");
+  await expect(toggle).toHaveAttribute("role", "switch");
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  await expect(toggle).toHaveAttribute("aria-disabled", "true");
+  await expect(page.getByTestId("alert-push-reason")).toHaveText("Demo Mode: no push.");
+  await expect(page.getByTestId("alert-push-callout")).toContainText("call 911");
+  await toggle.click({ force: true });
+  await expect(page.getByTestId("alert-push-confirm")).toHaveCount(0);
+  await expectNoSeriousAxe(page, { label: "/profile/notifications demo" });
+});

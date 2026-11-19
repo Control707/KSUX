@@ -18,6 +18,7 @@ import { WelcomeGate } from "./WelcomeGate";
 import { CloutPayoutToast } from "@/components/clout/CloutPayoutToast";
 import { AgendaReminders } from "@/components/agenda/AgendaReminders";
 import { ModerationNotices } from "@/components/moderation/ModerationNotices";
+import { OfficialAlertBanner } from "@/components/safety/officialAlertsUi";
 
 const DEMO_PERSONAS = [
   { handle: "maya_cs", label: "Maya Patel (@maya_cs)", role: "Kennesaw · Maintainer · report conflicts" },
@@ -250,7 +251,7 @@ export function AppShell({
                     Moderation
                   </Link>
                 </li>
-                {showModerationSections && <React.Suspense fallback={null}><ModerationRailSections productionMaintainer={summary?.viewer.isMaintainer === true && auth.status === "student"} /></React.Suspense>}
+                {showModerationSections && <React.Suspense fallback={null}><ModerationRailSections maintainer={summary?.viewer.isMaintainer === true} productionMaintainer={summary?.viewer.isMaintainer === true && auth.status === "student"} /></React.Suspense>}
               </RailGroup>
             ) : null}
             <button
@@ -263,6 +264,7 @@ export function AppShell({
           </nav>
 
           <main id={MAIN_CONTENT_ID} key={viewerKey} tabIndex={-1} className="min-w-0 flex-1 bg-[var(--bg)] outline-none">
+            <OfficialAlertBanner />
             <AgendaReminders />
             {children}
           </main>
@@ -336,11 +338,11 @@ function RailGroup({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-function ModerationRailSections({ productionMaintainer }: { productionMaintainer: boolean }) {
+function ModerationRailSections({ maintainer, productionMaintainer }: { maintainer: boolean; productionMaintainer: boolean }) {
   const params = useSearchParams();
   const queue = useViewerQuery(api.moderatorConsole.queue, {});
   const appeals = useViewerQuery(api.moderatorConsole.appeals, {});
-  const sections = [["queue", `Queue (${queue?.items.length ?? 0})`], ["appeals", `Appeals (${appeals?.items.filter((a) => a.status === "open").length ?? 0})`], ["log", "Action log"], ...(productionMaintainer ? [["health", "Feed health"], ["roster", "Moderators"]] : [])];
+  const sections = [["queue", `Queue (${queue?.items.length ?? 0})`], ["appeals", `Appeals (${appeals?.items.filter((a) => a.status === "open").length ?? 0})`], ["log", "Action log"], ...(maintainer ? [["clout", "Clout anomalies"]] : []), ...(productionMaintainer ? [["health", "Feed health"], ["roster", "Moderators"]] : [])];
   return <>{sections.map(([key, label]) => <li key={key}><Link href={`/moderation?section=${key}`} aria-current={(params.get("section") ?? "queue") === key ? "page" : undefined} className="flex min-h-11 items-center rounded-[var(--r-sm)] px-3 text-sm font-bold hover:bg-[var(--surface-2)]">{label}</Link></li>)}</>;
 }
 

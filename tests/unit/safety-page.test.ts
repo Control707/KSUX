@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import SafetyPage from "../../src/app/safety/page";
 import SafetyLayout from "../../src/app/safety/layout";
 import type { ActiveAuthState } from "../../src/lib/viewerClient";
@@ -9,14 +9,16 @@ import type { ActiveAuthState } from "../../src/lib/viewerClient";
 const viewer = vi.hoisted(() => ({
   auth: { status: "booting" } as ActiveAuthState,
   gate: undefined as { postingEnabled: boolean } | undefined,
+  alerts: undefined as unknown,
 }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/safety" }));
 vi.mock("@/lib/viewerClient", () => ({
   useViewerClient: () => ({ auth: viewer.auth }),
   useViewerQuery: () => viewer.gate,
+  usePublicViewerQuery: () => viewer.alerts,
 }));
 const render = () => renderToStaticMarkup(createElement(SafetyLayout, null, createElement(SafetyPage)));
-beforeEach(() => { viewer.auth = { status: "booting" }; viewer.gate = undefined; });
+beforeEach(() => { viewer.auth = { status: "booting" }; viewer.gate = undefined; viewer.alerts = undefined; });
 
 it("never exposes real phone handoffs in an offline Judge Demo session", () => {
   viewer.auth = { status: "offline", scope: { mode: "demo", shortCode: "demo", persona: "maya_cs" } };
@@ -81,4 +83,57 @@ it("labels Demo fixtures and shows contact numbers without dialling in Demo", ()
   expect(html).not.toContain('href="tel:4705786206"');
   expect(html).toContain("police@kennesaw.edu");
   expect(html).not.toContain('href="mailto:');
+});
+
+describe("Official Alert copy (#80)", () => {
+  const now = Date.now();
+  const source = (overrides: Record<string, unknown>) => ({
+    sourceKey: "ksu_timely_warnings", sourceName: "KSU Police", pageTitle: "Timely Warnings page",
+    href: "https://campus.kennesaw.edu/offices-services/public-safety-police/notifications/index.php",
+    display: "quiet", quietText: "No Timely Warnings at This Time.", lastSuccessAt: now - 60_000, lastAttemptAt: now - 60_000,
+    demo: false, items: [], ...overrides,
+  });
+  const item = {
+    _id: "a1", sourceKey: "ksu_timely_warnings", sourceName: "KSU Police", category: "timely_warning",
+    headline: "Timely Warning: Robbery", excerpt: "KSU Police are investigating.", campus: null,
+    officialIssuedAt: null, officialIssuedText: null, firstObservedAt: now - 120_000, lastSeenAt: now - 60_000,
+    state: "issued", stateChangedAt: now - 120_000, noLongerListedAt: null, lifecycle: "current",
+    officialUrl: "https://example.test", demoLabel: null, lastSuccessAt: now - 60_000, lastAttemptAt: now - 60_000,
+  };
+  const withSources = (...sources: unknown[]) => { viewer.auth = { status: "unauthenticated" }; viewer.alerts = { serverNow: now, mode: "display", sources }; };
+
+  it("quotes a quiet source with its check time and never calls it safe", () => {
+    withSources(source({}));
+    const html = render();
+    expect(html).toContain("KSU Police page: “No Timely Warnings at This Time.” Checked");
+    expect(html).toContain("Not seeing an Alert doesn’t mean campus is safe.");
+    expect(html).not.toMatch(/all safe|all clear/i);
+  });
+
+  it("shows an issued Alert with its source, an unknown official time and Campus not specified", () => {
+    withSources(source({ display: "ok", items: [item] }));
+    const html = render();
+    expect(html).toContain("Official · KSU Police · Timely Warning · Issued");
+    expect(html).toContain("Unknown: the source doesn’t state a time");
+    expect(html).toContain("Campus not specified");
+    expect(html).toContain('href="/safety/alerts/a1"');
+    expect(html).toContain("Read the full notice on KSU’s page");
+  });
+
+  it("labels a copy older than 20 minutes as out of date", () => {
+    withSources(source({ display: "ok", items: [item], lastSuccessAt: now - 25 * 60_000 }));
+    expect(render()).toContain("KSUX’s copy is out of date");
+  });
+
+  it("falls back to links when KSUX has switched the copy off", () => {
+    withSources(source({ display: "links_only", reason: "kill_switched", items: [] }));
+    const html = render();
+    expect(html).toContain("KSUX has switched off its copy of this page for now.");
+    expect(html).toContain("official-link-timelyWarnings");
+  });
+
+  it("keeps links-only wording while the copy is still in its shadow poll", () => {
+    withSources(source({ display: "links_only", reason: "not_enabled" }));
+    expect(render()).toContain("KSUX doesn’t copy official notices yet.");
+  });
 });

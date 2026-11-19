@@ -77,6 +77,10 @@ it("template notes stay in queue and validate listed Alerts and visible duplicat
   await t.mutation(api.moderatorConsole.act, { ...args, templateId: "official_notice", alertId: links.alerts[0]!.id });
   expect((await t.query(api.moderatorConsole.queue, auth)).items.some((i) => i.key === item.key)).toBe(true);
   expect((await t.query(api.moderatorConsole.actionLog, auth)).filter((r) => r.action === "note")).toHaveLength(1);
+  const sourceId = await t.run(async ({ db }) => (await db.get(links.alerts[0]!.id))!.sourceId);
+  await t.run(({ db }) => db.patch(sourceId, { killSwitch: "manual" }));
+  expect((await t.query(api.moderatorConsole.noteLinks, auth)).alerts.some((a) => a.id === links.alerts[0]!.id)).toBe(false);
+  await expect(t.mutation(api.moderatorConsole.act, { ...args, requestId: "killed-source", templateId: "official_notice", alertId: links.alerts[0]!.id })).rejects.toThrow(/listed Official/);
 });
 
 it("restoring false/misleading reports adds the inaccurate note only with an explicit choice", async () => {

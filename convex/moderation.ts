@@ -1,4 +1,4 @@
-import { getIncidentLaunchGate, projectMonthlyV2Io } from "./lib/v2Launch";
+import { getIncidentLaunchGate, projectMonthlyV2Io, getLeaderboardGate } from "./lib/v2Launch";
 import { parseMaintainerEmails } from "./lib/viewer";
 import { describeFeedHealth } from "./lib/syncGuard";
 import { ConvexError, v } from "convex/values";
@@ -699,6 +699,7 @@ export const getV2LaunchOps = viewerQuery({
     return {
       gate: await getIncidentLaunchGate(ctx.db, "student"),
       io: projectMonthlyV2Io(process.env.KSUX_V2_DB_IO_SAMPLE),
+      leaderboard: getLeaderboardGate("student"),
     };
   },
 });

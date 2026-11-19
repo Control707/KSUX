@@ -53,7 +53,7 @@ async function projection(ctx: QueryCtx, viewer: ViewerContext, row: Doc<"incide
     updates: updates.filter((u) => u.purgeAt > Date.now()).map((u) => ({
       _id: u._id, kind: u.kind, createdAt: u.createdAt,
       text: u.kind === "author_update" ? u.text : INCIDENT_NOTES[u.templateId ?? ""] ?? "Moderator note",
-      href: u.kind === "moderator_note" ? u.officialUrl ?? (u.alertId ? `/safety?alert=${u.alertId}` : u.duplicateIncidentId ? `/safety/${u.duplicateIncidentId}` : undefined) : undefined,
+      href: u.kind === "moderator_note" ? (u.alertId ? `/safety/alerts/${u.alertId}` : u.duplicateIncidentId ? `/safety/${u.duplicateIncidentId}` : u.officialUrl) : undefined,
     })),
   };
 }

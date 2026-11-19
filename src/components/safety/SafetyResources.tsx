@@ -1,11 +1,12 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { ExternalLink } from "lucide-react";
+import { AlertSourceBlock, NoAlertIsntSafe, useOfficialAlertStatus } from "./officialAlertsUi";
 import {
   CAMPUS_CONTACTS,
   KSU_SOURCES,
-  NO_ALERT_ISNT_SAFE,
   OFFICIAL_ALERT_LINKS,
   OFFLINE_OFFICIAL,
   POLICE_NON_EMERGENCY,
@@ -38,25 +39,36 @@ export function OfficialLink({ sourceKey, testId }: { sourceKey: KsuSourceKey; t
 }
 
 /**
- * Official Alerts, P0 (SPEC-v2 §5, §9 P0): links to KSU's own pages and KSU
- * Alert guidance. KSUX shows no live Alert status at P0, so nothing here can
- * go stale or be served from a cache as current.
+ * Official Alerts (SPEC-v2 §9). P0 is links-only. Once the P1 copy has passed
+ * its 14-day shadow poll and is switched to display, each KSU page is shown in
+ * its own words with its check time; quiet, stale, unavailable and switched-off
+ * states are said plainly and the KSU links always stay. Alert status is read
+ * live and never served from a cache as current.
  */
 export function OfficialAlertsSection({ mode, online }: { mode: EmergencyPanelMode; online: boolean }) {
+  const { status, serverNow } = useOfficialAlertStatus(online);
+  const copied = status?.sources.filter((source) => source.demo || source.display !== "links_only" || source.reason !== "not_enabled") ?? [];
   return (
-    <section className={card} aria-labelledby="official-alerts" data-testid="official-alerts">
-      <h2 id="official-alerts" className="font-display text-[length:var(--fs-xl)] font-bold">
+    <section className={card} aria-labelledby="official-alerts" data-testid="official-alerts" id="official-alerts-section">
+      <h2 id="official-alerts" tabIndex={-1} className="font-display text-[length:var(--fs-xl)] font-bold">
         Official Alerts
       </h2>
-      <p>
-        KSUX doesn’t copy official notices yet. Open KSU’s own pages for current Alerts. Each link names its source.
-      </p>
+      {copied.length === 0 ? (
+        <p>
+          KSUX doesn’t copy official notices yet. Open KSU’s own pages for current Alerts. Each link names its source.
+        </p>
+      ) : (
+        <p>
+          KSUX checks two KSU pages every 5 minutes and quotes them with their source and check time. It isn’t an
+          emergency channel and can be late or wrong. KSU’s pages are the record.
+        </p>
+      )}
       {!online && (
         <p role="status" data-testid="offline-official" className="font-bold">
           {OFFLINE_OFFICIAL}
         </p>
       )}
-      {mode === "demo" && (
+      {mode === "demo" && copied.length === 0 && (
         <div data-testid="demo-alert-fixture" className="rounded-[var(--r-md)] border-2 border-dashed border-[var(--line-strong)] p-[var(--sp-3)]">
           <p className="font-bold">
             <span className="rounded-[var(--r-sm)] bg-[var(--warn-bg)] px-[var(--sp-2)] text-[var(--warn-fg)]">Demo · not real</span>{" "}
@@ -66,6 +78,17 @@ export function OfficialAlertsSection({ mode, online }: { mode: EmergencyPanelMo
             Source: KSU Police (sample) · issued time unknown. Exercise only; no real campus incident is described. Real
             Alerts are shown only from KSU’s pages.
           </p>
+        </div>
+      )}
+      {online && copied.length > 0 && (
+        <div className="space-y-[var(--sp-4)]" data-testid="official-alert-copy">
+          {mode === "demo" && (
+            <p data-testid="demo-alert-fixture" className="rounded-[var(--r-sm)] bg-[var(--warn-bg)] px-[var(--sp-2)] font-bold text-[var(--warn-fg)]">
+              Demo · not real. These sample notices are fixtures; KSUX makes no real fetch and sends no push in Demo.
+              Live official notices: <a className="underline" href={KSU_SOURCES.timelyWarnings.href} target="_blank" rel="noopener noreferrer">KSU Police page ↗</a>
+            </p>
+          )}
+          {copied.map((source) => <AlertSourceBlock key={source.sourceKey} source={source} serverNow={serverNow} />)}
         </div>
       )}
       <ul className="space-y-[var(--sp-2)]">
@@ -79,7 +102,12 @@ export function OfficialAlertsSection({ mode, online }: { mode: EmergencyPanelMo
           );
         })}
       </ul>
-      <p className="font-bold" data-testid="no-alert-isnt-safe">{NO_ALERT_ISNT_SAFE}</p>
+      <NoAlertIsntSafe />
+      {mode !== "demo" && (
+        <Link href="/profile/notifications#alerts" className={linkClass} data-testid="alert-push-settings-link">
+          Official Alert push settings
+        </Link>
+      )}
     </section>
   );
 }

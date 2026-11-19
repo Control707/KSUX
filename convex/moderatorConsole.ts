@@ -6,6 +6,9 @@ import { assertReviewable, closeReports, exclusion, loadTarget, moderationError,
 import { DAY, INCIDENT_NOTES, INCIDENT_PLACES, INCIDENT_REMOVE_REASONS } from "./lib/incidentPolicy";
 import { applyLegacyDecision } from "./moderation";
 import { cleanupV2Student, closeStudentArtifactsAndMedia } from "./students";
+import { presentSource } from "./officialAlerts";
+import { sourceInfo } from "./lib/officialAlerts";
+import type { ReviewCtx } from "./lib/moderationPolicy";
 
 const targetType = v.union(v.literal("incident"), v.literal("post"), v.literal("listing"), v.literal("study_session"), v.literal("student"), v.literal("chat_message"));
 type Ctx = MutationCtx & { viewer: ViewerContext };
@@ -71,7 +74,7 @@ export const review = viewerQuery({
       areaDetail: incident?.areaDetail, observedAt: incident?.observedAt, publishedAt: incident?.publishedAt, lockedAt: incident?.lockedAt,
       authorLabel: incident?.nameLevel === "hidden" ? "Student · name hidden" : `@${author?.handle ?? "removed"}`,
       updates: updates.filter((u) => u.purgeAt > Date.now()).map((u) => ({ id: u._id, kind: u.kind, text: u.kind === "author_update" ? u.text : INCIDENT_NOTES[u.templateId ?? ""], createdAt: u.createdAt,
-        href: u.alertId ? `/safety?alert=${u.alertId}` : u.duplicateIncidentId ? `/safety/${u.duplicateIncidentId}` : undefined })),
+        href: u.alertId ? `/safety/alerts/${u.alertId}` : u.duplicateIncidentId ? `/safety/${u.duplicateIncidentId}` : undefined })),
       photo: photoValid ? { expiresAt: photo!.holdExpiresAt!, url: args.showPhoto ? photo!.url : undefined } : null,
     };
   },
@@ -84,9 +87,20 @@ export const noteLinks = viewerQuery({ args: {}, handler: async (ctx) => {
   const alerts = (await Promise.all(workspaces.map((ws) => ctx.db.query("alertItems").withIndex("by_observed", (q) => q.eq("workspaceKey", ws)).order("desc").take(50)))).flat();
   const incidents = (await Promise.all((["Kennesaw", "Marietta"] as const).map((campus) => ctx.db.query("incidents").withIndex("by_campus_visibility_published", (q) =>
     q.eq("workspaceKey", ctx.viewer.workspaceKey).eq("campus", campus).eq("visibility", "visible").gte("publishedAt", Date.now() - 7 * DAY)).take(50)))).flat();
-  return { alerts: alerts.filter((a) => a.state !== "no_longer_listed" && a.purgeAt > Date.now()).map((a) => ({ id: a._id, title: a.headline })),
+  const listedAlerts = [];
+  for (const alert of alerts) if (await linkableAlert(ctx, alert)) listedAlerts.push({ id: alert._id, title: alert.headline });
+  return { alerts: listedAlerts,
     incidents: incidents.filter((i) => i.purgeAt > Date.now()).map((i) => ({ id: i._id, title: `${i.campus} · ${INCIDENT_PLACES.find((p) => p.id === i.buildingId)?.name ?? "Incident"}` })) };
 } });
+
+async function linkableAlert(ctx: ReviewCtx, alert: Doc<"alertItems">) {
+  const workspace = ctx.viewer.mode === "demo" ? ctx.viewer.workspaceKey : "ksu";
+  if (alert.workspaceKey !== workspace || alert.state === "no_longer_listed" || alert.purgeAt <= Date.now()) return false;
+  const source = await ctx.db.get(alert.sourceId);
+  if (!source || source.workspaceKey !== workspace || ctx.viewer.mode !== "demo" && !sourceInfo(source.sourceKey)) return false;
+  const display = presentSource(source, Date.now(), ctx.viewer.mode === "demo").display;
+  return display === "ok" || display === "stale";
+}
 
 async function addNote(ctx: Ctx, incident: Doc<"incidents">, templateId: string, alertId?: Id<"alertItems">, duplicateIncidentId?: Id<"incidents">) {
   const alert = alertId ? await ctx.db.get(alertId) : null;
@@ -118,7 +132,7 @@ export const act = moderatorMutation({
       if (!["inaccurate", "official_notice", "duplicate"].includes(args.templateId ?? "")) moderationError("Choose a fixed note template.");
       if (args.templateId === "official_notice") {
         const alert = args.alertId ? await ctx.db.get(args.alertId) : null;
-        if (!alert || alert.workspaceKey !== (ctx.viewer.mode === "demo" ? ctx.viewer.workspaceKey : "ksu") || alert.state === "no_longer_listed" || alert.purgeAt <= Date.now()) moderationError("Choose a listed Official Alert.");
+        if (!alert || !await linkableAlert(ctx, alert)) moderationError("Choose a listed Official Alert.");
       }
       if (args.templateId === "duplicate") {
         const duplicate = args.duplicateIncidentId ? await ctx.db.get(args.duplicateIncidentId) : null;

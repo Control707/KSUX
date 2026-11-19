@@ -10,7 +10,9 @@ const demoLabel = "Demo · not real" as const;
 export async function seedV2DemoStates(
   ctx: MutationCtx,
   demoSessionId: Id<"demoSessions">,
-  { mayaId, jordanId, alexId }: { mayaId: Id<"students">; jordanId: Id<"students">; alexId: Id<"students"> },
+  { mayaId, jordanId, alexId, samId, taylorId }: {
+    mayaId: Id<"students">; jordanId: Id<"students">; alexId: Id<"students">; samId: Id<"students">; taylorId: Id<"students">;
+  },
   now: number,
 ) {
   const workspaceKey = "demo:" + demoSessionId;
@@ -83,21 +85,34 @@ export async function seedV2DemoStates(
       itemKey: "demo-alert-" + index, category: "timely_warning", headline: demoLabel,
       excerpt: "Exercise only. No real campus incident is described.",
       officialIssuedAt: firstObservedAt, firstObservedAt, lastSeenAt: now - minute, state,
-      confirmedFetches: 2, purgeAt: now + 29 * day,
+      stateChangedAt: state === "updated" ? now - 10 * minute : firstObservedAt,
+      noLongerListedAt: state === "no_longer_listed" ? now - 20 * minute : undefined,
+      contentHash: "demo-" + index, confirmedFetches: 2, purgeAt: now + 29 * day,
     });
   }
   const dow = new Date(easternDate(now) + "T12:00:00Z").getUTCDay();
   const weekKey = easternDate(now, -((dow + 6) % 7));
-  for (const [campus, studentId] of [["Kennesaw", mayaId], ["Marietta", jordanId]] as const) {
-    await ctx.db.insert("cloutEvents", {
-      workspaceKey, studentId, partnerId: alexId, kind: "earn", amount: 5, sourceType: "parking_report",
-      sourceKey: "demo-report-" + campus, targetKey: "demo-lot-" + campus,
-      campus, weekKey, dayKeyET: easternDate(now), createdAt: now - minute, purgeAt: now + 30 * day,
-    });
-    await ctx.db.patch(studentId, { lifetimeClout: 5, leaderboardHidden: false });
+  // Seeded weekly boards (SPEC-v2 §14). Maya keeps 5 so the judge's corroborated report lands on 10.
+  const seededBoards = [
+    ["Kennesaw", alexId, 15], ["Kennesaw", taylorId, 10], ["Kennesaw", mayaId, 5],
+    ["Marietta", samId, 20], ["Marietta", jordanId, 5],
+  ] as const;
+  for (const [index, [campus, studentId, amount]] of seededBoards.entries()) {
+    for (let paid = 0; paid < amount / 5; paid++) {
+      await ctx.db.insert("cloutEvents", {
+        workspaceKey, studentId, partnerId: studentId === alexId ? mayaId : alexId, kind: "earn", amount: 5, sourceType: "parking_report",
+        sourceKey: `demo-report-${index}-${paid}`, targetKey: `demo-lot-${campus}-${paid}`,
+        campus, weekKey, dayKeyET: easternDate(now), createdAt: now - (paid + 1) * minute, purgeAt: now + 30 * day,
+      });
+    }
+    await ctx.db.patch(studentId, { lifetimeClout: amount, leaderboardHidden: false });
     await ctx.db.insert("cloutWeeklyTotals", {
-      workspaceKey, studentId, campus, weekKey, countedTotal: 5, heldTotal: 0, hidden: false, purgeAt: now + 84 * day,
+      workspaceKey, studentId, campus, weekKey, countedTotal: amount, heldTotal: 0, hidden: false, purgeAt: now + 84 * day,
     });
-    await ctx.db.insert("cloutBoardCounts", { workspaceKey, campus, weekKey, visibleCount: 1, purgeAt: now + 84 * day });
+  }
+  for (const campus of ["Kennesaw", "Marietta"] as const) {
+    await ctx.db.insert("cloutBoardCounts", {
+      workspaceKey, campus, weekKey, visibleCount: seededBoards.filter(([c]) => c === campus).length, purgeAt: now + 84 * day,
+    });
   }
 }

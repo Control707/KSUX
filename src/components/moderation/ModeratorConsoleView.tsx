@@ -7,6 +7,8 @@ import { INCIDENT_CATEGORIES, INCIDENT_REASONS } from "@convex/lib/incidentPolic
 import { useViewerClient, useViewerQuery } from "@/lib/viewerClient";
 import { useAnnouncer } from "@/components/a11y/Announcer";
 import { V2LaunchOps } from "./V2LaunchOps";
+import { AlertSourceOps } from "./AlertSourceOps";
+import { CloutAnomalies } from "./CloutAnomalies";
 import { ModerationReview } from "./ModerationReview";
 import { AppealsPanel, ActionLog, FeedHealth, ModeratorRoster, OfficerClaims } from "./ModerationSections";
 import { modButton, modCard, modAge, actionLabels, type ModerationAction } from "./consoleUi";
@@ -62,7 +64,7 @@ function Console() {
     <header className={modCard}><Link href="/profile" className={modButton}>Back to Profile</Link><h1 className="font-display text-2xl font-bold">Moderator console</h1>
       {auth.status === "demo" && <p className="font-bold">Demo · not real</p>}<p>Volunteer Moderators aren’t on call. No review time is promised. Every decision is confirmed and logged.</p></header>
     <nav aria-label="Moderation sections" className="flex flex-wrap gap-2 lg:hidden">
-      {[["queue", `Queue (${queue?.items.length ?? 0})`], ["appeals", `Appeals (${appeals?.items.filter((a) => a.status === "open").length ?? 0})`], ["log", "Action log"], ...(showFeedHealth ? [["health", "Feed health"], ["roster", "Moderators"]] : [])].map(([key, label]) =>
+      {[["queue", `Queue (${queue?.items.length ?? 0})`], ["appeals", `Appeals (${appeals?.items.filter((a) => a.status === "open").length ?? 0})`], ["log", "Action log"], ...(maintainer ? [["clout", "Clout anomalies"]] : []), ...(showFeedHealth ? [["health", "Feed health"], ["roster", "Moderators"]] : [])].map(([key, label]) =>
         <Link key={key} href={`/moderation?section=${key}`} aria-current={section === key ? "page" : undefined} className={`${modButton} ${section === key ? "ring-2 ring-[var(--ink)]" : ""}`}>{label}</Link>)}
     </nav>
     {queue?.isCsa && <p role="note">You can’t see Incident items or Incident Appeals. You told the maintainers you are a campus security authority (CSA).</p>}
@@ -88,7 +90,8 @@ function Console() {
     </div>}
     {section === "appeals" && <AppealsPanel />}
     {section === "log" && <ActionLog />}
-    {section === "health" && showFeedHealth && <><FeedHealth /><V2LaunchOps /></>}
+    {section === "health" && showFeedHealth && <><FeedHealth /><V2LaunchOps /><AlertSourceOps /></>}
+    {section === "clout" && maintainer && <CloutAnomalies />}
     {section === "roster" && showFeedHealth && <><ModeratorRoster /><OfficerClaims /></>}
   </div>;
 }
