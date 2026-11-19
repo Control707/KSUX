@@ -85,6 +85,8 @@ export interface CampusGeoMapProps {
    * ("Show on map"). Omit to let the map own its selection.
    */
   selectedItemId?: string | null;
+  /** Open a named building from a class card, retaining the shared searchable list. */
+  destinationPlaceId?: string;
   /** Only draw these route codes (stops follow). Undefined shows every route. */
   routeCodeFilter?: string[] | null;
   /** Only draw these stop ids (pair with routeCodeFilter). */
@@ -272,6 +274,7 @@ export function CampusGeoMap({
   onSelectRouteId,
   onSelectBusId,
   selectedItemId,
+  destinationPlaceId,
   routeCodeFilter,
   stopIdFilter,
   fill = false,
@@ -895,6 +898,14 @@ export function CampusGeoMap({
   }, [items, selectedId, styleRevision, usingOfflineStyle, prefersDark]);
 
   // Highlight the searched building's outline.
+  useEffect(() => {
+    const place = places.find((place) => place.id === destinationPlaceId);
+    if (!place) return;
+    setSelectedPlace(place);
+    setPlaceQuery(place.name);
+    fitTo(place.bbox as BBox, 18);
+  }, [destinationPlaceId, places, styleRevision, fitTo]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || styleRevision === 0) return;

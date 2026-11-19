@@ -3,7 +3,6 @@
 /** A bus is stale after 36 s with no Passio update (3 missed 12 s polls). */
 export const BUS_STALE_MS = 36_000;
 export const BROWSER_POLL_MS = 12_000;
-export const YOUR_STOP_STORAGE_KEY = "ksux_your_stop";
 
 export type StopReportKind = "stop_clear" | "long_line" | "bus_passed_full";
 
@@ -18,24 +17,6 @@ export const HEADWAY_MINUTES: Record<string, number> = {
   KM: 20, KL: 10, ML: 12, BS: 15, WC: 15, CP: 20, SS: 20, EC: 12, SH: 10, KS: 30, MS: 30,
 };
 export const headwayFor = (code: string) => HEADWAY_MINUTES[code] ?? 15;
-
-export function readYourStop(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.localStorage.getItem(YOUR_STOP_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function writeYourStop(stopId: string) {
-  try {
-    window.localStorage.setItem(YOUR_STOP_STORAGE_KEY, stopId);
-    window.dispatchEvent(new StorageEvent("storage", { key: YOUR_STOP_STORAGE_KEY, newValue: stopId }));
-  } catch {
-    // storage unavailable (private mode); the choice lasts for this view only
-  }
-}
 
 export type Arrival =
   | { kind: "live"; minutes: number; text: string; sr: string }

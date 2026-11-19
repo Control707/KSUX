@@ -17,13 +17,10 @@ import {
   BROWSER_POLL_MS,
   BUS_STALE_MS,
   STOP_REPORTS,
-  YOUR_STOP_STORAGE_KEY,
   arrivalFor,
   formatClock,
   minutesAgo,
   placeBusBetweenStops,
-  readYourStop,
-  writeYourStop,
   type Arrival,
   type StopReportKind,
 } from "./transitModel";
@@ -58,6 +55,7 @@ export function TransitView() {
   const overview = useOverview();
   const submitStopReport = useViewerMutation(api.transitDining.submitShuttleStopPulse);
   const undoStopReport = useViewerMutation(api.transitDining.undoShuttleStopPulse);
+  const saveYourStop = useViewerMutation(api.transitDining.setYourStop);
   const { announce, toast } = useAnnouncer();
   const reducedMotion = usePrefersReducedMotion();
 
@@ -71,7 +69,7 @@ export function TransitView() {
   const [expandedRoute, setExpandedRoute] = useState<string | null>(null);
   const [onlyCode, setOnlyCode] = useState<string | null>(null);
   const [mapSelection, setMapSelection] = useState<string | null>(null);
-  const [yourStopId, setYourStopId] = useState<string | null>(null);
+  const yourStopId = overview?.yourStopId ?? null;
   const stopHeadingRef = useRef<HTMLHeadingElement | null>(null);
   const [sheetEl, setSheetEl] = useState<HTMLElement | null>(null);
   const [sheetPad, setSheetPad] = useState(0);
@@ -103,15 +101,6 @@ export function TransitView() {
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 5_000);
     return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    setYourStopId(readYourStop());
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === YOUR_STOP_STORAGE_KEY) setYourStopId(readYourStop());
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   useEffect(() => {
@@ -342,11 +331,14 @@ export function TransitView() {
     }
   };
 
-  const makeYourStop = (stopId: string) => {
-    writeYourStop(stopId);
-    setYourStopId(stopId);
-    const name = stopsById.get(stopId)?.stop.name ?? "This stop";
-    toast({ message: `${name} is your stop`, tone: "success", testId: "your-stop-toast" });
+  const makeYourStop = async (stopId: string) => {
+    try {
+      await saveYourStop({ stopId });
+      const name = stopsById.get(stopId)?.stop.name ?? "This stop";
+      toast({ message: `${name} is your stop`, tone: "success", testId: "your-stop-toast" });
+    } catch (error) {
+      toast({ message: error instanceof Error ? error.message : "Could not save your stop", tone: "error" });
+    }
   };
 
   const showOnMap = (stopId: string) => {

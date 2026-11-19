@@ -9,6 +9,7 @@ Unified Kennesaw State University campus social network and daily-life companion
 - **Public Campus Feeds and Student Reports**: **Parking Reports** and **Spot Openings**, Big Owl Bus **Shuttle Routes**, LibCal **Study Rooms** and **Study Sessions**, Nutrislice **Dining Venues**, **Clubs**, university calendar **Events**, and **Course Hubs** with a verified Banner subset, stateless `.ics` import, and Simple Syllabus lookup. An isolated fixture deployment supports the full judge scenario. [Data provenance](./KSUX.md#campus-data-provenance)
 - **Chat-Isolated Scrappy the Owl AI**: 3-tier OpenAI-compatible router (Groq `openai/gpt-oss-120b` / `openai/gpt-oss-20b` → PII-stripped Gemini → Cloudflare Workers AI) with clickable Citation Pills and client-confirmed Pre-Filled Draft Cards, architecturally excluded from all `Chats` and database mutations.
 - **Installable Offline Commuter PWA**: Versioned Service Worker (`public/sw.js`), zero-external-tile offline `MapLibre GL JS` campus GeoJSON map, and privacy-safe read-only `ksux_commuter_cache`.
+- **Next-class wayfinding**: Now picks the next weekly meeting in Eastern time from the current semester's imported and Banner classes, links known buildings to the shared campus map, and suggests Shuttle Stops including KM intercampus service. Your stop and pinned Parking Lots stay private and remain available with the saved schedule offline.
 
 ## Accessibility
 

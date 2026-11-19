@@ -201,6 +201,18 @@ Record the date, deployment URL, verified commit SHA, tester, and outcome in the
 - [ ] Upload an image through the hosted media provider and confirm it renders. Verify cleanup for abandoned test media.
 - [ ] If Web Push is enabled, opt in on a supported device and confirm receipt and navigation for an eligible message. Record the tested browser and device, or mark push disabled.
 
+## Next-class wayfinding checks (#75)
+
+On Now, the next weekly class is selected across both Campuses, independently of the location-screen Campus setting. Imported meetings override matching Banner meetings; unmatched and online classes retain their schedule cards. Building matching uses the shipped names and aliases and leaves unknown or ambiguous locations unlinked. The current semester is Spring (January–April), Summer (May–July), or Fall (August–December); this weekly schedule does not infer holidays or class cancellations.
+
+Choose **Your stop** on a Transit stop card or pin Parking Lots on Parking. Now's **Start from** control reuses those choices. The stop is stored on the authenticated Student or isolated Demo persona, replacing the previous device-wide preference. Changing it in one Student's session never changes another's. Old device-wide choices are not imported because their owner is unknown.
+
+The class card suggests the nearest destination stop on a relevant published route. For a cross-Campus origin it uses a route serving both Campuses. Distances are straight-line distances, not walking directions or promised transfers. Its arrival query reads one indexed route and the shared snapshot; it only uses the requested boarding stop's ETA. Snapshots older than 36 seconds are labelled stale; missing arrivals show scheduled operating hours without inventing an ETA. Demo estimates are labelled explicitly.
+
+Visit Now online before an offline reload. The existing scoped commuter cache keeps only the schedule, Your stop and pinned-lot coordinates for this feature, never arrival estimates. The shared campus map and shipped route hours remain available offline. Sign-out clears the cache. Existing snapshots without travel preferences remain readable.
+
+Focused verification: `pnpm test:e2e --project=chromium class-wayfinding.spec.ts`; the case checks a Kennesaw class, a Marietta class, a saved Kennesaw stop, a KM trip, keyboard map entry, axe, 320 px reflow and offline reload. Unit and Convex cases are in `tests/unit/class-wayfinding.test.ts` and `tests/convex/class-wayfinding.test.ts`.
+
 ## Verified Banner catalog refresh
 
 The [public Owl Express class schedule](https://srs-owlexpress.kennesaw.edu/StudentRegistrationSsb/ssb/term/termSelection?mode=search) provides public term codes. The importer reads the [public class listing](https://owlexpress.kennesaw.edu/prodban/bwckctlg.p_disp_listcrse?crse_in=3305&schd_in=E&subj_in=CS&term_in=202608) without a NetID, stored credentials, personal schedules, or instructor email addresses.

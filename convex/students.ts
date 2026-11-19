@@ -643,6 +643,7 @@ export const deleteMyProfile = verifiedStudentMutation({
       avatarAssetId: undefined,
       permitTier: undefined,
       pinnedParkingLotIds: [],
+      yourShuttleStopId: undefined,
       accountStatus: "deleted",
     });
 
