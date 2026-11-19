@@ -1,9 +1,15 @@
 ---
-status: proposed
+status: accepted
 supersedes: ADR-0005 (push-scope clause only)
 ---
 
 # Official Alerts via a swappable source adapter, with opt-in, source-named Alert push
+
+Accepted for the rollout tracked in [#111](https://github.com/Control707/KSUX/issues/111),
+following implementation in [#110](https://github.com/Control707/KSUX/pull/110).
+Acceptance of this decision does not sign off either source's shadow poll or
+enable display or push. Production evidence belongs in the
+[Official Alert release record](../releases/official-alert-rollout-111.md).
 
 An **Alert** is official-sourced only, and v2 needs zero KSU IT approvals. KSUX therefore reads Alerts through one source adapter. Every fetch returns one of `ok`, `quiet`, `unavailable` or `unrecognized`. Every item carries its exact source name and category, an official issued time only when the source states one, plus `firstObservedAt`, `lastSuccessAt` and `lastAttemptAt`. There are three implementations: links-only (P0), a bounded read-only copy of two public KSU pages (the Police Timely Warnings page and the Emergency Advisory page) every 5 minutes (P1), and a stub for a future KSU-approved Rave RSS/CAP feed. A maintainer-only kill switch trips automatically on `unrecognized` and falls back to links-only.
 

@@ -252,6 +252,12 @@ Maintain this weekly during the pilot. The maintainer panel projects each measur
 
 ### Official Alerts copy and Alert push (#80, ADR-0007)
 
+The production rollout and device checks are tracked in
+[#111](https://github.com/Control707/KSUX/issues/111). Record the deployment,
+per-source shadow observations, sign-offs and real-device outcomes in the
+[Official Alert release record](./releases/official-alert-rollout-111.md).
+An automated test pass or an accepted ADR does not complete that rollout.
+
 KSUX reads exactly two public KSU pages and nothing else:
 
 | Source shown to Students | Page | Category |
