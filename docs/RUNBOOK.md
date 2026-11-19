@@ -74,6 +74,9 @@ All accounts below require **zero credit cards** and **zero custom domains**:
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | Optional | Set the same public key in both Next.js and Convex. Convex requires the key pair to dispatch. Example subject: `mailto:your-handle@students.kennesaw.edu`. |
 | `UPLOADTHING_TOKEN` | **Yes** | Required inside `"use node"` `UTApi.deleteFiles(...)` cleanup actions. |
 | `KSUX_MAINTAINER_EMAILS` | Recommended | Comma-separated canonical `.edu` emails granted `"prod"` `Moderation Queue` access. |
+| `KSUX_ALERT_COPY_MODE` | Optional | `off` (default, links-only), `shadow` or `display`. See Official Alerts copy below. |
+| `KSUX_ALERT_PUSH` | Optional | `true` allows opt-in Alert push once the copy is displayed and signed off. |
+| `KSUX_ALERT_SHADOW_HOURS` | Hackathon only | Shortens the required shadow window, in hours (minimum 1). Unset means the full 14 days. |
 
 ---
 
@@ -154,6 +157,60 @@ Set the Convex variable `KSUX_V2_DB_IO_SAMPLE` to JSON with `days` (elapsed days
 ```
 
 Maintain this weekly during the pilot. The maintainer panel projects each measured total over 30 days, flags 50% and 70% of 1 GB, and marks samples older than seven days stale. Compare with the full team budget separately. The Leaderboard (§13 gate 2(a)) reads the same sample: `/leaderboard` opens in production only when the sample covers at least 14 days of P0, is under seven days old, and projects under 50% of 1 GB. Otherwise it shows "coming soon", and earning Clout is unaffected. If a later sample is stale or projects 50% or more, the board closes again by itself. Above 70%, keep the Leaderboard off first and then lengthen Incident list refresh intervals if needed. The maintainer panel on `/moderation` shows the gate's current state and the Clout anomaly view (top weekly gainers, most-reversed accounts over seven days). Demo always shows its seeded boards.
+
+### Official Alerts copy and Alert push (#80, ADR-0007)
+
+KSUX reads exactly two public KSU pages and nothing else:
+
+| Source shown to Students | Page | Category |
+|---|---|---|
+| KSU Police | [Timely Warnings](https://campus.kennesaw.edu/offices-services/public-safety-police/notifications/index.php) | Timely Warning |
+| KSU Campus Security & Advisories | [Emergency Advisory page](https://www.kennesaw.edu/emergency/) | Emergency advisory |
+
+**KSU's official notification channels**, named in `/safety`, `/safety/alerts/<id>` and `/profile/notifications#alerts`, are **KSU Alert (Rave)** (texts, calls and email from the KSU Office of Emergency Management; Students keep a cell number in OwlExpress), the two pages above, and **911**. KSUX push is supplementary: web push has no critical alerts, iPhone push needs the Home Screen app on iOS 16.4+, and a sent push may never arrive.
+
+Two Convex variables control rollout. Both default off.
+
+| `KSUX_ALERT_COPY_MODE` | Effect |
+|---|---|
+| unset / `off` | P0 links-only. The 5-minute cron returns at once and fetches nothing. |
+| `shadow` | Polls both pages every 5 minutes in production and records results, items and shadow evidence. Students still see links only. No push. |
+| `display` | Shows the copy for a source **only after its 14-day shadow poll is signed off**. Otherwise that source stays links-only. |
+
+`KSUX_ALERT_PUSH=true` additionally allows Alert push, and only in `display` with a signed-off source.
+
+**Rollout:**
+
+1. Merge ADR-0007 (mark it accepted) and deploy. Run `seed:bootstrapKsu` if the two `ksu` source rows are missing.
+2. Set `KSUX_ALERT_COPY_MODE=shadow`. The first fetch stamps `shadowStartedAt` on each source.
+3. Watch **Moderation › Official Alert copy** (maintainers only) daily for 14 days. Each real page change increments the change count; any `unrecognized` result increments the unrecognized count and trips the automatic kill switch.
+4. When a parse is wrong, or any result is `unrecognized`, fix the parser: save the real page under `tests/fixtures/official-alerts/`, add an expectation in `tests/adapters/official-alert-adapter.test.ts`, ship it, then **Restart shadow poll**. The 14 days begin again.
+5. After 14 days with zero unrecognized results and every recorded change parsed correctly, select **Sign off the 14-day shadow poll** for each source. The server refuses an early sign-off. Record the date, the change count and the fixtures added in the release record.
+6. Set `KSUX_ALERT_COPY_MODE=display`. Check `/safety` shows each source's quiet line with its check time.
+7. Set `KSUX_ALERT_PUSH=true` only after the copy has been visible without issue. The Notifications switch becomes available.
+
+**Hackathon fast path (deviation from SPEC-v2 §13).** For a time-boxed event the full 14 days can be shortened. This is a recorded exception; the real 14-day poll is still owed before a public launch.
+
+1. Deploy, then set `KSUX_ALERT_SHADOW_HOURS=1` (or longer) and `KSUX_ALERT_COPY_MODE=shadow`.
+2. Wait at least one hour (12 polls). The source must have at least one successful check and zero unrecognized results; the server refuses an earlier sign-off.
+3. In Moderation › Official Alert copy, sign off each source. The panel shows the shortened window, and each sign-off records the window that applied.
+4. Set `KSUX_ALERT_COPY_MODE=display` and `KSUX_ALERT_PUSH=true`. Every other push rule is unchanged: seen twice, 3 a day, blocked when stale or switched off.
+5. Before public launch, unset `KSUX_ALERT_SHADOW_HOURS`, select **Restart shadow poll** for each source (this clears the short sign-off and returns the source to links-only), and run the full 14 days.
+
+A real Alert push fires only when KSU actually posts a notice. To show push to judges without waiting for a real notice, use a test device subscribed to a staging deployment, never a fabricated notice in production.
+
+**Behaviour to verify after each step:**
+
+- Every fetch is `ok`, `quiet`, `unavailable` (network, non-2xx, truncated page; honours `Retry-After`, then backs off 15→30→60 min) or `unrecognized` (anything the parser can't positively match). Writes happen only on content change, recovery, or a heartbeat at most every 10 minutes.
+- Stale is decided at read time: more than 20 minutes since the last success. Stale copy is labelled out of date, never shown as current, never bannered and never pushed. `/safety*` is never cached by the service worker.
+- `unrecognized` auto-trips the kill switch and falls back to links-only; the next recognised fetch clears an automatic trip. **Switch copy off** is a manual trip: it stops fetching and survives recovery until switched back on.
+- An item can push once when it first reaches issued, and once more for a quoted official all-clear, only after **two consecutive successful fetches with identical content**. A changed page or any failed fetch in between restarts the count. The payload names only the source ("KSU Police posted a new Timely Warning") and opens `/safety/alerts/<id>`.
+- The cap is **3 Alert pushes per Eastern day** for everyone, derived from today's pushed items; later items record `capped`. Fan-out sends 100 opted-in devices per scheduled step and stops if the source turns stale or is switched off between batches.
+- Judge Demo Mode reads fixtures for all 7 states, never fetches, and never pushes.
+
+**Kill switch in an incident:** open Moderation › Official Alert copy and select **Switch copy off** for the source, or set `KSUX_ALERT_COPY_MODE=off` to stop polling and display entirely. Students keep the KSU links, KSU Alert (Rave) and 911. Opt-in settings are kept and resume when the copy returns.
+
+Verify with `pnpm test -- tests/adapters/official-alert-adapter.test.ts tests/convex/official-alerts.test.ts tests/unit/safety-page.test.ts tests/unit/push-device.test.ts` and `pnpm test:e2e --project=a11y tests/a11y/safety.spec.ts`. Manually check a real Alert push on Chrome desktop, Android Chrome and an iPhone Home Screen install (iOS 16.4+), and that an iPhone Safari tab shows the Home Screen steps.
 
 ### P0 release record
 

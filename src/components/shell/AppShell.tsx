@@ -17,6 +17,7 @@ import { QuickSheet } from "./QuickSheet";
 import { WelcomeGate } from "./WelcomeGate";
 import { CloutPayoutToast } from "@/components/clout/CloutPayoutToast";
 import { AgendaReminders } from "@/components/agenda/AgendaReminders";
+import { OfficialAlertBanner } from "@/components/safety/officialAlertsUi";
 
 const DEMO_PERSONAS = [
   { handle: "maya_cs", label: "Maya Patel (@maya_cs)", role: "Kennesaw · CS '27 Commuter" },
@@ -257,6 +258,7 @@ export function AppShell({
           </nav>
 
           <main id={MAIN_CONTENT_ID} key={viewerKey} tabIndex={-1} className="min-w-0 flex-1 bg-[var(--bg)] outline-none">
+            <OfficialAlertBanner />
             <AgendaReminders />
             {children}
           </main>

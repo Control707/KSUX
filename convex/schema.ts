@@ -1270,6 +1270,11 @@ export default defineSchema({
     backoffUntil: v.optional(v.number()), lastPayloadHash: v.optional(v.string()),
     killSwitch: v.union(v.literal("off"), v.literal("manual"), v.literal("auto")),
     killReason: v.optional(v.string()), purgeAt: v.optional(v.number()),
+    // P1 HTML copy (#80): failure streak, and the 14-day shadow poll evidence.
+    consecutiveFailures: v.optional(v.number()), lastError: v.optional(v.string()),
+    shadowStartedAt: v.optional(v.number()),
+    shadowChangeCount: v.optional(v.number()), shadowUnrecognizedCount: v.optional(v.number()),
+    shadowSignedOffAt: v.optional(v.number()), shadowSignedOffBy: v.optional(v.string()), shadowWindowMs: v.optional(v.number()),
   }).index("by_source", ["workspaceKey", "sourceKey"])
     .index("by_purge", ["workspaceKey", "purgeAt"]),
 
@@ -1282,8 +1287,17 @@ export default defineSchema({
     state: v.union(v.literal("issued"), v.literal("updated"), v.literal("all_clear"), v.literal("no_longer_listed")),
     confirmedFetches: v.number(), pushedAt: v.optional(v.number()), purgeAt: v.number(),
     demoLabel: v.optional(v.literal("Demo · not real")),
+    // P1 HTML copy (#80). contentHash gates the seen-twice rule; push decisions are recorded once.
+    contentHash: v.optional(v.string()), officialIssuedText: v.optional(v.string()),
+    stateChangedAt: v.optional(v.number()), noLongerListedAt: v.optional(v.number()),
+    pushDecision: v.optional(v.union(v.literal("sent"), v.literal("capped"), v.literal("blocked"))),
+    allClearPushedAt: v.optional(v.number()),
+    allClearPushDecision: v.optional(v.union(v.literal("sent"), v.literal("capped"), v.literal("blocked"))),
   }).index("by_source_item", ["workspaceKey", "sourceId", "itemKey"])
     .index("by_observed", ["workspaceKey", "firstObservedAt"])
+    .index("by_source_state", ["workspaceKey", "sourceId", "state"])
+    .index("by_pushed", ["workspaceKey", "pushedAt"])
+    .index("by_all_clear_pushed", ["workspaceKey", "allClearPushedAt"])
     .index("by_purge", ["workspaceKey", "purgeAt"]),
 
   cloutEvents: defineTable({

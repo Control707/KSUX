@@ -578,6 +578,27 @@ export function useViewerQuery<
   return useQuery(queryRef, merged);
 }
 
+/**
+ * A public query that needs no sign-in (Official Alerts, like /safety). Only
+ * Judge Demo credentials are forwarded, so a demo tab reads its own fixtures;
+ * a Student session token is never sent to a public read.
+ */
+export function usePublicViewerQuery<
+  Query extends FunctionReference<"query", "public", any, any>,
+>(
+  queryRef: Query,
+  args: StripAuthArgs<FunctionArgs<Query>> | "skip"
+): FunctionReturnType<Query> | undefined {
+  const { auth } = useViewerClient();
+  const merged = args === "skip" || auth.status === "booting"
+    ? ("skip" as const)
+    : ({
+      ...args,
+      ...(auth.status === "demo" ? { demoShortCode: auth.demoShortCode, demoPersonaHandle: auth.demoPersonaHandle } : {}),
+    } as FunctionArgs<Query>);
+  return useQuery(queryRef, merged);
+}
+
 export function useViewerMutation<
   Mutation extends FunctionReference<"mutation", "public", any, any>,
 >(mutationRef: Mutation) {

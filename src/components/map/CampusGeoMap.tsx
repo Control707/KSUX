@@ -1126,10 +1126,13 @@ export function CampusGeoMap({
           </div>
         )}
 
+        {/* Controls and attribution share one bottom-anchored column so wrapped attribution
+            pushes the controls up instead of covering them (WCAG 2.5.8 target size). */}
         <div
-          className="absolute right-[var(--sp-2)] z-10 flex flex-col gap-[var(--sp-1)]"
-          style={{ bottom: `calc(var(--sp-6) + ${Math.max(0, fitPadding?.bottom ?? 0)}px)` }}
+          className="pointer-events-none absolute inset-x-0 z-10 flex flex-col items-end gap-[var(--sp-2)]"
+          style={{ bottom: `${Math.max(0, fitPadding?.bottom ?? 0)}px` }}
         >
+        <div className="pointer-events-auto mr-[var(--sp-2)] flex flex-col gap-[var(--sp-1)]">
           <button type="button" aria-label="Zoom in" data-testid="map-zoom-in" disabled={!mapReady} onClick={() => zoomBy(1)} className={controlClass}>
             <Plus aria-hidden="true" className="h-5 w-5" />
           </button>
@@ -1153,8 +1156,7 @@ export function CampusGeoMap({
 
         <p
           data-testid="map-attribution"
-          className="absolute inset-x-0 top-auto z-10 bg-[var(--surface)] px-[var(--sp-2)] py-[2px] text-right text-[length:var(--fs-xs)] text-[var(--ink)] opacity-95"
-          style={{ bottom: `${Math.max(0, fitPadding?.bottom ?? 0)}px` }}
+          className="pointer-events-auto w-full bg-[var(--surface)] px-[var(--sp-2)] py-[2px] text-right text-[length:var(--fs-xs)] text-[var(--ink)] opacity-95"
         >
           ©{" "}
           <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="underline">
@@ -1170,6 +1172,7 @@ export function CampusGeoMap({
           )}
           {showsRoutes && " · Routes & stops: Passio GO / Big Owl Bus"}
         </p>
+        </div>
       </div>
 
       {renderPanel ? (
