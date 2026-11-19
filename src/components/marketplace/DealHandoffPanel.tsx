@@ -1,41 +1,55 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  Award,
-  CheckCircle2,
-  MapPin,
-  ShieldCheck,
-  UserPlus,
-} from "lucide-react";
+import React, { useEffect, useId, useMemo, useState } from "react";
+import { Award, CheckCircle2, MapPin, ShieldCheck, UserPlus } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
 import { useViewerMutation, useViewerQuery } from "@/lib/viewerClient";
-import {
-  CampusPlace,
-  filterMeetupSpots,
-  loadCampusPlaces,
-} from "@/lib/campusPlaces";
+import { CampusPlace, filterMeetupSpots, loadCampusPlaces } from "@/lib/campusPlaces";
+import { Dialog } from "@/components/a11y/Dialog";
+import { useAnnouncer } from "@/components/a11y/Announcer";
+import { CampusBadge, SegmentedControl } from "@/components/a11y/controls";
+import { BTN_PRIMARY, BTN_SECONDARY, FIELD, LABEL } from "./styles";
+
+const LISTING_STATUS: Record<string, { glyph: string; word: string; fg: string; bg: string }> = {
+  available: { glyph: "○", word: "Available", fg: "var(--ok-fg)", bg: "var(--ok-bg)" },
+  pending: { glyph: "◐", word: "Pending", fg: "var(--warn-fg)", bg: "var(--warn-bg)" },
+  sold: { glyph: "●", word: "Sold", fg: "var(--bg)", bg: "var(--ink)" },
+  expired: { glyph: "◌", word: "Expired", fg: "var(--muted)", bg: "var(--surface-2)" },
+};
+
+const HANDOFF_STATUS: Record<string, { glyph: string; word: string; fg: string; bg: string }> = {
+  proposed: { glyph: "◐", word: "Proposed", fg: "var(--warn-fg)", bg: "var(--warn-bg)" },
+  confirmed: { glyph: "✓", word: "Confirmed", fg: "var(--ok-fg)", bg: "var(--ok-bg)" },
+};
+
+function Chip({ s, testId }: { s: { glyph: string; word: string; fg: string; bg: string }; testId?: string }) {
+  return (
+    <span
+      data-testid={testId}
+      className="inline-flex items-center gap-[var(--sp-1)] rounded-full px-[var(--sp-2)] text-sm font-bold"
+      style={{ color: s.fg, backgroundColor: s.bg }}
+    >
+      <span aria-hidden="true">{s.glyph}</span>
+      {s.word}
+    </span>
+  );
+}
 
 export function DealHandoffPanel({ thread }: { thread: any }) {
   const { chat, listing, myMembership } = thread;
-  const defaultCampus: "Kennesaw" | "Marietta" =
-    listing?.campus ?? "Kennesaw";
-  const [spotCampus, setSpotCampus] = useState<"Kennesaw" | "Marietta">(
-    defaultCampus
-  );
+  const { toast } = useAnnouncer();
+  const ids = { search: useId(), spot: useId(), window: useId(), terms: useId(), invite: useId() };
+  const defaultCampus: "Kennesaw" | "Marietta" = listing?.campus ?? "Kennesaw";
+  const [spotCampus, setSpotCampus] = useState<"Kennesaw" | "Marietta">(defaultCampus);
   const [proposeOpen, setProposeOpen] = useState(false);
   const [selectedSpotId, setSelectedSpotId] = useState<string>("");
-  const [proposedWindow, setProposedWindow] = useState(
-    "Today · 3:00 PM – 3:15 PM"
-  );
+  const [proposedWindow, setProposedWindow] = useState("Today · 3:00 PM – 3:15 PM");
   const [agreedTerms, setAgreedTerms] = useState("Cash in person after check");
   const [coPartyHandle, setCoPartyHandle] = useState("");
-  const [banner, setBanner] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
-  const spots = useViewerQuery(api.marketplace.listMeetupSpots, {
-    campus: spotCampus,
-  });
+  const spots = useViewerQuery(api.marketplace.listMeetupSpots, { campus: spotCampus });
 
   const [spotQuery, setSpotQuery] = useState("");
   const [places, setPlaces] = useState<CampusPlace[]>([]);
@@ -52,77 +66,58 @@ export function DealHandoffPanel({ thread }: { thread: any }) {
       cancelled = true;
     };
   }, []);
-  const visibleSpots = useMemo(
-    () => filterMeetupSpots(spots ?? [], spotQuery, places),
-    [spots, spotQuery, places]
-  );
+  const visibleSpots = useMemo(() => filterMeetupSpots(spots ?? [], spotQuery, places), [spots, spotQuery, places]);
 
-  const proposeCard = useViewerMutation(
-    api.marketplace.proposeOrUpdateHandoffCard
-  );
-  const confirmMeetup = useViewerMutation(
-    api.marketplace.confirmHandoffMeetup
-  );
-  const transitionStatus = useViewerMutation(
-    api.marketplace.transitionListingStatus
-  );
+  const proposeCard = useViewerMutation(api.marketplace.proposeOrUpdateHandoffCard);
+  const confirmMeetup = useViewerMutation(api.marketplace.confirmHandoffMeetup);
+  const transitionStatus = useViewerMutation(api.marketplace.transitionListingStatus);
   const confirmPickup = useViewerMutation(api.marketplace.confirmBuyerPickup);
   const inviteCoParty = useViewerMutation(api.marketplace.inviteDealCoParty);
 
   const isPrimarySeller = myMembership?.role === "primary_seller";
   const isPrimaryBuyer = myMembership?.role === "primary_buyer";
   const card = chat.handoffCard;
+  const done = (message: string) => toast({ message, tone: "success" });
+
+  const listingStatus = listing ? (LISTING_STATUS[listing.status] ?? { glyph: "◌", word: listing.status, fg: "var(--muted)", bg: "var(--surface-2)" }) : null;
+  const handoffStatus = card ? (HANDOFF_STATUS[card.status] ?? { glyph: "◌", word: card.status, fg: "var(--muted)", bg: "var(--surface-2)" }) : null;
 
   return (
-    <div
+    <section
+      aria-labelledby="deal-handoff-heading"
       data-testid="deal-handoff-card"
-      className="space-y-3 rounded-2xl border-2 border-[#FDBB30] bg-[#FFFDF7] p-4 shadow-xs"
+      className="space-y-[var(--sp-3)] rounded-[var(--r-lg)] border-2 border-[var(--accent)] bg-[var(--surface)] p-[var(--sp-4)]"
     >
-      {/* Listing Summary + Seller Lifecycle Controls */}
-      {listing && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E4E7EE] pb-2.5">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-black text-[#111317]">{listing.title}</span>
+      <h2 id="deal-handoff-heading" className="sr-only">
+        Deal handoff
+      </h2>
+      {listing && listingStatus && (
+        <div className="flex flex-wrap items-center justify-between gap-[var(--sp-2)] border-b border-[var(--line)] pb-[var(--sp-3)]">
+          <div className="flex min-w-0 flex-wrap items-center gap-[var(--sp-2)]">
+            <span className="min-w-0 font-display text-lg font-bold [overflow-wrap:anywhere]">{listing.title}</span>
+            <Chip s={listingStatus} testId="deal-listing-status-badge" />
+            {listing.buyerConfirmedPickup && (
               <span
-                data-testid="deal-listing-status-badge"
-                className={`rounded-full px-2.5 py-0.5 text-[10.5px] font-extrabold uppercase ${
-                  listing.status === "sold"
-                    ? "bg-[#111317] text-[#FDBB30]"
-                    : listing.status === "pending"
-                      ? "bg-[#FEF3C7] text-[#B45309]"
-                      : "bg-[#DCFCE7] text-[#15803D]"
-                }`}
+                data-testid="pickup-confirmed-badge"
+                className="inline-flex items-center gap-[var(--sp-1)] rounded-full bg-[var(--ok-bg)] px-[var(--sp-2)] text-sm font-bold text-[var(--ok-fg)]"
               >
-                {listing.status}
+                <Award aria-hidden="true" className="h-4 w-4" />
+                Pickup Confirmed ✓
               </span>
-              {listing.buyerConfirmedPickup && (
-                <span
-                  data-testid="pickup-confirmed-badge"
-                  className="inline-flex items-center gap-1 rounded-full bg-[#DCFCE7] px-2.5 py-0.5 text-[10.5px] font-extrabold text-[#15803D]"
-                >
-                  <Award className="h-3 w-3" />
-                  Pickup Confirmed ✓
-                </span>
-              )}
-            </div>
+            )}
           </div>
 
           {isPrimarySeller && listing.status !== "sold" && (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-[var(--sp-2)]">
               {listing.status !== "pending" ? (
                 <button
                   type="button"
                   data-testid="seller-mark-pending-btn"
                   onClick={async () => {
-                    await transitionStatus({
-                      listingId: listing._id,
-                      nextStatus: "pending",
-                      dealChatId: chat._id,
-                    });
-                    setBanner("Marked Listing Pending for this Deal Chat.");
+                    await transitionStatus({ listingId: listing._id, nextStatus: "pending", dealChatId: chat._id });
+                    done("Listing marked Pending for this Deal Chat");
                   }}
-                  className="rounded-xl bg-[#FEF3C7] px-3 py-1.5 text-xs font-extrabold text-[#92400E]"
+                  className={BTN_SECONDARY}
                 >
                   Mark Pending
                 </button>
@@ -130,274 +125,213 @@ export function DealHandoffPanel({ thread }: { thread: any }) {
                 <button
                   type="button"
                   onClick={async () => {
-                    await transitionStatus({
-                      listingId: listing._id,
-                      nextStatus: "available",
-                    });
-                    setBanner("Reopened Listing as Available.");
+                    await transitionStatus({ listingId: listing._id, nextStatus: "available" });
+                    done("Listing reopened as Available");
                   }}
-                  className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-1.5 text-xs font-bold text-[#5E6675]"
+                  className={BTN_SECONDARY}
                 >
-                  Reopen Available
+                  Reopen as Available
                 </button>
               )}
-
               <button
                 type="button"
                 data-testid="seller-mark-sold-btn"
                 onClick={async () => {
-                  await transitionStatus({
-                    listingId: listing._id,
-                    nextStatus: "sold",
-                    dealChatId: chat._id,
-                  });
-                  setBanner(
-                    "Marked Listing Sold! Waiting on buyer Confirm Pickup."
-                  );
+                  await transitionStatus({ listingId: listing._id, nextStatus: "sold", dealChatId: chat._id });
+                  done("Listing marked Sold. Waiting for the buyer to confirm pickup.");
                 }}
-                className="rounded-xl bg-[#111317] px-3 py-1.5 text-xs font-extrabold text-[#FDBB30]"
+                className={BTN_PRIMARY}
               >
                 Mark Sold
               </button>
             </div>
           )}
 
-          {isPrimaryBuyer &&
-            listing.status === "sold" &&
-            listing.soldDealChatId === chat._id &&
-            !listing.buyerConfirmedPickup && (
-              <button
-                type="button"
-                data-testid="buyer-confirm-pickup-btn"
-                onClick={async () => {
-                  await confirmPickup({ chatId: chat._id });
-                  setBanner("Pickup confirmed! Completed handoff trust updated.");
-                }}
-                className="inline-flex items-center gap-1 rounded-xl bg-[#15803D] px-3.5 py-1.5 text-xs font-extrabold text-white"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>Confirm Pickup</span>
-              </button>
-            )}
+          {isPrimaryBuyer && listing.status === "sold" && listing.soldDealChatId === chat._id && !listing.buyerConfirmedPickup && (
+            <button
+              type="button"
+              data-testid="buyer-confirm-pickup-btn"
+              onClick={async () => {
+                await confirmPickup({ chatId: chat._id });
+                done("Pickup confirmed");
+              }}
+              className={BTN_PRIMARY}
+            >
+              <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+              Confirm Pickup
+            </button>
+          )}
         </div>
       )}
 
-      {/* Pinned Meetup Spot Handoff Card */}
-      {card ? (
-        <div className="flex flex-wrap items-start justify-between gap-2 text-xs">
-          <div>
-            <div className="flex flex-wrap items-center gap-1.5 font-extrabold text-[#111317]">
-              <MapPin className="h-4 w-4 text-[#D99B00]" />
-              <span>
-                Meetup Spot: {card.meetupSpotName} ({card.meetupCampus})
-              </span>
-              <span
-                data-testid="handoff-card-status"
-                className="rounded-full bg-[#DCFCE7] px-2 py-0.5 text-[10px] uppercase text-[#15803D]"
-              >
-                {card.status}
-              </span>
-            </div>
-            <p className="mt-0.5 text-[#374151]">
-              <strong>Window:</strong> {card.proposedWindow} ·{" "}
-              <strong>Terms:</strong> {card.agreedTerms}
+      {card && handoffStatus ? (
+        <div className="flex flex-wrap items-start justify-between gap-[var(--sp-2)]">
+          <div className="min-w-0 space-y-[var(--sp-1)]">
+            <p className="flex flex-wrap items-center gap-[var(--sp-2)] font-bold">
+              <MapPin aria-hidden="true" className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 [overflow-wrap:anywhere]">Meetup Spot: {card.meetupSpotName}</span>
+              <CampusBadge campus={card.meetupCampus} />
+              <Chip s={handoffStatus} testId="handoff-card-status" />
             </p>
-            <p className="mt-0.5 flex items-center gap-1 text-[11px] text-[#5E6675]">
-              <ShieldCheck className="h-3.5 w-3.5 text-[#15803D]" />
+            <p className="text-sm [overflow-wrap:anywhere]">
+              <strong>Window:</strong> {card.proposedWindow} · <strong>Terms:</strong> {card.agreedTerms}
+            </p>
+            <p className="flex items-start gap-[var(--sp-1)] text-sm text-[var(--muted)] [overflow-wrap:anywhere]">
+              <ShieldCheck aria-hidden="true" className="mt-[var(--sp-1)] h-4 w-4 shrink-0" />
               <span>{card.safetyNotes}</span>
             </p>
           </div>
-
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-[var(--sp-2)]">
             {card.status === "proposed" && (
               <button
                 type="button"
                 data-testid="confirm-meetup-btn"
                 onClick={async () => {
                   await confirmMeetup({ chatId: chat._id });
-                  setBanner("Meetup Spot confirmed!");
+                  done("Meetup Spot confirmed");
                 }}
-                className="inline-flex items-center gap-1 rounded-xl bg-[#15803D] px-3 py-1.5 font-extrabold text-white"
+                className={BTN_PRIMARY}
               >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>Confirm Meetup</span>
+                <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                Confirm Meetup
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => setProposeOpen((v) => !v)}
-              className="rounded-xl border border-[#E4E7EE] bg-white px-2.5 py-1.5 font-bold text-[#111317]"
-            >
-              Update Spot
+            <button type="button" onClick={() => setProposeOpen(true)} className={BTN_SECONDARY}>
+              Change Meetup Spot
             </button>
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold text-[#5E6675]">
-            No KSU Meetup Spot pinned yet. Pick one of 14 well-lit public
-            landmarks.
-          </span>
-          <button
-            type="button"
-            onClick={() => setProposeOpen(true)}
-            className="rounded-xl bg-[#111317] px-3 py-1.5 font-extrabold text-[#FDBB30]"
-          >
-            + Propose Meetup Spot
+        <div className="flex flex-wrap items-center justify-between gap-[var(--sp-2)]">
+          <p className="min-w-0 text-sm text-[var(--muted)]">No Meetup Spot yet. Pick a busy, well-lit public KSU place.</p>
+          <button type="button" onClick={() => setProposeOpen(true)} className={BTN_PRIMARY}>
+            Propose a Meetup Spot
           </button>
         </div>
       )}
 
-      {/* Propose / Update Meetup Spot Drawer */}
-      {proposeOpen && (
+      <Dialog
+        open={proposeOpen}
+        onClose={() => setProposeOpen(false)}
+        title="Propose a Meetup Spot"
+        description="Choose a public KSU place. Inspect the item before you pay."
+        variant="sheet"
+        testId="meetup-spot-dialog"
+      >
         <form
           onSubmit={async (e) => {
             e.preventDefault();
-            const spotId = (visibleSpots.some(
-              (sp) => String(sp._id) === selectedSpotId
-            )
+            const spotId = (visibleSpots.some((sp) => String(sp._id) === selectedSpotId)
               ? selectedSpotId
-              : visibleSpots[0]?._id) as
-              | Id<"meetupSpots">
-              | undefined;
+              : visibleSpots[0]?._id) as Id<"meetupSpots"> | undefined;
             if (!spotId) return;
-            await proposeCard({
-              chatId: chat._id,
-              meetupSpotId: spotId,
-              proposedWindow,
-              agreedTerms,
-            });
+            await proposeCard({ chatId: chat._id, meetupSpotId: spotId, proposedWindow, agreedTerms });
             setProposeOpen(false);
+            done("Meetup Spot proposed");
           }}
-          className="space-y-2 rounded-xl border border-[#E4E7EE] bg-white p-3 text-xs"
+          className="space-y-[var(--sp-3)]"
         >
-          <div className="flex items-center justify-between">
-            <span className="font-extrabold text-[#111317]">
-              Select Vetted Public KSU Meetup Spot
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                setSpotCampus((c) =>
-                  c === "Kennesaw" ? "Marietta" : "Kennesaw"
-                )
-              }
-              className="rounded-lg bg-[#F4F6FA] px-2.5 py-1 text-[11px] font-bold text-[#1E3A8A]"
-            >
-              Switch to {spotCampus === "Kennesaw" ? "Marietta" : "Kennesaw"}{" "}
-              Spots
-            </button>
-          </div>
-
-          <input
-            type="search"
-            data-testid="meetup-spot-search"
-            aria-label="Search meetup spots or buildings"
-            value={spotQuery}
-            onChange={(e) => setSpotQuery(e.target.value)}
-            placeholder="Search a building, e.g. Student Center, SRAC, Library…"
-            className="w-full rounded-xl border border-[#E4E7EE] px-3 py-1.5 font-semibold"
+          <SegmentedControl
+            label="Meetup Spot Campus"
+            hideLabel={false}
+            options={[
+              { value: "Kennesaw", label: "Kennesaw" },
+              { value: "Marietta", label: "Marietta" },
+            ] as const}
+            value={spotCampus}
+            onChange={setSpotCampus}
           />
-          <select
-            value={
-              visibleSpots.some((sp) => String(sp._id) === selectedSpotId)
-                ? selectedSpotId
-                : String(visibleSpots[0]?._id ?? "")
-            }
-            onChange={(e) => setSelectedSpotId(e.target.value)}
-            className="w-full rounded-xl border border-[#E4E7EE] px-3 py-2 font-semibold"
-          >
-            {visibleSpots.length === 0 && (
-              <option value="">No spots match — try another building</option>
-            )}
-            {visibleSpots.map((sp) => (
-              <option key={String(sp._id)} value={String(sp._id)}>
-                [{sp.campus}] {sp.name} — {sp.safetyNotes}
-              </option>
-            ))}
-          </select>
-
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div>
+            <label htmlFor={ids.search} className={LABEL}>
+              Search spots or buildings
+            </label>
             <input
-              type="text"
-              required
-              value={proposedWindow}
-              onChange={(e) => setProposedWindow(e.target.value)}
-              placeholder="Proposed Time Window"
-              className="rounded-xl border border-[#E4E7EE] px-3 py-1.5"
-            />
-            <input
-              type="text"
-              required
-              value={agreedTerms}
-              onChange={(e) => setAgreedTerms(e.target.value)}
-              placeholder="Agreed Terms (in-person)"
-              className="rounded-xl border border-[#E4E7EE] px-3 py-1.5"
+              id={ids.search}
+              type="search"
+              data-testid="meetup-spot-search"
+              value={spotQuery}
+              onChange={(e) => setSpotQuery(e.target.value)}
+              placeholder="Student Center, SRAC, Library…"
+              className={`${FIELD} mt-[var(--sp-1)]`}
             />
           </div>
-
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setProposeOpen(false)}
-              className="rounded-lg border border-[#E4E7EE] px-3 py-1 font-bold text-[#5E6675]"
+          <div>
+            <label htmlFor={ids.spot} className={LABEL}>
+              Meetup Spot
+            </label>
+            <select
+              id={ids.spot}
+              value={visibleSpots.some((sp) => String(sp._id) === selectedSpotId) ? selectedSpotId : String(visibleSpots[0]?._id ?? "")}
+              onChange={(e) => setSelectedSpotId(e.target.value)}
+              className={`${FIELD} mt-[var(--sp-1)]`}
             >
+              {visibleSpots.length === 0 && <option value="">No spots match. Try another building.</option>}
+              {visibleSpots.map((sp) => (
+                <option key={String(sp._id)} value={String(sp._id)}>
+                  {sp.name} ({sp.campus})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="lt-grid-1 grid grid-cols-1 gap-[var(--sp-3)] sm:grid-cols-2">
+            <div className="min-w-0">
+              <label htmlFor={ids.window} className={LABEL}>
+                Time window
+              </label>
+              <input id={ids.window} type="text" required value={proposedWindow} onChange={(e) => setProposedWindow(e.target.value)} className={`${FIELD} mt-[var(--sp-1)]`} />
+            </div>
+            <div className="min-w-0">
+              <label htmlFor={ids.terms} className={LABEL}>
+                Agreed terms
+              </label>
+              <input id={ids.terms} type="text" required value={agreedTerms} onChange={(e) => setAgreedTerms(e.target.value)} className={`${FIELD} mt-[var(--sp-1)]`} />
+            </div>
+          </div>
+          <div className="flex flex-wrap justify-end gap-[var(--sp-2)]">
+            <button type="button" onClick={() => setProposeOpen(false)} className={BTN_SECONDARY}>
               Cancel
             </button>
-            <button
-              type="submit"
-              className="rounded-lg bg-[#111317] px-3 py-1 font-extrabold text-[#FDBB30]"
-            >
-              Pin Handoff Card
+            <button type="submit" disabled={visibleSpots.length === 0} className={BTN_PRIMARY}>
+              Pin Meetup Spot
             </button>
           </div>
         </form>
-      )}
+      </Dialog>
 
-      {/* Co-Buyer / Co-Seller Invite (2-6 Total Students) */}
       <form
         onSubmit={async (e) => {
           e.preventDefault();
           if (!coPartyHandle.trim()) return;
+          setInviteError(null);
           try {
-            await inviteCoParty({
-              chatId: chat._id,
-              inviteHandle: coPartyHandle,
-            });
+            await inviteCoParty({ chatId: chat._id, inviteHandle: coPartyHandle });
             setCoPartyHandle("");
-            setBanner("Invited roommate/helper co-party to this Deal Chat.");
+            done("Invited a helper to this Deal Chat");
           } catch (err: any) {
-            setBanner(err?.data?.message || err?.message);
+            setInviteError(err?.data?.message || err?.message || "Could not invite.");
           }
         }}
-        className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E4E7EE] pt-2 text-xs"
+        className="space-y-[var(--sp-2)] border-t border-[var(--line)] pt-[var(--sp-3)]"
       >
-        <span className="text-[11px] font-semibold text-[#5E6675]">
-          Isolated per-buyer Deal Chat ({chat.memberCount}/6 participants)
-        </span>
-        <div className="flex items-center gap-1.5">
-          <input
-            type="text"
-            value={coPartyHandle}
-            onChange={(e) => setCoPartyHandle(e.target.value)}
-            placeholder="+ @handle roommate/helper"
-            className="w-44 rounded-lg border border-[#E4E7EE] bg-white px-2.5 py-1 text-xs"
-          />
-          <button
-            type="submit"
-            className="inline-flex items-center gap-1 rounded-lg border border-[#111317] bg-white px-2.5 py-1 text-[11px] font-extrabold text-[#111317]"
-          >
-            <UserPlus className="h-3 w-3" />
-            <span>Invite Co-Party</span>
+        <p className="text-sm text-[var(--muted)]">This buyer&apos;s own Deal Chat · {chat.memberCount} of 6 people</p>
+        <div className="flex flex-wrap items-end gap-[var(--sp-2)]">
+          <div className="min-w-0 flex-1 basis-48">
+            <label htmlFor={ids.invite} className={LABEL}>
+              Invite a roommate or helper by @handle
+            </label>
+            <input id={ids.invite} type="text" value={coPartyHandle} onChange={(e) => setCoPartyHandle(e.target.value)} className={`${FIELD} mt-[var(--sp-1)]`} />
+          </div>
+          <button type="submit" className={BTN_SECONDARY}>
+            <UserPlus aria-hidden="true" className="h-4 w-4" />
+            Invite
           </button>
         </div>
+        {inviteError && (
+          <p role="alert" className="text-sm font-bold text-[var(--bad-fg)]">
+            {inviteError}
+          </p>
+        )}
       </form>
-
-      {banner && (
-        <p className="rounded-lg bg-[#DCFCE7] px-2.5 py-1.5 text-xs font-bold text-[#15803D]">
-          {banner}
-        </p>
-      )}
-    </div>
+    </section>
   );
 }

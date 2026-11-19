@@ -1,31 +1,57 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  Ban,
-  Check,
-  Edit3,
-  ImagePlus,
-  Lock,
-  Reply,
-  Send,
-  Trash2,
-  UserPlus,
-  X,
-} from "lucide-react";
+import { AlertTriangle, Ban, Check, Edit3, ImagePlus, Lock, Reply, Send, Trash2, UserPlus, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
-import {
-  useViewerClient,
-  useViewerMutation,
-  useViewerQuery,
-} from "@/lib/viewerClient";
+import { useViewerClient, useViewerMutation, useViewerQuery } from "@/lib/viewerClient";
 import { ReportTrigger } from "@/components/shared/ReportTrigger";
+import { useAnnouncer } from "@/components/a11y/Announcer";
+import { BTN_PRIMARY, BTN_SECONDARY, FIELD, LABEL } from "@/components/marketplace/styles";
 
-const QUICK_REACTIONS = ["🦉", "👍", "❤️", "😂", "🔥"] as const;
+const QUICK_REACTIONS = [
+  { emoji: "🦉", name: "owl" },
+  { emoji: "👍", name: "thumbs up" },
+  { emoji: "❤️", name: "heart" },
+  { emoji: "😂", name: "laughing" },
+  { emoji: "🔥", name: "fire" },
+] as const;
+
+const KIND_LABEL: Record<string, string> = {
+  dm: "Direct Message",
+  group: "Group Chat",
+  custom_group: "Group Chat",
+  study_session: "Study Session chat",
+  deal: "Deal Chat",
+};
+
+const ICON_BTN =
+  "min-target inline-flex shrink-0 items-center justify-center rounded-full text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]";
+
+/**
+ * Announces messages from other people that arrive while the thread is open.
+ * The first render sets the baseline so history is never read out.
+ */
+function useIncomingAnnouncements(messages: any[] | undefined) {
+  const { announce } = useAnnouncer();
+  const seen = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!messages) return;
+    if (seen.current === null) {
+      seen.current = new Set(messages.map((m) => String(m._id)));
+      return;
+    }
+    const fresh = messages.filter((m) => !seen.current!.has(String(m._id)));
+    for (const m of fresh) seen.current.add(String(m._id));
+    const incoming = fresh.filter((m) => !m.isOwnMessage && !m.isDeleted && !m.collapsedBlocked);
+    if (incoming.length === 0) return;
+    const last = incoming[incoming.length - 1];
+    const who = last.sender ? `@${last.sender.handle}` : "KSUX";
+    const text = last.body ? `: ${String(last.body).slice(0, 140)}` : last.mediaUrl ? " sent a photo" : "";
+    announce(incoming.length > 1 ? `${incoming.length} new messages. Latest from ${who}${text}` : `New message from ${who}${text}`);
+  }, [messages, announce]);
+}
 
 export function ChatThreadView({
   chatId,
@@ -35,9 +61,9 @@ export function ChatThreadView({
   dealHandoffSlot?: (thread: any) => React.ReactNode;
 }) {
   const { uploadImage } = useViewerClient();
-  const thread = useViewerQuery(api.chats.getChatThread, {
-    chatId: chatId as Id<"chats">,
-  });
+  const { toast } = useAnnouncer();
+  const ids = { input: useId(), invite: useId(), attach: useId(), error: useId() };
+  const thread = useViewerQuery(api.chats.getChatThread, { chatId: chatId as Id<"chats"> });
 
   const markRead = useViewerMutation(api.chats.markChatRead);
   const sendMessage = useViewerMutation(api.chats.sendMessage);
@@ -45,26 +71,22 @@ export function ChatThreadView({
   const toggleReaction = useViewerMutation(api.chats.toggleMessageReaction);
   const editMessage = useViewerMutation(api.chats.editChatMessage);
   const deleteMessage = useViewerMutation(api.chats.deleteChatMessage);
-  const convertStudyGroup = useViewerMutation(
-    api.chats.convertStudyChatToClosedGroup
-  );
+  const convertStudyGroup = useViewerMutation(api.chats.convertStudyChatToClosedGroup);
   const inviteToCustomGroup = useViewerMutation(api.chats.inviteToCustomGroup);
   const toggleBlock = useViewerMutation(api.moderation.toggleBlockStudent);
   const submitReport = useViewerMutation(api.moderation.submitReport);
 
   const [body, setBody] = useState("");
   const [replyToId, setReplyToId] = useState<Id<"chatMessages"> | null>(null);
-  const [mediaItem, setMediaItem] = useState<{
-    mediaAssetId: Id<"mediaAssets">;
-    url: string;
-  } | null>(null);
+  const [mediaItem, setMediaItem] = useState<{ mediaAssetId: Id<"mediaAssets">; url: string } | null>(null);
   const [editingId, setEditingId] = useState<Id<"chatMessages"> | null>(null);
   const [editingBody, setEditingBody] = useState("");
-  const [revealedBlockedIds, setRevealedBlockedIds] = useState<
-    Record<string, boolean>
-  >({});
+  const [revealedBlockedIds, setRevealedBlockedIds] = useState<Record<string, boolean>>({});
   const [inviteHandle, setInviteHandle] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useIncomingAnnouncements(thread?.messages);
 
   const latestSeq = thread?.chat.messageSeq ?? 0;
   useEffect(() => {
@@ -75,17 +97,26 @@ export function ChatThreadView({
 
   if (thread === undefined) {
     return (
-      <div className="p-4 text-xs font-semibold text-[#5E6675]">
-        Loading conversation...
+      <div className="p-[var(--sp-4)]">
+        <h1 data-route-heading="" tabIndex={-1} className="font-display text-2xl font-bold">
+          Chat
+        </h1>
+        <p role="status" className="mt-[var(--sp-2)] text-sm text-[var(--muted)]">
+          Loading conversation…
+        </p>
       </div>
     );
   }
   if (!thread) {
     return (
-      <div className="p-4">
-        <div className="rounded-2xl border border-[#E4E7EE] bg-white p-6 text-sm font-bold">
-          Conversation not found in this workspace.
-        </div>
+      <div className="space-y-[var(--sp-3)] p-[var(--sp-4)]">
+        <h1 data-route-heading="" tabIndex={-1} className="font-display text-2xl font-bold">
+          Conversation not found
+        </h1>
+        <p className="text-body">This chat isn&apos;t available to you.</p>
+        <Link href="/chats" className={BTN_SECONDARY}>
+          Back to Chats
+        </Link>
       </div>
     );
   }
@@ -94,13 +125,10 @@ export function ChatThreadView({
   const isIncomingRequest =
     chat.requestStatus === "pending_request" &&
     chat.requestInitiatorId &&
-    participants.some(
-      (p: any) =>
-        p.student._id === chat.requestInitiatorId && !p.student.isRemoved
-    );
-  const initiatorParticipant = participants.find(
-    (p: any) => p.student._id === chat.requestInitiatorId
-  );
+    participants.some((p: any) => p.student._id === chat.requestInitiatorId && !p.student.isRemoved);
+  const initiatorParticipant = participants.find((p: any) => p.student._id === chat.requestInitiatorId);
+  const chatTitle = chat.title || participants.map((p: any) => `@${p.student.handle}`).join(" · ");
+  const replyTarget = replyToId ? messages.find((m: any) => m._id === replyToId) : null;
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,437 +144,360 @@ export function ChatThreadView({
       setReplyToId(null);
       setMediaItem(null);
     } catch (err: any) {
-      setError(err?.data?.message || err?.message || "Message failed.");
+      setError(err?.data?.message || err?.message || "Message failed to send.");
     }
   };
 
-  const handleAttachWebP = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAttach = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
     setError(null);
     try {
       const uploaded = await uploadImage(file, "chat");
       setMediaItem({ mediaAssetId: uploaded.mediaAssetId, url: uploaded.url });
     } catch (err: any) {
-      setError(err?.message || "Image upload failed.");
+      setError(err?.message || "Photo upload failed.");
     }
   };
 
   return (
-    <div
-      data-testid="chat-thread-view"
-      className="flex min-h-[calc(100vh-140px)] flex-col p-3.5"
-    >
-      {/* Thread Header */}
-      <div className="rounded-2xl border border-[#E4E7EE] bg-white p-3.5 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <Link
-              href="/chats"
-              className="rounded-xl border border-[#E4E7EE] p-1.5 text-[#111317] hover:bg-[#F4F6FA]"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-            <div>
-              <h1 className="text-sm font-black text-[#111317]">
-                {chat.title ||
-                  participants
-                    .map((p: any) => `@${p.student.handle}`)
-                    .join(" · ")}
-              </h1>
-              <p className="text-[11px] text-[#5E6675]">
-                {chat.kind.replace("_", " ").toUpperCase()} ·{" "}
-                {participants.length} participant
-                {participants.length === 1 ? "" : "s"} · Scrappy AI Strictly
-                Excluded
-              </p>
-            </div>
+    <div data-testid="chat-thread-view" className="flex min-h-[calc(100dvh-var(--chrome-top))] flex-col">
+      <div className="flex-1 space-y-[var(--sp-3)] p-[var(--sp-4)]">
+        <section aria-labelledby="chat-thread-heading" className="flex flex-wrap items-end justify-between gap-[var(--sp-3)]">
+          <div className="min-w-0 space-y-[var(--sp-1)]">
+            <h1 id="chat-thread-heading" data-route-heading="" tabIndex={-1} className="font-display text-2xl font-bold">
+              {chatTitle}
+            </h1>
+            <p className="text-sm text-[var(--muted)]">
+              {KIND_LABEL[chat.kind] ?? chat.kind} · {participants.length} {participants.length === 1 ? "person" : "people"} · Scrappy can&apos;t read chats
+            </p>
           </div>
-
           {chat.kind === "custom_group" && (
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
                 if (!inviteHandle.trim()) return;
                 try {
-                  await inviteToCustomGroup({
-                    chatId: chat._id,
-                    inviteHandle,
-                  });
+                  await inviteToCustomGroup({ chatId: chat._id, inviteHandle });
                   setInviteHandle("");
+                  toast({ message: "Invite sent", tone: "success" });
                 } catch (err: any) {
-                  setError(err?.data?.message || err?.message);
+                  setError(err?.data?.message || err?.message || "Could not invite.");
                 }
               }}
-              className="flex items-center gap-1.5"
+              className="flex flex-wrap items-end gap-[var(--sp-2)]"
             >
-              <input
-                type="text"
-                value={inviteHandle}
-                onChange={(e) => setInviteHandle(e.target.value)}
-                placeholder="+ @handle"
-                className="w-28 rounded-xl border border-[#E4E7EE] px-2.5 py-1 text-xs"
-              />
-              <button
-                type="submit"
-                className="inline-flex items-center gap-1 rounded-xl bg-[#111317] px-2.5 py-1 text-[11px] font-extrabold text-[#FDBB30]"
-              >
-                <UserPlus className="h-3 w-3" />
-                <span>Invite</span>
+              <div className="min-w-0">
+                <label htmlFor={ids.invite} className={LABEL}>
+                  Invite by @handle
+                </label>
+                <input id={ids.invite} type="text" value={inviteHandle} onChange={(e) => setInviteHandle(e.target.value)} className={`${FIELD} mt-[var(--sp-1)]`} />
+              </div>
+              <button type="submit" className={BTN_PRIMARY}>
+                <UserPlus aria-hidden="true" className="h-4 w-4" />
+                Invite
               </button>
             </form>
           )}
-        </div>
-      </div>
+        </section>
 
-      {/* Deal Chat Pinned Handoff Card & Seller/Buyer Lifecycle Slot (#24) */}
-      {chat.kind === "deal" && dealHandoffSlot && (
-        <div className="mt-3">{dealHandoffSlot(thread)}</div>
-      )}
+        {chat.kind === "deal" && dealHandoffSlot && dealHandoffSlot(thread)}
 
-      {/* Cold Message Request Controls */}
-      {chat.requestStatus === "pending_request" && (
-        <div
-          data-testid="message-request-banner"
-          className="mt-3 rounded-2xl border border-[#FDBB30] bg-[#FFF6DC] p-3.5 text-xs text-[#111317]"
-        >
-          <div className="font-extrabold">
-            Cold 1:1 Message Request (1 text-only opener · images locked until
-            accepted)
-          </div>
-          {isIncomingRequest && initiatorParticipant && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              <button
-                type="button"
-                data-testid="accept-request-btn"
-                onClick={() =>
-                  void respondRequest({ chatId: chat._id, decision: "accept" })
-                }
-                className="inline-flex items-center gap-1 rounded-xl bg-[#15803D] px-3 py-1.5 font-extrabold text-white"
-              >
-                <Check className="h-3.5 w-3.5" />
-                <span>Accept</span>
-              </button>
-              <button
-                type="button"
-                data-testid="decline-request-btn"
-                onClick={() =>
-                  void respondRequest({ chatId: chat._id, decision: "decline" })
-                }
-                className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-1.5 font-bold text-[#5E6675]"
-              >
-                Decline (30d Cooldown)
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  void toggleBlock({
-                    targetStudentId: initiatorParticipant.student._id,
-                  })
-                }
-                className="inline-flex items-center gap-1 rounded-xl bg-[#FEE2E2] px-3 py-1.5 font-bold text-[#B91C1C]"
-              >
-                <Ban className="h-3.5 w-3.5" />
-                <span>Block</span>
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Study Session 24h Post-Session Grace Lock + 1-Tap Upgrade */}
-      {chat.isStudyGraceLocked && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#E4E7EE] bg-white p-3.5 text-xs">
-          <span className="flex items-center gap-1.5 font-bold text-[#5E6675]">
-            <Lock className="h-4 w-4" />
-            <span>
-              Study Session 24-hour grace window ended — chat locked read-only.
-            </span>
-          </span>
-          <button
-            type="button"
-            onClick={() => void convertStudyGroup({ chatId: chat._id })}
-            className="rounded-xl bg-[#111317] px-3 py-1.5 font-extrabold text-[#FDBB30]"
+        {chat.requestStatus === "pending_request" && (
+          <section
+            aria-label="Message Request"
+            data-testid="message-request-banner"
+            className="space-y-[var(--sp-2)] rounded-[var(--r-lg)] border border-[var(--line-strong)] bg-[var(--warn-bg)] p-[var(--sp-4)] text-[var(--warn-fg)]"
           >
-            Convert to Closed Group Chat
-          </button>
-        </div>
-      )}
-
-      {/* Messages Stream */}
-      <div className="my-3 flex-1 space-y-2.5">
-        {messages.map((msg: any) => {
-          const isCollapsed =
-            msg.collapsedBlocked && !revealedBlockedIds[String(msg._id)];
-
-          if (isCollapsed) {
-            return (
-              <div
-                key={String(msg._id)}
-                data-testid="collapsed-blocked-message"
-                className="flex items-center justify-between rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-3 py-2 text-xs text-[#5E6675]"
-              >
-                <span>Message from a Blocked Student hidden</span>
+            <p className="font-bold">Message Request: one text-only opener. Photos unlock after it&apos;s accepted.</p>
+            {isIncomingRequest && initiatorParticipant && (
+              <div className="flex flex-wrap gap-[var(--sp-2)]">
+                <button type="button" data-testid="accept-request-btn" onClick={() => void respondRequest({ chatId: chat._id, decision: "accept" })} className={BTN_PRIMARY}>
+                  <Check aria-hidden="true" className="h-4 w-4" />
+                  Accept
+                </button>
+                <button type="button" data-testid="decline-request-btn" onClick={() => void respondRequest({ chatId: chat._id, decision: "decline" })} className={BTN_SECONDARY}>
+                  Decline (30-day cooldown)
+                </button>
                 <button
                   type="button"
-                  onClick={() =>
-                    setRevealedBlockedIds((prev) => ({
-                      ...prev,
-                      [String(msg._id)]: true,
-                    }))
-                  }
-                  className="font-bold text-[#111317] underline"
+                  onClick={() => void toggleBlock({ targetStudentId: initiatorParticipant.student._id })}
+                  className={`${BTN_SECONDARY} text-[var(--bad-fg)]`}
                 >
-                  Tap to reveal
+                  <Ban aria-hidden="true" className="h-4 w-4" />
+                  Block @{initiatorParticipant.student.handle}
                 </button>
               </div>
-            );
-          }
+            )}
+          </section>
+        )}
 
-          return (
-            <div
-              key={String(msg._id)}
-              data-testid="chat-message-bubble"
-              className={`rounded-2xl border p-3 text-xs ${
-                msg.messageType !== "user"
-                  ? "border-[#FDBB30] bg-[#FFFDF7]"
-                  : msg.isOwnMessage
-                    ? "border-[#111317]/15 bg-white"
-                    : "border-[#E4E7EE] bg-white"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="font-extrabold text-[#111317]">
-                  {msg.sender ? (
-                    <>
-                      {msg.sender.displayName}{" "}
-                      <span className="font-normal text-[#5E6675]">
-                        @{msg.sender.handle}
-                      </span>
-                    </>
-                  ) : (
-                    "KSUX System"
-                  )}
-                  {msg.editedAt && (
-                    <span className="ml-1.5 text-[10px] italic font-normal text-[#5E6675]">
-                      · Edited
-                    </span>
-                  )}
-                </div>
+        {chat.isStudyGraceLocked && (
+          <div className="flex flex-wrap items-center justify-between gap-[var(--sp-2)] rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] p-[var(--sp-4)]">
+            <p className="flex min-w-0 items-center gap-[var(--sp-2)] text-sm font-bold text-[var(--muted)]">
+              <Lock aria-hidden="true" className="h-4 w-4 shrink-0" />
+              The Study Session ended more than 24 hours ago, so this chat is read-only.
+            </p>
+            <button type="button" onClick={() => void convertStudyGroup({ chatId: chat._id })} className={BTN_PRIMARY}>
+              Convert to a Group Chat
+            </button>
+          </div>
+        )}
 
-                {!msg.isDeleted && (
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setReplyToId(msg._id)}
-                      className="rounded p-1 text-[#5E6675] hover:bg-[#F4F6FA]"
-                      title="Quote Reply"
+        <section aria-labelledby="chat-messages-heading">
+          <h2 id="chat-messages-heading" className="sr-only">
+            Messages
+          </h2>
+          {messages.length === 0 ? (
+            <p className="text-sm text-[var(--muted)]">No messages yet. Say hi.</p>
+          ) : (
+            <ol data-testid="chat-message-list" className="space-y-[var(--sp-2)]">
+              {messages.map((msg: any) => {
+                const isCollapsed = msg.collapsedBlocked && !revealedBlockedIds[String(msg._id)];
+                if (isCollapsed) {
+                  return (
+                    <li
+                      key={String(msg._id)}
+                      data-testid="collapsed-blocked-message"
+                      className="flex flex-wrap items-center justify-between gap-[var(--sp-2)] rounded-[var(--r-md)] border border-dashed border-[var(--line-strong)] bg-[var(--surface-2)] px-[var(--sp-3)] py-[var(--sp-1)] text-sm text-[var(--muted)]"
                     >
-                      <Reply className="h-3.5 w-3.5" />
-                    </button>
-                    {msg.isOwnMessage ? (
-                      <>
-                        {Date.now() - msg.publishedAt <= 5 * 60_000 && (
+                      <span>Message from a blocked student hidden</span>
+                      <button
+                        type="button"
+                        onClick={() => setRevealedBlockedIds((prev) => ({ ...prev, [String(msg._id)]: true }))}
+                        className="inline-flex min-h-[var(--target)] items-center font-bold text-[var(--ink)] underline"
+                      >
+                        Show message
+                      </button>
+                    </li>
+                  );
+                }
+                const senderName = msg.sender ? `@${msg.sender.handle}` : "KSUX";
+                return (
+                  <li
+                    key={String(msg._id)}
+                    data-testid="chat-message-bubble"
+                    className={`rounded-[var(--r-md)] border p-[var(--sp-3)] ${
+                      msg.messageType !== "user"
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                        : msg.isOwnMessage
+                          ? "ml-[var(--sp-5)] border-[var(--line-strong)] bg-[var(--surface-2)]"
+                          : "mr-[var(--sp-5)] border-[var(--line)] bg-[var(--surface)]"
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-[var(--sp-1)]">
+                      <p className="min-w-0 text-sm font-bold [overflow-wrap:anywhere]">
+                        {msg.sender ? (
+                          <>
+                            {msg.isOwnMessage ? "You" : msg.sender.displayName}{" "}
+                            <span className="font-normal text-[var(--muted)]">@{msg.sender.handle}</span>
+                          </>
+                        ) : (
+                          "KSUX system message"
+                        )}
+                        {msg.editedAt && <span className="font-normal text-[var(--muted)]"> · Edited</span>}
+                      </p>
+                      {!msg.isDeleted && (
+                        <div className="flex flex-wrap items-center">
                           <button
                             type="button"
+                            aria-label={`Reply to ${senderName}`}
                             onClick={() => {
-                              setEditingId(msg._id);
-                              setEditingBody(msg.body);
+                              setReplyToId(msg._id);
+                              inputRef.current?.focus();
                             }}
-                            className="rounded p-1 text-[#5E6675] hover:bg-[#F4F6FA]"
+                            className={ICON_BTN}
                           >
-                            <Edit3 className="h-3.5 w-3.5" />
+                            <Reply aria-hidden="true" className="h-4 w-4" />
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void deleteMessage({ messageId: msg._id })
-                          }
-                          className="rounded p-1 text-[#5E6675] hover:text-[#B91C1C]"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </>
-                    ) : (
-                      <ReportTrigger
-                        targetType="chat_message"
-                        targetId={String(msg._id)}
-                        onSubmitReport={async (p) => {
-                          await submitReport(p);
-                        }}
-                      />
+                          {msg.isOwnMessage ? (
+                            <>
+                              {Date.now() - msg.publishedAt <= 5 * 60_000 && (
+                                <button
+                                  type="button"
+                                  aria-label="Edit your message"
+                                  onClick={() => {
+                                    setEditingId(msg._id);
+                                    setEditingBody(msg.body);
+                                  }}
+                                  className={ICON_BTN}
+                                >
+                                  <Edit3 aria-hidden="true" className="h-4 w-4" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                data-testid="chat-delete-message-btn"
+                                aria-label="Delete your message"
+                                onClick={async () => {
+                                  await deleteMessage({ messageId: msg._id });
+                                  toast({ message: "Message deleted", tone: "success" });
+                                }}
+                                className={`${ICON_BTN} hover:text-[var(--bad-fg)]`}
+                              >
+                                <Trash2 aria-hidden="true" className="h-4 w-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <ReportTrigger
+                              targetType="chat_message"
+                              targetId={String(msg._id)}
+                              targetLabel={`message from ${senderName}`}
+                              onSubmitReport={async (p) => {
+                                await submitReport(p);
+                              }}
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {msg.replyPreview && (
+                      <p className="mt-[var(--sp-1)] border-l-4 border-[var(--accent)] bg-[var(--surface-2)] px-[var(--sp-2)] py-[var(--sp-1)] text-sm text-[var(--muted)] [overflow-wrap:anywhere]">
+                        <span className="sr-only">Replying to </span>
+                        <strong>@{msg.replyPreview.senderHandle}:</strong> {msg.replyPreview.body}
+                      </p>
                     )}
-                  </div>
-                )}
-              </div>
 
-              {msg.replyPreview && (
-                <div className="mt-1.5 rounded-lg border-l-2 border-[#FDBB30] bg-[#F4F6FA] px-2.5 py-1 text-[11px] text-[#5E6675]">
-                  <strong>@{msg.replyPreview.senderHandle}:</strong>{" "}
-                  {msg.replyPreview.body}
-                </div>
-              )}
-
-              {editingId === msg._id ? (
-                <div className="mt-2 flex gap-2">
-                  <input
-                    type="text"
-                    value={editingBody}
-                    onChange={(e) => setEditingBody(e.target.value)}
-                    className="flex-1 rounded-lg border border-[#111317] px-2.5 py-1 text-xs"
-                  />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await editMessage({
-                        messageId: msg._id,
-                        body: editingBody,
-                      });
-                      setEditingId(null);
-                    }}
-                    className="rounded-lg bg-[#111317] px-2.5 py-1 font-extrabold text-[#FDBB30]"
-                  >
-                    Save
-                  </button>
-                </div>
-              ) : (
-                <p className="mt-1.5 whitespace-pre-wrap text-[13px] leading-relaxed text-[#1B1F27]">
-                  {msg.body}
-                </p>
-              )}
-
-              {msg.mediaUrl && (
-                <img
-                  src={msg.mediaUrl}
-                  alt="Chat attachment"
-                  className="mt-2 max-h-56 rounded-xl object-cover"
-                />
-              )}
-
-              {msg.linkEmbed && (
-                <Link
-                  href={msg.linkEmbed.href}
-                  className="mt-2 inline-block rounded-lg border border-[#E4E7EE] bg-[#F9FAFC] px-2.5 py-1 text-[11px] font-bold text-[#1E3A8A] underline"
-                >
-                  {msg.linkEmbed.label}
-                </Link>
-              )}
-
-              {msg.scamWarningTriggered && (
-                <div
-                  data-testid="deal-scam-warning-banner"
-                  className="mt-2 flex items-start gap-2 rounded-xl border border-[#B45309] bg-[#FEF3C7] p-2.5 text-[11.5px] font-bold text-[#92400E]"
-                >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>
-                    Safety Reminder: Never send upfront Zelle, CashApp, Venmo,
-                    or wire deposits. Always inspect items in person at a
-                    well-lit KSU Meetup Spot before paying!
-                  </span>
-                </div>
-              )}
-
-              {!msg.isDeleted && (
-                <div className="mt-2 flex flex-wrap items-center gap-1">
-                  {QUICK_REACTIONS.map((emoji) => {
-                    const existing = msg.reactions.find(
-                      (r: any) => r.emoji === emoji
-                    );
-                    return (
-                      <button
-                        key={emoji}
-                        type="button"
-                        onClick={() =>
-                          void toggleReaction({
-                            messageId: msg._id,
-                            emoji,
-                          })
-                        }
-                        className={`rounded-full border px-2 py-0.5 text-[11px] ${
-                          existing?.reactedByViewer
-                            ? "border-[#111317] bg-[#FFF6DC] font-extrabold"
-                            : "border-[#E4E7EE] bg-[#F9FAFC]"
-                        }`}
+                    {editingId === msg._id ? (
+                      <form
+                        className="mt-[var(--sp-2)] flex flex-wrap gap-[var(--sp-2)]"
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          await editMessage({ messageId: msg._id, body: editingBody });
+                          setEditingId(null);
+                        }}
                       >
-                        {emoji} {existing ? existing.count : ""}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
+                        <input
+                          type="text"
+                          aria-label="Edit message"
+                          autoFocus
+                          value={editingBody}
+                          onChange={(e) => setEditingBody(e.target.value)}
+                          className={`${FIELD} flex-1 basis-48`}
+                        />
+                        <button type="submit" className={BTN_PRIMARY}>
+                          Save
+                        </button>
+                        <button type="button" onClick={() => setEditingId(null)} className={BTN_SECONDARY}>
+                          Cancel
+                        </button>
+                      </form>
+                    ) : (
+                      <p className="mt-[var(--sp-1)] whitespace-pre-wrap text-body [overflow-wrap:anywhere]">{msg.body}</p>
+                    )}
+
+                    {msg.mediaUrl && <img src={msg.mediaUrl} alt={`Photo from ${senderName}`} className="mt-[var(--sp-2)] max-h-56 max-w-full rounded-[var(--r-md)] object-cover" />}
+
+                    {msg.linkEmbed && (
+                      <Link href={msg.linkEmbed.href} className={`${BTN_SECONDARY} mt-[var(--sp-2)]`}>
+                        {msg.linkEmbed.label}
+                      </Link>
+                    )}
+
+                    {msg.scamWarningTriggered && (
+                      <p
+                        data-testid="deal-scam-warning-banner"
+                        className="mt-[var(--sp-2)] flex items-start gap-[var(--sp-2)] rounded-[var(--r-sm)] border border-[var(--warn-fg)] bg-[var(--warn-bg)] p-[var(--sp-2)] text-sm font-bold text-[var(--warn-fg)]"
+                      >
+                        <AlertTriangle aria-hidden="true" className="mt-[var(--sp-1)] h-4 w-4 shrink-0" />
+                        <span>
+                          Safety reminder: never send a deposit by Zelle, Cash App, Venmo or wire. Inspect the item in person at a
+                          public KSU Meetup Spot before you pay.
+                        </span>
+                      </p>
+                    )}
+
+                    {!msg.isDeleted && (
+                      <div role="group" aria-label={`Reactions to message from ${senderName}`} className="mt-[var(--sp-2)] flex flex-wrap gap-[var(--sp-1)]">
+                        {QUICK_REACTIONS.map(({ emoji, name }) => {
+                          const existing = msg.reactions.find((r: any) => r.emoji === emoji);
+                          const count = existing?.count ?? 0;
+                          return (
+                            <button
+                              key={emoji}
+                              type="button"
+                              aria-pressed={Boolean(existing?.reactedByViewer)}
+                              aria-label={`React ${name}${count ? `, ${count}` : ""}`}
+                              onClick={() => void toggleReaction({ messageId: msg._id, emoji })}
+                              className={`inline-flex min-h-[var(--target)] min-w-[var(--target)] items-center justify-center gap-[var(--sp-1)] rounded-full border px-[var(--sp-2)] text-sm ${
+                                existing?.reactedByViewer ? "border-[var(--ink)] bg-[var(--accent-soft)] font-bold" : "border-[var(--line)] bg-[var(--surface)]"
+                              }`}
+                            >
+                              <span aria-hidden="true">{emoji}</span>
+                              {count > 0 && <span aria-hidden="true">{count}</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </section>
       </div>
 
-      {/* Composer */}
       {!chat.isReadOnlyLocked && (
         <form
           onSubmit={handleSend}
-          className="space-y-2 rounded-2xl border border-[#E4E7EE] bg-white p-3 shadow-xs"
+          aria-label="Send a message"
+          data-testid="chat-composer"
+          className="sticky bottom-0 z-20 space-y-[var(--sp-2)] border-t border-[var(--line)] bg-[var(--bg)] p-[var(--sp-3)] pb-[calc(var(--sp-3)+env(safe-area-inset-bottom,0px))]"
         >
           {replyToId && (
-            <div className="flex items-center justify-between rounded-lg bg-[#F4F6FA] px-2.5 py-1 text-[11px] font-bold text-[#5E6675]">
-              <span>Replying to message</span>
-              <button type="button" onClick={() => setReplyToId(null)}>
-                <X className="h-3.5 w-3.5" />
+            <div className="flex items-center justify-between gap-[var(--sp-2)] rounded-[var(--r-sm)] bg-[var(--surface-2)] pl-[var(--sp-3)] text-sm font-bold text-[var(--muted)]">
+              <span className="min-w-0 truncate">Replying to {replyTarget?.sender ? `@${replyTarget.sender.handle}` : "message"}</span>
+              <button type="button" aria-label="Cancel reply" onClick={() => setReplyToId(null)} className={ICON_BTN}>
+                <X aria-hidden="true" className="h-4 w-4" />
               </button>
             </div>
           )}
-
           {mediaItem && (
-            <div className="flex items-center gap-2">
-              <img
-                src={mediaItem.url}
-                alt="Preview"
-                className="h-12 w-12 rounded-lg object-cover"
-              />
-              <button
-                type="button"
-                onClick={() => setMediaItem(null)}
-                className="text-xs font-bold text-[#B91C1C]"
-              >
-                Remove
+            <div className="flex items-center gap-[var(--sp-2)]">
+              <img src={mediaItem.url} alt="Photo to send" className="h-12 w-12 rounded-[var(--r-sm)] object-cover" />
+              <button type="button" onClick={() => setMediaItem(null)} className={BTN_SECONDARY}>
+                Remove photo
               </button>
             </div>
           )}
-
           {error && (
-            <p className="text-xs font-semibold text-[#B91C1C]">{error}</p>
+            <p id={ids.error} role="alert" className="text-sm font-bold text-[var(--bad-fg)]">
+              {error}
+            </p>
           )}
-
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-[var(--sp-2)]">
             {chat.requestStatus !== "pending_request" && (
-              <label className="cursor-pointer rounded-xl border border-[#E4E7EE] bg-[#F4F6FA] p-2 text-[#111317]">
-                <ImagePlus className="h-4 w-4" />
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleAttachWebP}
-                  className="hidden"
-                />
+              <label
+                htmlFor={ids.attach}
+                className="min-target inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full border border-[var(--line-strong)] bg-[var(--surface)] text-[var(--ink)] focus-within:outline focus-within:outline-[length:var(--focus-w)] focus-within:outline-[var(--focus)]"
+              >
+                <ImagePlus aria-hidden="true" className="h-5 w-5" />
+                <span className="sr-only">Attach a photo</span>
+                <input id={ids.attach} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleAttach} className="sr-only" />
               </label>
             )}
-
+            <label htmlFor={ids.input} className="sr-only">
+              Message {chatTitle}
+            </label>
             <input
+              id={ids.input}
+              ref={inputRef}
               type="text"
               data-testid="chat-message-input"
               value={body}
               onChange={(e) => setBody(e.target.value)}
               maxLength={2000}
-              placeholder="Write a message..."
-              className="flex-1 rounded-xl border border-[#E4E7EE] px-3 py-2 text-xs focus:border-[#111317] focus:outline-none"
+              placeholder="Write a message…"
+              aria-describedby={error ? ids.error : undefined}
+              className={`${FIELD} flex-1`}
             />
-
-            <button
-              type="submit"
-              data-testid="chat-send-btn"
-              disabled={!body.trim() && !mediaItem}
-              className="inline-flex items-center gap-1 rounded-xl bg-[#111317] px-3.5 py-2 text-xs font-extrabold text-[#FDBB30] disabled:opacity-50"
-            >
-              <Send className="h-3.5 w-3.5" />
-              <span>Send</span>
+            <button type="submit" data-testid="chat-send-btn" disabled={!body.trim() && !mediaItem} className={`${BTN_PRIMARY} shrink-0 px-[var(--sp-3)]`}>
+              <Send aria-hidden="true" className="h-4 w-4" />
+              <span className="lt-hide-label">Send</span>
+              <span className="sr-only">message</span>
             </button>
           </div>
         </form>

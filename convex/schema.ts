@@ -635,7 +635,12 @@ export default defineSchema({
     permitTiers: v.array(v.string()),
     servedByShuttleRouteIds: v.array(v.string()),
     overflowTargetLotSlugs: v.array(v.string()),
-    // Legacy deploy compatibility. Seeding removes this retired field.
+    // RETIRED (SPEC-v2 §4, #74): the per-lot hourly prior and its generator are
+    // deleted; nothing reads or writes it. It stays declared (optional) only so
+    // legacy deploys whose documents still carry it pass schema validation
+    // until bootstrapKsu's cleanup has unset it (convex/seed.ts). Remove this
+    // line, the seed cleanup and the legacy-document tests after every
+    // deployment has been re-seeded once.
     hourlyBaselinePrior: v.optional(v.array(v.number())),
     latitude: v.number(),
     longitude: v.number(),

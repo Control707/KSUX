@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -22,6 +22,10 @@ import {
   useViewerQuery,
 } from "@/lib/viewerClient";
 import { ReportTrigger } from "@/components/shared/ReportTrigger";
+import { Dialog } from "@/components/a11y/Dialog";
+import { useAnnouncer } from "@/components/a11y/Announcer";
+import { CampusBadge, SegmentedControl } from "@/components/a11y/controls";
+import { BTN_ACCENT, BTN_PRIMARY, BTN_SECONDARY, FIELD, LABEL } from "./styles";
 
 const CATEGORIES = [
   { value: "", label: "All Categories" },
@@ -32,9 +36,33 @@ const CATEGORIES = [
   { value: "services_tutoring", label: "Campus Services & Tutoring" },
 ] as const;
 
+type Campus = "Kennesaw" | "Marietta";
+type BrowseCampus = "All KSU" | Campus;
+
+function priceLabel(item: { pricingMode: string; priceCents?: number | null }) {
+  if (item.pricingMode === "free_pickup") return "Free Pickup";
+  if (item.pricingMode === "open_to_trade") return "Open to Trade";
+  return `$${((item.priceCents ?? 0) / 100).toFixed(0)} OBO`;
+}
+
 export function MarketplaceView() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { toast } = useAnnouncer();
+  const ids = {
+    search: useId(),
+    category: useId(),
+    pricing: useId(),
+    title: useId(),
+    newCategory: useId(),
+    campus: useId(),
+    pricingMode: useId(),
+    price: useId(),
+    trade: useId(),
+    description: useId(),
+    photo: useId(),
+    error: useId(),
+  };
   const {
     uploadImage,
     pendingDraftCard,
@@ -43,28 +71,27 @@ export function MarketplaceView() {
     setQuickComposerKind,
   } = useViewerClient();
 
+  const summary = useViewerQuery(api.shell.shellSummary, {});
+  const homeCampus: Campus = summary?.viewer.student?.homeCampus === "Marietta" ? "Marietta" : "Kennesaw";
+  const otherCampus: Campus = homeCampus === "Kennesaw" ? "Marietta" : "Kennesaw";
+
   const [category, setCategory] = useState<string>("");
   const [pricingModeFilter, setPricingModeFilter] = useState<string>("");
   const [queryText, setQueryText] = useState("");
   const [onlyMine, setOnlyMine] = useState(false);
-  const [browseCampus, setBrowseCampus] = useState<"All KSU" | "Kennesaw" | "Marietta">("All KSU");
+  const [browseCampus, setBrowseCampus] = useState<BrowseCampus>("All KSU");
 
-  const [createOpen, setCreateOpen] = useState(
-    searchParams.get("create") === "1"
-  );
+  const [createOpen, setCreateOpen] = useState(searchParams.get("create") === "1");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [campus, setCampus] = useState<"Kennesaw" | "Marietta">("Kennesaw");
+  const [campus, setCampus] = useState<Campus | null>(null);
   const [newCategory, setNewCategory] = useState<any>("textbooks_gear");
-  const [newPricingMode, setNewPricingMode] = useState<
-    "fixed_obo" | "free_pickup" | "open_to_trade"
-  >("fixed_obo");
+  const [newPricingMode, setNewPricingMode] = useState<"fixed_obo" | "free_pickup" | "open_to_trade">("fixed_obo");
   const [priceDollars, setPriceDollars] = useState("45");
   const [tradeNote, setTradeNote] = useState("");
-  const [mediaItems, setMediaItems] = useState<
-    Array<{ mediaAssetId: Id<"mediaAssets">; url: string }>
-  >([]);
+  const [mediaItems, setMediaItems] = useState<Array<{ mediaAssetId: Id<"mediaAssets">; url: string }>>([]);
   const [error, setError] = useState<string | null>(null);
+  const listingCampus = campus ?? homeCampus;
 
   useEffect(() => {
     if (quickComposerKind === "listing") {
@@ -103,22 +130,18 @@ export function MarketplaceView() {
 
   const createListing = useViewerMutation(api.marketplace.createListing);
   const renewListing = useViewerMutation(api.marketplace.renewListing);
-  const toggleBookmark = useViewerMutation(
-    api.marketplace.toggleListingBookmark
-  );
+  const toggleBookmark = useViewerMutation(api.marketplace.toggleListingBookmark);
   const openDealChat = useViewerMutation(api.marketplace.openOrResumeDealChat);
   const submitReport = useViewerMutation(api.moderation.submitReport);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file || mediaItems.length >= 4) return;
     setError(null);
     try {
       const uploaded = await uploadImage(file, "listing");
-      setMediaItems((prev) => [
-        ...prev,
-        { mediaAssetId: uploaded.mediaAssetId, url: uploaded.url },
-      ]);
+      setMediaItems((prev) => [...prev, { mediaAssetId: uploaded.mediaAssetId, url: uploaded.url }]);
     } catch (err: any) {
       setError(err?.message || "Photo upload failed.");
     }
@@ -135,13 +158,10 @@ export function MarketplaceView() {
       await createListing({
         title,
         description,
-        campus,
+        campus: listingCampus,
         category: newCategory,
         pricingMode: newPricingMode,
-        priceCents:
-          newPricingMode === "fixed_obo"
-            ? Math.round(Number(priceDollars) * 100)
-            : undefined,
+        priceCents: newPricingMode === "fixed_obo" ? Math.round(Number(priceDollars) * 100) : undefined,
         tradeNote: newPricingMode === "open_to_trade" ? tradeNote : undefined,
         mediaAssetIds: mediaItems.map((m) => m.mediaAssetId),
       });
@@ -149,120 +169,139 @@ export function MarketplaceView() {
       setDescription("");
       setMediaItems([]);
       setCreateOpen(false);
+      toast({ message: "Listing published", detail: title, tone: "success" });
     } catch (err: any) {
-      setError(
-        err?.data?.message || err?.message || "Could not publish Listing."
-      );
+      setError(err?.data?.message || err?.message || "Could not publish Listing.");
     }
   };
 
+  const campusOptions = [
+    { value: "All KSU" as const, label: "All KSU" },
+    { value: homeCampus, label: `${homeCampus} (home)` },
+    { value: otherCampus, label: otherCampus },
+  ];
+
   return (
-    <div data-testid="marketplace-view" className="space-y-4 p-4">
-      <div className="rounded-2xl border border-[#E4E7EE] bg-white p-4 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h1 className="text-base font-black text-[#111317]">
-              KSU Student Marketplace
+    <div data-testid="marketplace-view" className="space-y-[var(--sp-4)] p-[var(--sp-4)]">
+      <section aria-labelledby="marketplace-heading" className="space-y-[var(--sp-3)]">
+        <div className="flex flex-wrap items-end justify-between gap-[var(--sp-3)]">
+          <div className="min-w-0 space-y-[var(--sp-1)]">
+            <h1
+              id="marketplace-heading"
+              data-route-heading=""
+              tabIndex={-1}
+              className="font-display text-2xl font-bold"
+            >
+              Marketplace
             </h1>
-            <p className="text-xs text-[#5E6675]">
-              Verified .edu peer-to-peer Listings · Isolated per-buyer Deal
-              Chats · 14 vetted KSU Meetup Spots (zero in-app escrow).
+            <p className="text-sm text-[var(--muted)] [overflow-wrap:anywhere]">
+              Student-to-student Listings across KSU. Every buyer gets their own Deal Chat. Meet at a public KSU Meetup
+              Spot and pay in person; KSUX never holds money.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap gap-[var(--sp-2)]">
             <button
               type="button"
+              aria-pressed={onlyMine}
               onClick={() => setOnlyMine((v) => !v)}
-              className={`rounded-xl border px-3 py-1.5 text-xs font-bold ${
-                onlyMine
-                  ? "border-[#111317] bg-[#111317] text-[#FDBB30]"
-                  : "border-[#E4E7EE] bg-[#F4F6FA] text-[#111317]"
-              }`}
+              className={onlyMine ? BTN_PRIMARY : BTN_SECONDARY}
             >
-              {onlyMine ? "Showing My Listings" : "My Listings"}
+              {onlyMine && <span aria-hidden="true">✓</span>}
+              My Listings
             </button>
             <button
               type="button"
               data-testid="open-create-listing-btn"
-              onClick={() => setCreateOpen((v) => !v)}
-              className="inline-flex items-center gap-1 rounded-xl bg-[#FDBB30] px-3 py-2 text-xs font-extrabold text-[#111317]"
+              onClick={() => setCreateOpen(true)}
+              className={BTN_ACCENT}
             >
-              <Plus className="h-3.5 w-3.5" />
-              <span>+ Post Listing</span>
+              <Plus aria-hidden="true" className="h-4 w-4" />
+              Sell something
             </button>
           </div>
         </div>
 
-        {/* Search & Filters */}
-        <div className="mt-3 flex flex-wrap gap-2">
-          <div className="flex min-w-52 flex-1 items-center gap-2 rounded-xl border border-[#E4E7EE] bg-[#F9FAFC] px-3 py-2">
-            <Search className="h-4 w-4 text-[#5E6675]" />
+        <SegmentedControl
+          label="Listing Campus"
+          hideLabel={false}
+          options={campusOptions}
+          value={browseCampus}
+          onChange={setBrowseCampus}
+          testIdPrefix="marketplace-campus"
+        />
+
+        <div className="lt-grid-1 grid grid-cols-1 gap-[var(--sp-3)] sm:grid-cols-3">
+          <div className="min-w-0 sm:col-span-3">
+            <label htmlFor={ids.search} className={LABEL}>
+              Search Listings
+            </label>
+            <div className="relative mt-[var(--sp-1)]">
+              <Search aria-hidden="true" className="pointer-events-none absolute left-[var(--sp-3)] top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+              <input
+                id={ids.search}
+                type="search"
+                value={queryText}
+                onChange={(e) => setQueryText(e.target.value)}
+                placeholder="Textbooks, calculators, dorm gear…"
+                className={`${FIELD} pl-[calc(var(--sp-3)*2+1rem)]`}
+              />
+            </div>
+          </div>
+          <div className="min-w-0">
+            <label htmlFor={ids.category} className={LABEL}>
+              Category
+            </label>
+            <select id={ids.category} value={category} onChange={(e) => setCategory(e.target.value)} className={`${FIELD} mt-[var(--sp-1)]`}>
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-0">
+            <label htmlFor={ids.pricing} className={LABEL}>
+              Pricing
+            </label>
+            <select id={ids.pricing} value={pricingModeFilter} onChange={(e) => setPricingModeFilter(e.target.value)} className={`${FIELD} mt-[var(--sp-1)]`}>
+              <option value="">All pricing</option>
+              <option value="fixed_obo">Price / OBO</option>
+              <option value="free_pickup">Free Pickup</option>
+              <option value="open_to_trade">Open to Trade</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <Dialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title="Sell something"
+        description="Your Listing is visible to verified KSU students. Meet in person at a KSU Meetup Spot."
+        variant="sheet"
+        testId="create-listing-dialog"
+      >
+        <form onSubmit={handleCreateListing} className="space-y-[var(--sp-3)]" aria-describedby={error ? ids.error : undefined}>
+          <div>
+            <label htmlFor={ids.title} className={LABEL}>
+              Title
+            </label>
             <input
+              id={ids.title}
               type="text"
-              value={queryText}
-              onChange={(e) => setQueryText(e.target.value)}
-              placeholder="Search textbooks, calculators, dorm gear, tutoring..."
-              className="w-full bg-transparent text-xs font-semibold text-[#111317] focus:outline-none"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. CLRS 4th Edition textbook"
+              className={`${FIELD} mt-[var(--sp-1)]`}
             />
           </div>
-
-          <select
-            aria-label="Filter Listings by Campus"
-            value={browseCampus}
-            onChange={(event) => {
-              const selected = event.currentTarget.value;
-              setBrowseCampus(selected === "Kennesaw" || selected === "Marietta" ? selected : "All KSU");
-            }}
-            className="rounded-xl border border-[#E4E7EE] bg-[#F9FAFC] px-3 py-2 text-xs font-bold text-[#111317]"
-          >
-            <option value="All KSU">All KSU</option>
-            <option value="Kennesaw">Kennesaw</option>
-            <option value="Marietta">Marietta</option>
-          </select>
-
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="rounded-xl border border-[#E4E7EE] bg-[#F9FAFC] px-3 py-2 text-xs font-bold text-[#111317]"
-          >
-            {CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={pricingModeFilter}
-            onChange={(e) => setPricingModeFilter(e.target.value)}
-            className="rounded-xl border border-[#E4E7EE] bg-[#F9FAFC] px-3 py-2 text-xs font-bold text-[#111317]"
-          >
-            <option value="">All Pricing</option>
-            <option value="fixed_obo">$ Price / OBO</option>
-            <option value="free_pickup">Free Pickup</option>
-            <option value="open_to_trade">Open to Trade</option>
-          </select>
-        </div>
-
-        {createOpen && (
-          <form
-            onSubmit={handleCreateListing}
-            className="mt-3 space-y-2.5 rounded-2xl border border-[#D99B00] bg-[#FFFDF7] p-4"
-          >
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <input
-                type="text"
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Listing Title (e.g. CLRS 4th Ed Textbook)"
-                className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs font-semibold"
-              />
-              <select
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs font-bold"
-              >
+          <div className="lt-grid-1 grid grid-cols-1 gap-[var(--sp-3)] sm:grid-cols-2">
+            <div className="min-w-0">
+              <label htmlFor={ids.newCategory} className={LABEL}>
+                Category
+              </label>
+              <select id={ids.newCategory} value={newCategory} onChange={(e) => setNewCategory(e.target.value)} className={`${FIELD} mt-[var(--sp-1)]`}>
                 {CATEGORIES.slice(1).map((c) => (
                   <option key={c.value} value={c.value}>
                     {c.label}
@@ -270,244 +309,237 @@ export function MarketplaceView() {
                 ))}
               </select>
             </div>
-
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="min-w-0">
+              <label htmlFor={ids.campus} className={LABEL}>
+                Campus
+              </label>
               <select
-                value={campus}
-                onChange={(e) => setCampus(e.target.value as any)}
-                className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs font-bold"
+                id={ids.campus}
+                value={listingCampus}
+                onChange={(e) => setCampus(e.target.value === "Marietta" ? "Marietta" : "Kennesaw")}
+                className={`${FIELD} mt-[var(--sp-1)]`}
               >
-                <option value="Kennesaw">Kennesaw Campus</option>
-                <option value="Marietta">Marietta Campus</option>
+                <option value={homeCampus}>{homeCampus} (home)</option>
+                <option value={otherCampus}>{otherCampus}</option>
               </select>
-
+            </div>
+            <div className="min-w-0">
+              <label htmlFor={ids.pricingMode} className={LABEL}>
+                Pricing
+              </label>
               <select
+                id={ids.pricingMode}
                 value={newPricingMode}
                 onChange={(e) => setNewPricingMode(e.target.value as any)}
-                className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs font-bold"
+                className={`${FIELD} mt-[var(--sp-1)]`}
               >
-                <option value="fixed_obo">$ Price / OBO</option>
+                <option value="fixed_obo">Price / OBO</option>
                 <option value="free_pickup">Free Pickup</option>
                 <option value="open_to_trade">Open to Trade</option>
               </select>
-
-              {newPricingMode === "fixed_obo" && (
+            </div>
+            {newPricingMode === "fixed_obo" && (
+              <div className="min-w-0">
+                <label htmlFor={ids.price} className={LABEL}>
+                  Price in dollars
+                </label>
                 <input
+                  id={ids.price}
                   type="number"
+                  inputMode="numeric"
                   min={1}
                   required
                   value={priceDollars}
                   onChange={(e) => setPriceDollars(e.target.value)}
-                  placeholder="Price ($)"
-                  className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs font-bold"
+                  className={`${FIELD} mt-[var(--sp-1)]`}
                 />
-              )}
-              {newPricingMode === "open_to_trade" && (
+              </div>
+            )}
+            {newPricingMode === "open_to_trade" && (
+              <div className="min-w-0">
+                <label htmlFor={ids.trade} className={LABEL}>
+                  What would you trade for?
+                </label>
                 <input
+                  id={ids.trade}
                   type="text"
                   value={tradeNote}
                   onChange={(e) => setTradeNote(e.target.value)}
-                  placeholder="What are you looking to trade for?"
-                  className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs"
+                  className={`${FIELD} mt-[var(--sp-1)]`}
                 />
-              )}
-            </div>
-
+              </div>
+            )}
+          </div>
+          <div>
+            <label htmlFor={ids.description} className={LABEL}>
+              Description
+            </label>
             <textarea
+              id={ids.description}
               required
-              rows={2}
+              rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Condition, course code, and preferred KSU Meetup Spot..."
-              className="w-full rounded-xl border border-[#E4E7EE] bg-white p-2.5 text-xs"
+              placeholder="Condition, course code, preferred KSU Meetup Spot…"
+              className={`${FIELD} mt-[var(--sp-1)] py-[var(--sp-2)]`}
             />
+          </div>
 
-            {mediaItems.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {mediaItems.map((m, idx) => (
-                  <div key={String(m.mediaAssetId)} className="relative">
-                    <img
-                      src={m.url}
-                      alt="Preview"
-                      className="h-14 w-14 rounded-lg object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setMediaItems((prev) =>
-                          prev.filter((_, i) => i !== idx)
-                        )
-                      }
-                      className="absolute -right-1 -top-1 rounded-full bg-[#111317] p-0.5 text-white"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {error && (
-              <p className="text-xs font-semibold text-[#B91C1C]">{error}</p>
-            )}
-
-            <div className="flex items-center justify-between">
-              <label className="inline-flex cursor-pointer items-center gap-1 rounded-xl border border-[#E4E7EE] bg-white px-3 py-1.5 text-xs font-bold text-[#111317]">
-                <ImagePlus className="h-3.5 w-3.5" />
-                <span>WebP Photos ({mediaItems.length}/4)</span>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handlePhotoUpload}
-                  className="hidden"
-                />
-              </label>
-
-              <button
-                type="submit"
-                className="rounded-xl bg-[#111317] px-4 py-2 text-xs font-extrabold text-[#FDBB30]"
-              >
-                Publish Listing
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-
-      {/* Listings Grid */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        {(listings ?? []).map((item) => {
-          const priceLabel =
-            item.pricingMode === "free_pickup"
-              ? "Free Pickup"
-              : item.pricingMode === "open_to_trade"
-                ? "Open to Trade"
-                : `$${((item.priceCents ?? 0) / 100).toFixed(0)} OBO`;
-
-          return (
-            <div
-              key={String(item._id)}
-              data-testid="marketplace-listing-card"
-              className="flex flex-col justify-between gap-3 rounded-2xl border border-[#E4E7EE] bg-white p-4 shadow-xs"
-            >
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="rounded-full bg-[#111317] px-2.5 py-0.5 text-xs font-black text-[#FDBB30]">
-                      {priceLabel}
-                    </span>
-                    <span className="rounded-full bg-[#FFF6DC] px-2 py-0.5 text-[10.5px] font-extrabold text-[#855A00]">
-                      {item.campus}
-                    </span>
-                    {item.status !== "available" && (
-                      <span className="rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[10.5px] font-extrabold uppercase text-[#B45309]">
-                        {item.status}
-                      </span>
-                    )}
-                  </div>
-
+          {mediaItems.length > 0 && (
+            <ul aria-label="Photos added" className="flex flex-wrap gap-[var(--sp-2)]">
+              {mediaItems.map((m, idx) => (
+                <li key={String(m.mediaAssetId)} className="flex items-center gap-[var(--sp-1)]">
+                  <img src={m.url} alt={`Photo ${idx + 1}`} className="h-14 w-14 rounded-[var(--r-sm)] object-cover" />
                   <button
                     type="button"
-                    onClick={() =>
-                      void toggleBookmark({ listingId: item._id })
-                    }
-                    className={`rounded-lg p-1 ${
-                      item.bookmarkedByViewer
-                        ? "text-[#D99B00]"
-                        : "text-[#5E6675]"
-                    }`}
+                    aria-label={`Remove photo ${idx + 1}`}
+                    onClick={() => setMediaItems((prev) => prev.filter((_, i) => i !== idx))}
+                    className="min-target inline-flex items-center justify-center rounded-full text-[var(--muted)] hover:bg-[var(--surface-2)]"
                   >
-                    <Bookmark className="h-4 w-4" />
+                    <X aria-hidden="true" className="h-4 w-4" />
                   </button>
-                </div>
+                </li>
+              ))}
+            </ul>
+          )}
 
-                <h2 className="mt-2 flex items-center gap-1.5 text-sm font-black text-[#111317]">
-                  <ShoppingBag className="h-4 w-4 shrink-0 text-[#D99B00]" />
-                  <span>{item.title}</span>
-                </h2>
-                <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-[#374151]">
-                  {item.description}
-                </p>
-                {item.tradeNote && (
-                  <p className="mt-1 text-[11px] font-semibold text-[#1E3A8A]">
-                    Trade note: {item.tradeNote}
-                  </p>
-                )}
+          {error && (
+            <p id={ids.error} role="alert" className="rounded-[var(--r-sm)] bg-[var(--bad-bg)] px-[var(--sp-3)] py-[var(--sp-2)] text-sm font-bold text-[var(--bad-fg)]">
+              {error}
+            </p>
+          )}
 
-                {item.mediaUrls[0] && (
-                  <img
-                    src={item.mediaUrls[0]}
-                    alt={item.title}
-                    className="mt-2.5 h-36 w-full rounded-xl object-cover"
-                  />
-                )}
-              </div>
+          <div className="flex flex-wrap items-center justify-between gap-[var(--sp-2)]">
+            <label
+              htmlFor={ids.photo}
+              className={`${BTN_SECONDARY} cursor-pointer focus-within:outline focus-within:outline-[length:var(--focus-w)] focus-within:outline-[var(--focus)]`}
+            >
+              <ImagePlus aria-hidden="true" className="h-4 w-4" />
+              Add photo ({mediaItems.length} of 4)
+              <input
+                id={ids.photo}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                disabled={mediaItems.length >= 4}
+                onChange={handlePhotoUpload}
+                className="sr-only"
+              />
+            </label>
+            <button type="submit" data-testid="publish-listing-btn" className={BTN_PRIMARY}>
+              Publish Listing
+            </button>
+          </div>
+        </form>
+      </Dialog>
 
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E4E7EE] pt-2.5 text-xs">
-                <Link
-                  href={`/profile?handle=${item.seller.handle}`}
-                  className="inline-flex items-center gap-1 font-bold text-[#5E6675] hover:underline"
-                >
-                  <span>@{item.seller.handle}</span>
-                  <span className="inline-flex items-center gap-0.5 text-[#111317]">
-                    · <Award className="h-3 w-3 text-[#D99B00]" />
-                    {item.seller.completedDealCount}
-                  </span>
-                </Link>
-
-                {item.isOwnListing ? (
-                  <div className="flex items-center gap-2">
-                    {item.status === "expired" && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void renewListing({ listingId: item._id })
-                        }
-                        className="inline-flex items-center gap-1 rounded-xl bg-[#FDBB30] px-2.5 py-1 font-extrabold text-[#111317]"
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                        <span>Renew 30d</span>
-                      </button>
-                    )}
-                    <Link
-                      href="/chats"
-                      className="font-extrabold text-[#1E3A8A] underline"
-                    >
-                      View Buyer Deal Chats →
-                    </Link>
-                  </div>
+      <section aria-labelledby="listings-heading">
+        <h2 id="listings-heading" className="sr-only">
+          Listings
+        </h2>
+        {listings === undefined ? (
+          <p role="status" className="text-sm text-[var(--muted)]">
+            Loading Listings…
+          </p>
+        ) : listings.length === 0 ? (
+          <p data-testid="marketplace-empty" className="rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] p-[var(--sp-4)] text-body">
+            No Listings match these filters yet.
+          </p>
+        ) : (
+          <ul data-testid="marketplace-listings" className="lt-grid-1 grid grid-cols-1 gap-[var(--sp-3)] md:grid-cols-2">
+            {listings.map((item) => (
+              <li
+                key={String(item._id)}
+                data-testid="marketplace-listing-card"
+                className="flex min-w-0 flex-col overflow-hidden rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)]"
+              >
+                {item.mediaUrls[0] ? (
+                  <img src={item.mediaUrls[0]} alt={`Photo of ${item.title}`} className="aspect-[4/3] w-full object-cover" />
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <ReportTrigger
-                      targetType="listing"
-                      targetId={String(item._id)}
-                      onSubmitReport={async (p) => {
-                        await submitReport(p);
-                      }}
-                    />
+                  <div aria-hidden="true" className="flex aspect-[4/3] w-full items-center justify-center bg-[var(--surface-2)] text-[var(--muted)]">
+                    <ShoppingBag className="h-10 w-10" />
+                  </div>
+                )}
+                <div className="flex min-w-0 flex-1 flex-col gap-[var(--sp-2)] p-[var(--sp-4)]">
+                  <div className="flex min-w-0 items-start justify-between gap-[var(--sp-2)]">
+                    <h3 className="min-w-0 font-display text-lg font-bold">{item.title}</h3>
                     <button
                       type="button"
-                      data-testid="message-seller-btn"
-                      onClick={async () => {
-                        const res = await openDealChat({
-                          listingId: item._id,
-                        });
-                        router.push(`/chats/${res.chatId}`);
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-[#111317] px-3 py-1.5 font-extrabold text-[#FDBB30]"
+                      aria-pressed={Boolean(item.bookmarkedByViewer)}
+                      aria-label={`Save ${item.title}`}
+                      onClick={() => void toggleBookmark({ listingId: item._id })}
+                      className="min-target -mr-[var(--sp-2)] -mt-[var(--sp-2)] inline-flex shrink-0 items-center justify-center rounded-full text-[var(--ink)] hover:bg-[var(--surface-2)]"
                     >
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      <span>
-                        {item.myDealChatId ? "Open Deal Chat" : "Message Seller"}
-                      </span>
+                      <Bookmark aria-hidden="true" className="h-5 w-5" fill={item.bookmarkedByViewer ? "currentColor" : "none"} />
                     </button>
                   </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                  <div className="flex flex-wrap items-center gap-[var(--sp-2)]">
+                    <span className="font-display text-lg font-bold">{priceLabel(item)}</span>
+                    <CampusBadge campus={item.campus} />
+                    {item.status !== "available" && (
+                      <span className="inline-flex items-center gap-[var(--sp-1)] rounded-full bg-[var(--warn-bg)] px-[var(--sp-2)] text-sm font-bold text-[var(--warn-fg)]">
+                        <span aria-hidden="true">◐</span>
+                        {item.status === "sold" ? "Sold" : item.status === "pending" ? "Pending" : item.status === "expired" ? "Expired" : item.status}
+                      </span>
+                    )}
+                  </div>
+                  <p className="line-clamp-3 text-sm text-[var(--ink)] [overflow-wrap:anywhere]">{item.description}</p>
+                  {item.tradeNote && (
+                    <p className="text-sm text-[var(--muted)] [overflow-wrap:anywhere]">Trade for: {item.tradeNote}</p>
+                  )}
+                  <div className="mt-auto flex flex-wrap items-center justify-between gap-[var(--sp-2)] border-t border-[var(--line)] pt-[var(--sp-2)]">
+                    <Link
+                      href={`/profile?handle=${item.seller.handle}`}
+                      className="inline-flex min-h-[var(--target)] min-w-0 items-center gap-[var(--sp-1)] text-sm font-bold underline-offset-2 hover:underline"
+                    >
+                      @{item.seller.handle}
+                      <span className="inline-flex items-center gap-[var(--sp-1)] text-[var(--muted)]">
+                        <Award aria-hidden="true" className="h-4 w-4" />
+                        {item.seller.completedDealCount} completed {item.seller.completedDealCount === 1 ? "deal" : "deals"}
+                      </span>
+                    </Link>
+                    {item.isOwnListing ? (
+                      <div className="flex flex-wrap items-center gap-[var(--sp-2)]">
+                        {item.status === "expired" && (
+                          <button type="button" onClick={() => void renewListing({ listingId: item._id })} className={BTN_ACCENT}>
+                            <RotateCcw aria-hidden="true" className="h-4 w-4" />
+                            Renew for 30 days
+                          </button>
+                        )}
+                        <Link href="/chats" className={BTN_SECONDARY}>
+                          Buyer Deal Chats
+                        </Link>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-[var(--sp-2)]">
+                        <ReportTrigger
+                          targetType="listing"
+                          targetId={String(item._id)}
+                          targetLabel={item.title}
+                          onSubmitReport={async (p) => {
+                            await submitReport(p);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          data-testid="message-seller-btn"
+                          onClick={async () => {
+                            const res = await openDealChat({ listingId: item._id });
+                            router.push(`/chats/${res.chatId}`);
+                          }}
+                          className={BTN_PRIMARY}
+                        >
+                          <MessageSquare aria-hidden="true" className="h-4 w-4" />
+                          {item.myDealChatId ? "Open Deal Chat" : "Message Seller"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

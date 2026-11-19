@@ -10,6 +10,7 @@ import {
   evaluateDiningOpenStatus,
   evaluateParkingLotFullness,
 } from "./lib/parkingMath";
+import { evaluateCampusLine } from "./lib/parkingCampusLine";
 import { Doc, Id } from "./_generated/dataModel";
 import { easternDate, zonedDateParts } from "./lib/easternDate";
 import { freshShuttleEta } from "./lib/shuttleRead";
@@ -733,6 +734,8 @@ export const getNowHud = viewerQuery({
 
     return {
       campusFilter,
+      // Same dated, campus-wide line as Parking (SPEC-v2 §4); null on Fri/weekends/evenings.
+      campusLine: evaluateCampusLine(now),
       schedule: {
         enrolledCourses,
         privateClasses,

@@ -1,29 +1,34 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  FileEdit,
-  Plus,
-  Send,
-  ShieldCheck,
-  Sparkles,
-} from "lucide-react";
+import { FileEdit, Plus, Send, ShieldCheck, Sparkles } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
-import {
-  useViewerClient,
-  useViewerQuery,
-} from "@/lib/viewerClient";
+import { useViewerClient, useViewerQuery } from "@/lib/viewerClient";
 import { CitationPill } from "@/components/shared/CampusEntityCard";
+import { BTN_ACCENT, BTN_PRIMARY, BTN_SECONDARY, FIELD } from "@/components/marketplace/styles";
+
+const STARTERS = [
+  "Where should I park on Kennesaw right now and when is the next Big Owl Bus?",
+  "What are my enrolled Course Hubs and upcoming deadlines?",
+  "Draft a Listing to sell my CS 3305 textbook for $40",
+];
+
+type DraftCard = {
+  draftKind: "post" | "listing" | "parking_report" | "study_session";
+  title: string;
+  summary: string;
+  payloadJson: string;
+};
 
 export function ScrappyView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { auth, setPendingDraftCard } = useViewerClient();
+  const inputId = useId();
 
-  const [selectedThreadId, setSelectedThreadId] =
-    useState<Id<"scrappyThreads"> | "new" | null>(null);
+  const [selectedThreadId, setSelectedThreadId] = useState<Id<"scrappyThreads"> | "new" | null>(null);
   // The Quick Sheet's Ask field hands its question over as ?q=.
   const [prompt, setPrompt] = useState(() => searchParams.get("q")?.slice(0, 1000) ?? "");
   const [streamingText, setStreamingText] = useState("");
@@ -31,32 +36,21 @@ export function ScrappyView() {
   const [streamingDraft, setStreamingDraft] = useState<any | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [answerAnnouncement, setAnswerAnnouncement] = useState("");
 
   const threads = useViewerQuery(api.scrappy.threads.listMyThreads, {});
-  const activeThreadId = selectedThreadId === "new"
-    ? null
-    : selectedThreadId ?? threads?.[0]?._id ?? null;
+  const activeThreadId = selectedThreadId === "new" ? null : selectedThreadId ?? threads?.[0]?._id ?? null;
   const threadData = useViewerQuery(
     api.scrappy.threads.getThreadMessages,
     activeThreadId ? { threadId: activeThreadId } : "skip"
   );
 
-  const handleOpenDraftComposer = (draftCard: {
-    draftKind: "post" | "listing" | "parking_report" | "study_session";
-    title: string;
-    summary: string;
-    payloadJson: string;
-  }) => {
+  const handleOpenDraftComposer = (draftCard: DraftCard) => {
     setPendingDraftCard(draftCard);
-    if (draftCard.draftKind === "post") {
-      router.push("/feed?compose=1");
-    } else if (draftCard.draftKind === "listing") {
-      router.push("/marketplace?create=1");
-    } else if (draftCard.draftKind === "parking_report") {
-      router.push("/parking?report=1");
-    } else {
-      router.push("/study?host=1");
-    }
+    if (draftCard.draftKind === "post") router.push("/feed?compose=1");
+    else if (draftCard.draftKind === "listing") router.push("/marketplace?create=1");
+    else if (draftCard.draftKind === "parking_report") router.push("/parking?report=1");
+    else router.push("/study?host=1");
   };
 
   const submitPromptOverSse = async (promptText: string) => {
@@ -94,6 +88,10 @@ export function ScrappyView() {
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let answer = "";
+      let draftTitle: string | null = null;
+      let citationCount = 0;
+      let streamError: string | null = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -118,233 +116,235 @@ export function ScrappyView() {
           if (eventName === "meta" && payload.threadId) {
             setSelectedThreadId(payload.threadId as Id<"scrappyThreads">);
           } else if (eventName === "delta" && payload.text) {
-            setStreamingText((prev) => prev + String(payload.text));
+            answer += String(payload.text);
+            setStreamingText(answer);
           } else if (eventName === "citations") {
+            citationCount = (payload.citations ?? []).length;
             setStreamingCitations(payload.citations ?? []);
           } else if (eventName === "draft") {
+            draftTitle = payload.draftCard?.title ?? null;
             setStreamingDraft(payload.draftCard ?? null);
           } else if (eventName === "error") {
-            setError(payload.message || "Ask Scrappy error.");
+            streamError = payload.message || "Scrappy couldn't answer.";
+            setError(streamError);
           }
         }
       }
       setPrompt("");
+      if (!streamError) {
+        // Announce the finished answer once, never token by token.
+        const extras = [
+          citationCount > 0 ? `${citationCount} ${citationCount === 1 ? "source" : "sources"}` : null,
+          draftTitle ? `Draft ready to review: ${draftTitle}` : null,
+        ].filter(Boolean);
+        setAnswerAnnouncement("");
+        requestAnimationFrame(() =>
+          setAnswerAnnouncement(`Scrappy answered: ${answer.trim() || "(no text)"}${extras.length ? `. ${extras.join(". ")}.` : ""}`)
+        );
+      }
     } catch (err: any) {
-      setError(err?.message || "Failed to stream Scrappy answer.");
+      setError(err?.message || "Scrappy couldn't answer. Try again.");
     } finally {
       setStreaming(false);
     }
   };
 
+  const messages = threadData?.messages ?? [];
+
   return (
-    <div data-testid="ask-scrappy-view" className="space-y-4 p-4">
-      {/* Header & Isolation Guarantee */}
-      <div className="rounded-2xl border border-[#E4E7EE] bg-white p-4 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#111317] text-lg font-black text-[#FDBB30]">
-              🦉
-            </span>
-            <div>
-              <h1 className="text-base font-black text-[#111317]">
-                Ask Scrappy · Campus Owl AI
+    <div data-testid="ask-scrappy-view" className="flex min-h-[calc(100dvh-var(--chrome-top))] flex-col">
+      <div className="flex-1 space-y-[var(--sp-4)] p-[var(--sp-4)]">
+        <section aria-labelledby="scrappy-heading" className="space-y-[var(--sp-3)]">
+          <div className="flex flex-wrap items-end justify-between gap-[var(--sp-3)]">
+            <div className="min-w-0 space-y-[var(--sp-1)]">
+              <h1 id="scrappy-heading" data-route-heading="" tabIndex={-1} className="font-display text-2xl font-bold">
+                <span aria-hidden="true">🦉 </span>Ask Scrappy
               </h1>
-              <p className="flex items-center gap-1 text-xs text-[#5E6675]">
-                <ShieldCheck className="h-3.5 w-3.5 text-[#15803D]" />
+              <p className="flex items-start gap-[var(--sp-1)] text-sm text-[var(--muted)]">
+                <ShieldCheck aria-hidden="true" className="mt-[var(--sp-1)] h-4 w-4 shrink-0" />
                 <span>
-                  Chat-isolated (zero access to DMs, Group Chats, or Deal Chats)
-                  · Read-only tools + Draft Cards
+                  An AI helper for campus info. It can&apos;t read your chats, can only look things up, and makes Drafts you review
+                  before anything is posted. Check important answers yourself.
                 </span>
               </p>
             </div>
+            <button
+              type="button"
+              data-testid="scrappy-new-thread-btn"
+              disabled={streaming}
+              onClick={() => {
+                setSelectedThreadId("new");
+                setPrompt("");
+                setStreamingText("");
+                setStreamingDraft(null);
+                setStreamingCitations([]);
+                setError(null);
+              }}
+              className={BTN_ACCENT}
+            >
+              <Plus aria-hidden="true" className="h-4 w-4" />
+              New conversation
+            </button>
           </div>
 
-          <button
-            type="button"
-            disabled={streaming}
-            onClick={() => {
-              setSelectedThreadId("new");
-              setPrompt("");
-              setStreamingText("");
-              setStreamingDraft(null);
-              setStreamingCitations([]);
-              setError(null);
-            }}
-            className="inline-flex items-center gap-1 rounded-xl bg-[#FDBB30] px-3 py-1.5 text-xs font-extrabold text-[#111317]"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>New Thread</span>
-          </button>
-        </div>
+          {(threads?.length ?? 0) > 0 && (
+            <nav aria-label="Past conversations">
+              <ul className="flex flex-wrap gap-[var(--sp-2)]">
+                {threads!.map((th) => {
+                  const active = activeThreadId === th._id;
+                  return (
+                    <li key={String(th._id)} className="min-w-0">
+                      <button
+                        type="button"
+                        aria-current={active ? "true" : undefined}
+                        disabled={streaming}
+                        onClick={() => setSelectedThreadId(th._id)}
+                        className={`${active ? BTN_PRIMARY : BTN_SECONDARY} max-w-full [overflow-wrap:anywhere]`}
+                      >
+                        {active && <span aria-hidden="true">✓</span>}
+                        {th.title}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
+          )}
+        </section>
 
-        {/* Thread Selector Pills */}
-        {(threads?.length ?? 0) > 0 && (
-          <div className="no-scrollbar mt-3 flex gap-1.5 overflow-x-auto border-t border-[#E4E7EE] pt-2.5">
-            {threads!.map((th) => {
-              const active = activeThreadId === th._id;
-              return (
-                <button
-                  key={String(th._id)}
-                  type="button"
-                  disabled={streaming}
-                  onClick={() => setSelectedThreadId(th._id)}
-                  className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
-                    active
-                      ? "bg-[#111317] text-[#FDBB30]"
-                      : "border border-[#E4E7EE] bg-[#F4F6FA] text-[#5E6675]"
-                  }`}
-                >
-                  {th.title}
-                </button>
-              );
-            })}
-          </div>
+        {messages.length === 0 && !streaming && (
+          <section aria-labelledby="scrappy-starters-heading" className="space-y-[var(--sp-2)]">
+            <h2 id="scrappy-starters-heading" className="font-display text-lg font-bold">
+              Try asking
+            </h2>
+            <ul className="lt-grid-1 grid grid-cols-1 gap-[var(--sp-2)] md:grid-cols-3">
+              {STARTERS.map((q) => (
+                <li key={q} className="min-w-0">
+                  <button
+                    type="button"
+                    disabled={streaming}
+                    onClick={() => void submitPromptOverSse(q)}
+                    className="flex min-h-[var(--target)] w-full items-start gap-[var(--sp-2)] rounded-[var(--r-md)] border border-[var(--line)] bg-[var(--surface)] p-[var(--sp-3)] text-left text-sm font-bold hover:border-[var(--line-strong)] [overflow-wrap:anywhere]"
+                  >
+                    <Sparkles aria-hidden="true" className="mt-[var(--sp-1)] h-4 w-4 shrink-0" />
+                    {q}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
-      </div>
 
-      {/* Quick Starter Prompts */}
-      <div className="flex flex-wrap gap-2">
-        {[
-          "Where should I park on Kennesaw right now and when is the next Big Owl Bus?",
-          "What are my enrolled Course Hubs and upcoming deadlines?",
-          "Draft a Listing to sell my CS 3305 textbook for $40",
-        ].map((q) => (
-          <button
-            key={q}
-            type="button"
-            onClick={() => void submitPromptOverSse(q)}
-            className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-left text-xs font-bold text-[#111317] hover:border-[#D99B00] hover:bg-[#FFFDF7]"
-          >
-            <Sparkles className="mr-1 inline h-3.5 w-3.5 text-[#D99B00]" />
-            {q}
-          </button>
-        ))}
-      </div>
-
-      {/* Conversation History */}
-      <div className="space-y-3">
-        {(threadData?.messages ?? []).map((msg) => (
-          <div
-            key={String(msg._id)}
-            data-testid={`scrappy-message-${msg.role}`}
-            className={`rounded-2xl border p-4 text-xs ${
-              msg.role === "assistant"
-                ? "border-[#FDBB30] bg-white shadow-xs"
-                : "border-[#E4E7EE] bg-[#F9FAFC]"
-            }`}
-          >
-            <div className="font-extrabold text-[#111317]">
-              {msg.role === "assistant" ? "🦉 Scrappy" : "You"}
-            </div>
-            <p className="mt-1.5 whitespace-pre-wrap text-[13px] leading-relaxed text-[#1B1F27]">
-              {msg.content}
-            </p>
-
-            {msg.citations.length > 0 && (
-              <div className="mt-2.5 flex flex-wrap gap-1.5">
-                {msg.citations.map((c, idx) => (
-                  <CitationPill
-                    key={idx}
-                    label={c.label}
-                    href={c.href}
-                    campus={c.campus}
-                  />
-                ))}
-              </div>
-            )}
-
-            {msg.draftCard && (
-              <div
-                data-testid="scrappy-draft-card"
-                className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border-2 border-[#111317] bg-[#FFF6DC] p-3"
+        <section aria-labelledby="scrappy-conversation-heading">
+          <h2 id="scrappy-conversation-heading" className="sr-only">
+            Conversation
+          </h2>
+          <ol className="space-y-[var(--sp-3)]">
+            {messages.map((msg) => (
+              <li
+                key={String(msg._id)}
+                data-testid={`scrappy-message-${msg.role}`}
+                className={`rounded-[var(--r-lg)] border p-[var(--sp-4)] ${
+                  msg.role === "assistant" ? "mr-[var(--sp-5)] border-[var(--accent)] bg-[var(--surface)]" : "ml-[var(--sp-5)] border-[var(--line)] bg-[var(--surface-2)]"
+                }`}
               >
-                <div>
-                  <div className="text-xs font-black text-[#111317]">
-                    📝 Pre-Filled Draft Card: {msg.draftCard.title}
+                <p className="text-sm font-bold">{msg.role === "assistant" ? "Scrappy" : "You"}</p>
+                <p className="mt-[var(--sp-1)] whitespace-pre-wrap text-body [overflow-wrap:anywhere]">{msg.content}</p>
+                {msg.citations.length > 0 && (
+                  <ul aria-label="Sources" className="mt-[var(--sp-2)] flex flex-wrap gap-[var(--sp-2)]">
+                    {msg.citations.map((c, idx) => (
+                      <li key={idx} className="min-w-0">
+                        <CitationPill label={c.label} href={c.href} campus={c.campus} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {msg.draftCard && (
+                  <div
+                    data-testid="scrappy-draft-card"
+                    className="mt-[var(--sp-3)] flex flex-wrap items-center justify-between gap-[var(--sp-2)] rounded-[var(--r-md)] border-2 border-[var(--ink)] bg-[var(--accent-soft)] p-[var(--sp-3)]"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-bold [overflow-wrap:anywhere]">
+                        <span aria-hidden="true">📝 </span>Draft: {msg.draftCard.title}
+                      </p>
+                      <p className="text-sm [overflow-wrap:anywhere]">{msg.draftCard.summary} Nothing is posted until you review it and tap Publish.</p>
+                    </div>
+                    <button
+                      type="button"
+                      data-testid="review-draft-card-btn"
+                      onClick={() => handleOpenDraftComposer(msg.draftCard!)}
+                      className={BTN_PRIMARY}
+                    >
+                      <FileEdit aria-hidden="true" className="h-4 w-4" />
+                      Review draft<span className="sr-only">: {msg.draftCard.title}</span>
+                    </button>
                   </div>
-                  <div className="text-[11px] text-[#374151]">
-                    {msg.draftCard.summary} (Zero DB write until you review &amp;
-                    tap Publish)
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  data-testid="review-draft-card-btn"
-                  onClick={() => handleOpenDraftComposer(msg.draftCard!)}
-                  className="inline-flex items-center gap-1 rounded-xl bg-[#111317] px-3.5 py-2 text-xs font-extrabold text-[#FDBB30]"
-                >
-                  <FileEdit className="h-3.5 w-3.5" />
-                  <span>Review &amp; Publish</span>
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
+                )}
+              </li>
+            ))}
 
-        {/* Live SSE Streaming Bubble */}
-        {streaming && (
-          <div
-            data-testid="scrappy-sse-streaming-bubble"
-            className="rounded-2xl border border-[#FDBB30] bg-white p-4 text-xs shadow-xs"
-          >
-            <div className="font-extrabold text-[#111317]">
-              🦉 Scrappy (Streaming SSE...)
-            </div>
-            <p className="mt-1.5 whitespace-pre-wrap text-[13px] text-[#1B1F27]">
-              {streamingText || "Checking KSU campus modules..."}
-            </p>
-            {streamingCitations.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {streamingCitations.map((c, idx) => (
-                  <CitationPill
-                    key={idx}
-                    label={c.label}
-                    href={c.href}
-                    campus={c.campus}
-                  />
-                ))}
-              </div>
+            {streaming && (
+              <li
+                data-testid="scrappy-sse-streaming-bubble"
+                aria-busy="true"
+                className="mr-[var(--sp-5)] rounded-[var(--r-lg)] border border-[var(--accent)] bg-[var(--surface)] p-[var(--sp-4)]"
+              >
+                <p className="text-sm font-bold">Scrappy is answering…</p>
+                <p className="mt-[var(--sp-1)] whitespace-pre-wrap text-body [overflow-wrap:anywhere]">{streamingText || "Checking campus info…"}</p>
+                {streamingCitations.length > 0 && (
+                  <ul aria-label="Sources" className="mt-[var(--sp-2)] flex flex-wrap gap-[var(--sp-2)]">
+                    {streamingCitations.map((c, idx) => (
+                      <li key={idx} className="min-w-0">
+                        <CitationPill label={c.label} href={c.href} campus={c.campus} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {streamingDraft && <p className="mt-[var(--sp-2)] text-sm font-bold">Preparing a Draft: {streamingDraft.title}</p>}
+              </li>
             )}
-            {streamingDraft && (
-              <div className="mt-2 text-[11px] font-bold text-[#855A00]">
-                Prepared Pre-Filled Draft Card: {streamingDraft.title}
-              </div>
-            )}
-          </div>
+          </ol>
+        </section>
+
+        {error && (
+          <p role="alert" className="rounded-[var(--r-sm)] bg-[var(--bad-bg)] px-[var(--sp-3)] py-[var(--sp-2)] text-sm font-bold text-[var(--bad-fg)]">
+            {error}
+          </p>
         )}
       </div>
 
-      {error && (
-        <p className="rounded-xl bg-[#FEE2E2] px-3 py-2 text-xs font-semibold text-[#B91C1C]">
-          {error}
-        </p>
-      )}
+      {/* Completed answers are announced once, here, not token by token. */}
+      <div role="status" aria-live="polite" className="sr-only" data-testid="scrappy-answer-status">
+        {answerAnnouncement}
+      </div>
 
-      {/* Ask Scrappy Input */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
           void submitPromptOverSse(prompt);
         }}
-        className="flex gap-2 rounded-2xl border border-[#E4E7EE] bg-white p-3 shadow-xs"
+        aria-label="Ask Scrappy"
+        data-testid="scrappy-composer"
+        className="sticky bottom-0 z-20 flex items-center gap-[var(--sp-2)] border-t border-[var(--line)] bg-[var(--bg)] p-[var(--sp-3)] pb-[calc(var(--sp-3)+env(safe-area-inset-bottom,0px))]"
       >
+        <label htmlFor={inputId} className="sr-only">
+          Ask Scrappy a question
+        </label>
         <input
+          id={inputId}
           type="text"
           data-testid="ask-scrappy-input"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           maxLength={1500}
-          placeholder="Ask Scrappy about Kennesaw/Marietta Parking, Study Rooms, Courses, Events, or draft a Post..."
-          className="flex-1 rounded-xl border border-[#E4E7EE] px-3.5 py-2 text-xs font-medium focus:border-[#111317] focus:outline-none"
+          placeholder="Ask about parking, study rooms, courses, events…"
+          className={`${FIELD} flex-1`}
         />
-        <button
-          type="submit"
-          data-testid="ask-scrappy-send-btn"
-          disabled={streaming || !prompt.trim()}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-[#111317] px-4 py-2 text-xs font-extrabold text-[#FDBB30] disabled:opacity-50"
-        >
-          <Send className="h-3.5 w-3.5" />
-          <span>{streaming ? "Streaming..." : "Ask"}</span>
+        <button type="submit" data-testid="ask-scrappy-send-btn" disabled={streaming || !prompt.trim()} className={`${BTN_PRIMARY} shrink-0 px-[var(--sp-3)]`}>
+          <Send aria-hidden="true" className="h-4 w-4" />
+          <span className="lt-hide-label">{streaming ? "Answering…" : "Ask"}</span>
+          {streaming && <span className="sr-only">Scrappy is answering</span>}
         </button>
       </form>
     </div>

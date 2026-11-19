@@ -179,7 +179,7 @@ export function AppShell({
       </header>
 
       {onboarding ? (
-        <main id={MAIN_CONTENT_ID} tabIndex={-1} className="theme-light mx-auto w-full max-w-xl flex-1 bg-[var(--bg)] p-[var(--sp-4)] outline-none">
+        <main id={MAIN_CONTENT_ID} tabIndex={-1} className="mx-auto w-full max-w-xl flex-1 bg-[var(--bg)] p-[var(--sp-4)] outline-none">
           {onboardingSlot}
         </main>
       ) : (
@@ -244,7 +244,7 @@ export function AppShell({
             </button>
           </nav>
 
-          <main id={MAIN_CONTENT_ID} key={viewerKey} tabIndex={-1} className="theme-light min-w-0 flex-1 bg-[var(--bg)] outline-none">
+          <main id={MAIN_CONTENT_ID} key={viewerKey} tabIndex={-1} className="min-w-0 flex-1 bg-[var(--bg)] outline-none">
             {children}
           </main>
 

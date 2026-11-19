@@ -5,8 +5,11 @@ export default function FeedPage() {
   return (
     <Suspense
       fallback={
-        <div className="p-4 text-xs font-semibold text-[#5E6675]">
-          Loading Campus Feed...
+        <div className="space-y-[var(--sp-2)] p-[var(--sp-4)]">
+          <h1 data-route-heading="" tabIndex={-1} className="font-display text-[length:var(--fs-2xl)] font-bold">
+            Feed
+          </h1>
+          <p role="status" className="text-sm text-[var(--muted)]">Loading Posts…</p>
         </div>
       }
     >

@@ -2,6 +2,7 @@ import { workflowTime } from "./lib/workflowTime";
 import { ConvexError, v } from "convex/values";
 import { campusFilterValidator } from "./schema";
 import { evaluateParkingLotFullness } from "./lib/parkingMath";
+import { evaluateCampusLine } from "./lib/parkingCampusLine";
 import { freshShuttleEta } from "./lib/shuttleRead";
 import { viewerMutation, viewerQuery } from "./lib/viewer";
 import { Doc, Id } from "./_generated/dataModel";
@@ -177,6 +178,7 @@ export const listParkingLots = viewerQuery({
         latitude: lot.latitude,
         longitude: lot.longitude,
         geoFeatureId: lot.geoFeatureId,
+        servedByShuttle: lot.servedByShuttleRouteIds.length > 0,
         isPinned: pinnedSet.has(String(lot._id)),
         ...entry.evaluated,
         spotOpenings: entry.activeSpotOpenings.map((s) => ({
@@ -204,9 +206,55 @@ export const listParkingLots = viewerQuery({
       savedPermitTier: viewer.actorStudent.permitTier ?? "All",
       pinnedParkingLotIds: viewer.actorStudent.pinnedParkingLotIds,
       lots: results,
+      noRecentReports: results.every((lot) => lot.noRecentReports),
+      campusLine: evaluateCampusLine(now),
+      bestBet: pickBestBet(results),
     };
   },
 });
+
+type BestBetCandidate = {
+  _id: Id<"parkingLots">;
+  slug: string;
+  name: string;
+  lotCode: string;
+  campus: "Kennesaw" | "Marietta";
+  effectiveTier: 0 | 1 | 2 | 3 | null;
+  tierLabel: string;
+  provenanceLabel: string;
+  latestReportMinutesAgo?: number;
+  isPinned: boolean;
+};
+
+/**
+ * "Best bet for your permit" (SPEC-v2 §4). Ranks only lots with a live tier
+ * from Student Parking Reports: lowest tier first, then the freshest report,
+ * then pinned. With no live tier anywhere it never ranks by an estimate and
+ * instead lists the lots with shuttle service.
+ */
+export function pickBestBet(
+  lots: Array<BestBetCandidate & { servedByShuttle: boolean }>
+):
+  | { kind: "live"; lot: BestBetCandidate }
+  | { kind: "no_recent_reports"; shuttleLots: Array<{ slug: string; name: string; lotCode: string }> } {
+  const live = lots.filter((lot) => lot.effectiveTier !== null);
+  if (live.length > 0) {
+    const [best] = [...live].sort((a, b) =>
+      (a.effectiveTier! - b.effectiveTier!) ||
+      ((a.latestReportMinutesAgo ?? 99) - (b.latestReportMinutesAgo ?? 99)) ||
+      (Number(b.isPinned) - Number(a.isPinned)) ||
+      a.name.localeCompare(b.name)
+    );
+    const { servedByShuttle: _ignored, ...lot } = best as BestBetCandidate & { servedByShuttle: boolean };
+    return { kind: "live", lot };
+  }
+  return {
+    kind: "no_recent_reports",
+    shuttleLots: lots
+      .filter((lot) => lot.servedByShuttle)
+      .map((lot) => ({ slug: lot.slug, name: lot.name, lotCode: lot.lotCode })),
+  };
+}
 
 export const saveParkingPreferences = viewerMutation({
   args: {
@@ -389,5 +437,62 @@ export const resolveSpotOpening = viewerMutation({
       cleared: shouldClear,
       goneVotes: nextVoters.length,
     };
+  },
+});
+
+/**
+ * Undo for the arrival strip and "I'm leaving": the author withdraws their own
+ * active report. It also lifts the 10-minute cooldown so a corrected report
+ * can be published straight away.
+ */
+export const undoParkingReport = viewerMutation({
+  args: { reportId: v.id("parkingReports") },
+  handler: async (ctx, args) => {
+    const { viewer } = ctx;
+    const report = await ctx.db.get(args.reportId);
+    if (
+      !report ||
+      report.workspaceKey !== viewer.workspaceKey ||
+      report.authorId !== viewer.actorStudent._id
+    ) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Parking Report not found." });
+    }
+    if (report.status === "active") {
+      await ctx.db.patch(report._id, { status: "cleared" });
+    }
+    const cooldownKey = `parking:${viewer.workspaceKey}:${viewer.actorStudent._id}:${report.parkingLotId}:${report.reportKind}`;
+    const bucket = await ctx.db
+      .query("rateLimitBuckets")
+      .withIndex("by_key", (q) => q.eq("key", cooldownKey))
+      .unique();
+    if (bucket) await ctx.db.delete(bucket._id);
+    return { undone: true };
+  },
+});
+
+/**
+ * "I took this spot": another Student acknowledges a Spot Opening, which
+ * clears it at once. "Gone" still needs 2 votes (resolveSpotOpening).
+ * Clout corroboration for this belongs to #81.
+ */
+export const takeSpotOpening = viewerMutation({
+  args: { reportId: v.id("parkingReports") },
+  handler: async (ctx, args) => {
+    const { viewer } = ctx;
+    const report = await ctx.db.get(args.reportId);
+    if (
+      !report ||
+      report.workspaceKey !== viewer.workspaceKey ||
+      report.reportKind !== "spot_opening"
+    ) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Spot Opening not found." });
+    }
+    if (report.authorId === viewer.actorStudent._id) {
+      throw new ConvexError({ code: "INVALID_INPUT", message: "You posted this Spot Opening." });
+    }
+    if (report.status === "active") {
+      await ctx.db.patch(report._id, { status: "cleared" });
+    }
+    return { taken: true };
   },
 });

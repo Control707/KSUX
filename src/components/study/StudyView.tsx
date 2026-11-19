@@ -1,62 +1,58 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import {
-  AlertTriangle,
-  BookOpen,
-  CheckCircle2,
-  ExternalLink,
-  MessageSquare,
-  Plus,
-  Users,
-} from "lucide-react";
+import { BookOpen, ExternalLink, MessageSquare, Plus, Users } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
-import {
-  useViewerClient,
-  useViewerMutation,
-  useViewerQuery,
-} from "@/lib/viewerClient";
+import { useViewerClient, useViewerMutation, useViewerQuery } from "@/lib/viewerClient";
 import { ReportTrigger } from "@/components/shared/ReportTrigger";
+import { Dialog } from "@/components/a11y/Dialog";
+import { useAnnouncer } from "@/components/a11y/Announcer";
+import { SegmentedControl } from "@/components/a11y/controls";
+import { NewTab, StateChip, errorMessage, toggleClass, ui, type Tone } from "@/components/communities/campusLifeUi";
+
+const VIBES = [
+  ["quiet", "Quiet", "○", "ok"],
+  ["moderate", "Moderate", "◐", "warn"],
+  ["packed", "Packed", "●", "bad"],
+] as const satisfies readonly (readonly [string, string, string, Tone])[];
+
+function vibeChip(tierValue: string, label: string) {
+  const match = VIBES.find(([key]) => key === tierValue);
+  return (
+    <StateChip tone={match?.[3] ?? "neutral"} glyph={match?.[2] ?? "◌"}>
+      {label}
+    </StateChip>
+  );
+}
 
 export function StudyView() {
   const searchParams = useSearchParams();
-  const {
-    pendingDraftCard,
-    setPendingDraftCard,
-    quickComposerKind,
-    setQuickComposerKind,
-  } = useViewerClient();
+  const { pendingDraftCard, setPendingDraftCard, quickComposerKind, setQuickComposerKind } = useViewerClient();
+  const { toast } = useAnnouncer();
+  const formId = useId();
   const [dateChoice, setDateChoice] = useState<"today" | "tomorrow">("today");
   const [hostOpen, setHostOpen] = useState(searchParams.get("host") === "1");
   const [selectedRoomId, setSelectedRoomId] = useState<string>("");
   const [title, setTitle] = useState("");
   const [topicNote, setTopicNote] = useState("");
-  const [visibility, setVisibility] = useState<
-    "campus_open" | "course_members_only"
-  >("campus_open");
+  const [visibility, setVisibility] = useState<"campus_open" | "course_members_only">("campus_open");
   const [courseHubId, setCourseHubId] = useState<string>("");
   const [durationMins, setDurationMins] = useState(90);
   const [maxSeats, setMaxSeats] = useState(6);
   const [libcalConfirmed, setLibcalConfirmed] = useState(false);
-  const [banner, setBanner] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const data = useViewerQuery(api.study.listStudyRoomsAndSessions, {
-    dateChoice,
-  });
+  const data = useViewerQuery(api.study.listStudyRoomsAndSessions, { dateChoice });
   const rings = useViewerQuery(api.feed.listFeedRingsAndTrends, {});
 
   const triggerSwr = useViewerMutation(api.study.triggerStudySwrRefresh);
   const submitVibe = useViewerMutation(api.study.submitWalkInVibe);
   const createSession = useViewerMutation(api.study.createStudySession);
-  const toggleAttendance = useViewerMutation(
-    api.study.toggleStudySessionAttendance
-  );
-  const toggleLibCalConfirm = useViewerMutation(
-    api.study.toggleHostLibCalConfirmed
-  );
+  const toggleAttendance = useViewerMutation(api.study.toggleStudySessionAttendance);
+  const toggleLibCalConfirm = useViewerMutation(api.study.toggleHostLibCalConfirmed);
   const endSession = useViewerMutation(api.study.endStudySession);
   const submitReport = useViewerMutation(api.moderation.submitReport);
 
@@ -78,10 +74,7 @@ export function StudyView() {
   useEffect(() => {
     if (pendingDraftCard && pendingDraftCard.draftKind === "study_session") {
       try {
-        const parsed = JSON.parse(pendingDraftCard.payloadJson) as {
-          title?: string;
-          topicNote?: string;
-        };
+        const parsed = JSON.parse(pendingDraftCard.payloadJson) as { title?: string; topicNote?: string };
         if (parsed.title) setTitle(parsed.title);
         if (parsed.topicNote) setTopicNote(parsed.topicNote);
       } catch {
@@ -98,10 +91,12 @@ export function StudyView() {
 
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault();
-    const roomIdToUse = (selectedRoomId || rooms[0]?._id) as
-      | Id<"studyRooms">
-      | undefined;
-    if (!roomIdToUse) return;
+    setFormError(null);
+    const roomIdToUse = (selectedRoomId || rooms[0]?._id) as Id<"studyRooms"> | undefined;
+    if (!roomIdToUse) {
+      setFormError("Choose a Study Room first.");
+      return;
+    }
     try {
       const startTime = Date.now() + 5 * 60_000;
       await createSession({
@@ -109,10 +104,7 @@ export function StudyView() {
         title,
         topicNote: topicNote || undefined,
         visibility,
-        courseHubId:
-          visibility === "course_members_only" && courseHubId
-            ? (courseHubId as Id<"courseHubs">)
-            : undefined,
+        courseHubId: visibility === "course_members_only" && courseHubId ? (courseHubId as Id<"courseHubs">) : undefined,
         startTime,
         endTime: startTime + durationMins * 60_000,
         maxSeats,
@@ -121,242 +113,190 @@ export function StudyView() {
       setTitle("");
       setTopicNote("");
       setHostOpen(false);
-      setBanner("Study Session published and Group Chat created!");
-    } catch (err: any) {
-      setBanner(err?.data?.message || err?.message || "Could not host session.");
+      toast({ tone: "success", message: "Study Session published", detail: "Its Group Chat is ready." });
+    } catch (err) {
+      setFormError(errorMessage(err, "Could not host the Study Session."));
     }
   };
 
-  return (
-    <div data-testid="study-view" className="space-y-4 p-4">
-      <div className="rounded-2xl border border-[#E4E7EE] bg-white p-4 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h1 className="text-base font-black text-[#111317]">
-              Study Rooms &amp; Study Sessions
-            </h1>
-            <p className="text-xs text-[#5E6675]">
-              47 Sturgis, Johnson &amp; Marietta AI Lab LibCal rooms (48-bit
-              half-hour grid) + 10 curated walk-in spaces (45m vibes).
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {data?.staleness.isStale && data.staleness.label && (
-              <span className="rounded-full bg-[#FEF3C7] px-2.5 py-1 text-[11px] font-bold text-[#92400E]">
-                {data.staleness.label}
-              </span>
-            )}
-            <div className="inline-flex rounded-xl border border-[#E4E7EE] bg-[#F4F6FA] p-1">
-              {(["today", "tomorrow"] as const).map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDateChoice(d)}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-extrabold capitalize ${
-                    dateChoice === d
-                      ? "bg-[#111317] text-[#FDBB30]"
-                      : "text-[#5E6675]"
-                  }`}
-                >
-                  {d}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => setHostOpen((v) => !v)}
-              className="inline-flex items-center gap-1 rounded-xl bg-[#FDBB30] px-3 py-2 text-xs font-extrabold text-[#111317]"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>+ Host Study Session</span>
-            </button>
-          </div>
-        </div>
+  const fieldId = (name: string) => `${formId}-${name}`;
 
-        {banner && (
-          <p className="mt-3 rounded-xl bg-[#FFF6DC] px-3 py-2 text-xs font-bold text-[#855A00]">
-            {banner}
+  return (
+    <div data-testid="study-view" className={ui.page}>
+      <section aria-labelledby={fieldId("heading")} className={`${ui.card} space-y-[var(--sp-3)]`}>
+        <h1 id={fieldId("heading")} data-route-heading="" tabIndex={-1} className={ui.h1}>
+          Study Rooms &amp; Study Sessions
+        </h1>
+        <p className={ui.muted}>
+          Library and AI Lab rooms you can reserve on LibCal, plus walk-in study spaces with crowd reports from the last 45 minutes.
+        </p>
+        {data?.staleness.isStale && data.staleness.label && (
+          <p role="status">
+            <StateChip tone="warn" glyph="⏱">{data.staleness.label}</StateChip>
           </p>
         )}
+        <div className="lt-grid-1 grid grid-cols-1 items-end gap-[var(--sp-3)] sm:grid-cols-[minmax(0,1fr)_auto]">
+          <SegmentedControl
+            label="Day"
+            hideLabel={false}
+            options={[{ value: "today", label: "Today" }, { value: "tomorrow", label: "Tomorrow" }] as const}
+            value={dateChoice}
+            onChange={setDateChoice}
+            testIdPrefix="study-day"
+          />
+          <button type="button" onClick={() => setHostOpen(true)} className={ui.primary}>
+            <Plus aria-hidden="true" className="h-5 w-5" />
+            <span>Host Study Session</span>
+          </button>
+        </div>
+      </section>
 
-        {hostOpen && (
-          <form
-            onSubmit={handleCreateSession}
-            className="mt-3 space-y-2.5 rounded-2xl border border-[#D99B00] bg-[#FFFDF7] p-3.5"
-          >
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <input
-                type="text"
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Session Title (e.g. CS 3305 Graph Review)"
-                className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs font-semibold"
-              />
+      <Dialog
+        open={hostOpen}
+        onClose={() => setHostOpen(false)}
+        title="Host a Study Session"
+        description="Your session gets a Group Chat. KSUX does not reserve LibCal rooms for you."
+        testId="study-host-dialog"
+      >
+        <form onSubmit={handleCreateSession} className="space-y-[var(--sp-3)]">
+          <div>
+            <label htmlFor={fieldId("title")} className={ui.label}>Session title</label>
+            <input
+              id={fieldId("title")}
+              type="text"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. CS 3305 Graph Review"
+              className={ui.input}
+            />
+          </div>
+          <div>
+            <label htmlFor={fieldId("topic")} className={ui.label}>Topic note (optional)</label>
+            <input id={fieldId("topic")} type="text" value={topicNote} onChange={(e) => setTopicNote(e.target.value)} className={ui.input} />
+          </div>
+          <div>
+            <label htmlFor={fieldId("room")} className={ui.label}>Study Room</label>
+            <select id={fieldId("room")} value={selectedRoomId} onChange={(e) => setSelectedRoomId(e.target.value)} className={ui.input}>
+              <option value="">First available room</option>
+              {rooms.map((rm) => (
+                <option key={String(rm._id)} value={String(rm._id)}>
+                  {rm.buildingName} · {rm.roomNumber} · {rm.campus} · seats {rm.capacity}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="lt-grid-1 grid grid-cols-1 gap-[var(--sp-3)] sm:grid-cols-2">
+            <div className="min-w-0">
+              <label htmlFor={fieldId("visibility")} className={ui.label}>Who can join</label>
               <select
-                value={selectedRoomId}
-                onChange={(e) => setSelectedRoomId(e.target.value)}
-                className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs font-bold"
+                id={fieldId("visibility")}
+                value={visibility}
+                onChange={(e) => setVisibility(e.target.value === "course_members_only" ? "course_members_only" : "campus_open")}
+                className={ui.input}
               >
-                <option value="">Select Study Room</option>
-                {rooms.map((rm) => (
-                  <option key={String(rm._id)} value={String(rm._id)}>
-                    [{rm.campus}] {rm.buildingName} · {rm.roomNumber} (Cap{" "}
-                    {rm.capacity})
-                  </option>
-                ))}
+                <option value="campus_open">Anyone on Campus</option>
+                <option value="course_members_only">Course Hub members only</option>
               </select>
             </div>
-
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <select
-                value={visibility}
-                onChange={(e) => setVisibility(e.target.value as any)}
-                className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs font-bold"
-              >
-                <option value="campus_open">Campus-Open</option>
-                <option value="course_members_only">
-                  Course Hub Members Only
-                </option>
-              </select>
-
-              {visibility === "course_members_only" && (
-                <select
-                  required
-                  value={courseHubId}
-                  onChange={(e) => setCourseHubId(e.target.value)}
-                  className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs font-bold"
-                >
-                  <option value="">Select Enrolled Course Hub</option>
+            {visibility === "course_members_only" && (
+              <div className="min-w-0">
+                <label htmlFor={fieldId("hub")} className={ui.label}>Course Hub</label>
+                <select id={fieldId("hub")} required value={courseHubId} onChange={(e) => setCourseHubId(e.target.value)} className={ui.input}>
+                  <option value="">Choose a Course Hub</option>
                   {(rings?.courseRings ?? []).map((c) => (
                     <option key={String(c._id)} value={String(c._id)}>
                       {c.subjectCourse} · {c.title}
                     </option>
                   ))}
                 </select>
-              )}
-
-              <select
-                value={durationMins}
-                onChange={(e) => setDurationMins(Number(e.target.value))}
-                className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs font-bold"
-              >
-                <option value={60}>1 Hour</option>
-                <option value={90}>1.5 Hours</option>
-                <option value={120}>2 Hours</option>
-                <option value={180}>3 Hours</option>
+              </div>
+            )}
+            <div className="min-w-0">
+              <label htmlFor={fieldId("duration")} className={ui.label}>Length</label>
+              <select id={fieldId("duration")} value={durationMins} onChange={(e) => setDurationMins(Number(e.target.value))} className={ui.input}>
+                <option value={60}>1 hour</option>
+                <option value={90}>1.5 hours</option>
+                <option value={120}>2 hours</option>
+                <option value={180}>3 hours</option>
               </select>
-
+            </div>
+            <div className="min-w-0">
+              <label htmlFor={fieldId("seats")} className={ui.label}>Seats (2–20)</label>
               <input
+                id={fieldId("seats")}
                 type="number"
                 min={2}
                 max={20}
                 value={maxSeats}
                 onChange={(e) => setMaxSeats(Number(e.target.value))}
-                placeholder="Max seats"
-                className="rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs font-bold"
+                className={ui.input}
               />
             </div>
+          </div>
+          <label className={ui.checkRow}>
+            <input
+              type="checkbox"
+              checked={libcalConfirmed}
+              onChange={(e) => setLibcalConfirmed(e.target.checked)}
+              className={ui.checkbox}
+              data-target-exempt=""
+            />
+            <span className="min-w-0">I reserved this room on kennesaw.libcal.com</span>
+          </label>
+          {formError && <p role="alert" className="text-sm font-bold text-[var(--bad-fg)]">{formError}</p>}
+          <div className={`${ui.row} justify-end`}>
+            <button type="button" onClick={() => setHostOpen(false)} className={ui.secondary}>Cancel</button>
+            <button type="submit" className={ui.strong}>Publish Study Session</button>
+          </div>
+        </form>
+      </Dialog>
 
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-[#111317]">
-                <input
-                  type="checkbox"
-                  checked={libcalConfirmed}
-                  onChange={(e) => setLibcalConfirmed(e.target.checked)}
-                />
-                <span>LibCal Reserved ✓ (checked out on kennesaw.libcal.com)</span>
-              </label>
-
-              <button
-                type="submit"
-                className="rounded-xl bg-[#111317] px-4 py-1.5 text-xs font-extrabold text-[#FDBB30]"
-              >
-                Publish Study Session
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-
-      {/* Active Study Sessions */}
       {(data?.sessions.length ?? 0) > 0 && (
-        <section className="space-y-2.5">
-          <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#5E6675]">
-            Live &amp; Scheduled Study Sessions
-          </h2>
-          {data!.sessions.map((s) => (
-            <div
-              key={String(s._id)}
-              className="rounded-2xl border border-[#E4E7EE] bg-white p-4 shadow-xs"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="font-black text-[#111317]">{s.title}</span>
-                    <span className="rounded-full bg-[#FFF6DC] px-2 py-0.5 text-[10.5px] font-extrabold text-[#855A00]">
-                      {s.campus}
-                    </span>
-                    {s.courseHub && (
-                      <span className="rounded-full bg-[#EEF2FF] px-2 py-0.5 text-[10.5px] font-extrabold text-[#3730A3]">
-                        {s.courseHub.subjectCourse} · Members Only
-                      </span>
-                    )}
-                    {s.unreservedLibCalWarning ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[#FEF3C7] px-2.5 py-0.5 text-[10.5px] font-extrabold text-[#B45309]">
-                        <AlertTriangle className="h-3 w-3" />
-                        ⚠️ Unreserved on LibCal
-                      </span>
-                    ) : (
-                      s.room?.roomKind === "libcal" && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#DCFCE7] px-2 py-0.5 text-[10.5px] font-extrabold text-[#15803D]">
-                          <CheckCircle2 className="h-3 w-3" />
-                          LibCal Reserved ✓
-                        </span>
-                      )
-                    )}
-                  </div>
-                  <p className="mt-1 text-xs text-[#5E6675]">
-                    {s.room
-                      ? `${s.room.buildingName} · ${s.room.roomNumber}`
-                      : "Campus Space"}{" "}
-                    · Host @{s.host.handle} · {s.seatCount}/{s.maxSeats} seats
-                  </p>
+        <section aria-labelledby={fieldId("sessions")} className="space-y-[var(--sp-3)]">
+          <h2 id={fieldId("sessions")} className={ui.h2}>Live &amp; Scheduled Study Sessions</h2>
+          <ul className="space-y-[var(--sp-3)]">
+            {data!.sessions.map((s) => (
+              <li key={String(s._id)} className={`${ui.card} space-y-[var(--sp-2)]`}>
+                <h3 className={ui.h3}>{s.title}</h3>
+                <div className={ui.row}>
+                  <span className="text-sm font-bold">{s.campus}</span>
+                  {s.courseHub && <StateChip tone="info" glyph="◆">{s.courseHub.subjectCourse} · Members only</StateChip>}
+                  {s.unreservedLibCalWarning ? (
+                    <StateChip tone="warn" glyph="⚠">Not reserved on LibCal</StateChip>
+                  ) : (
+                    s.room?.roomKind === "libcal" && <StateChip tone="ok" glyph="✓">Reserved on LibCal</StateChip>
+                  )}
                 </div>
-
-                <div className="flex flex-wrap items-center gap-2">
+                <p className={ui.muted}>
+                  {s.room ? `${s.room.buildingName} · ${s.room.roomNumber}` : "Campus space"} · Host @{s.host.handle} · {s.seatCount} of {s.maxSeats} seats taken
+                </p>
+                <div className={ui.row}>
                   {s.groupChatId && s.isAttending && (
-                    <Link
-                      href={`/chats/${s.groupChatId}`}
-                      className="inline-flex items-center gap-1 rounded-xl bg-[#111317] px-3 py-1.5 text-xs font-extrabold text-[#FDBB30]"
-                    >
-                      <MessageSquare className="h-3.5 w-3.5" />
+                    <Link href={`/chats/${s.groupChatId}`} className={ui.strong}>
+                      <MessageSquare aria-hidden="true" className="h-5 w-5" />
                       <span>Session Chat</span>
                     </Link>
                   )}
-
                   {s.isHost ? (
                     <>
                       {s.room?.roomKind === "libcal" && (
                         <button
                           type="button"
-                          onClick={() =>
-                            void toggleLibCalConfirm({
-                              sessionId: s._id,
-                              confirmed: !s.libcalHostConfirmed,
-                            })
-                          }
-                          className="rounded-xl border border-[#E4E7EE] px-2.5 py-1.5 text-xs font-bold text-[#111317]"
+                          onClick={() => void toggleLibCalConfirm({ sessionId: s._id, confirmed: !s.libcalHostConfirmed })}
+                          className={ui.secondary}
                         >
-                          {s.libcalHostConfirmed
-                            ? "Unmark LibCal"
-                            : "Mark LibCal Reserved ✓"}
+                          {s.libcalHostConfirmed ? "Unmark LibCal reservation" : "Mark as reserved on LibCal"}
                         </button>
                       )}
                       <button
                         type="button"
-                        onClick={() => void endSession({ sessionId: s._id })}
-                        className="rounded-xl border border-[#B91C1C] px-2.5 py-1.5 text-xs font-bold text-[#B91C1C]"
+                        onClick={() =>
+                          void endSession({ sessionId: s._id })
+                            .then(() => toast({ tone: "success", message: "Study Session ended" }))
+                            .catch((err: unknown) => toast({ tone: "error", message: "Couldn’t end the session", detail: errorMessage(err, "") }))
+                        }
+                        className={ui.danger}
                       >
                         End Session
                       </button>
@@ -365,17 +305,21 @@ export function StudyView() {
                     <>
                       <button
                         type="button"
+                        aria-pressed={s.isAttending}
                         onClick={() =>
-                          void toggleAttendance({ sessionId: s._id })
+                          void toggleAttendance({ sessionId: s._id }).catch((err: unknown) =>
+                            toast({ tone: "error", message: "Couldn’t update your seat", detail: errorMessage(err, "") })
+                          )
                         }
-                        className="inline-flex items-center gap-1 rounded-xl bg-[#FDBB30] px-3 py-1.5 text-xs font-extrabold text-[#111317]"
+                        className={toggleClass(s.isAttending)}
                       >
-                        <Users className="h-3.5 w-3.5" />
-                        <span>{s.isAttending ? "Leave" : "Join Seats"}</span>
+                        <Users aria-hidden="true" className="h-5 w-5" />
+                        <span>{s.isAttending ? "Leave session" : "Join session"}</span>
                       </button>
                       <ReportTrigger
                         targetType="study_session"
                         targetId={String(s._id)}
+                        targetLabel={s.title}
                         onSubmitReport={async (p) => {
                           await submitReport(p);
                         }}
@@ -383,124 +327,113 @@ export function StudyView() {
                     </>
                   )}
                 </div>
-              </div>
-            </div>
-          ))}
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
-      {/* Curated Walk-In Study Spaces (45m Crowd Vibes) */}
-      <section className="space-y-2.5">
-        <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#5E6675]">
-          Walk-In Campus Study Spaces ({walkInRooms.length}) · 45m Vibes
-        </h2>
-        <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+      <section aria-labelledby={fieldId("walkin")} className="space-y-[var(--sp-3)]">
+        <h2 id={fieldId("walkin")} className={ui.h2}>Walk-in study spaces ({walkInRooms.length})</h2>
+        <p className={ui.muted}>Crowd reports from Students in the last 45 minutes. Community reports are not verified.</p>
+        <ul className="lt-grid-1 grid grid-cols-1 gap-[var(--sp-3)] md:grid-cols-2">
           {walkInRooms.map((rm) => (
-            <div
-              key={String(rm._id)}
-              className="rounded-2xl border border-[#E4E7EE] bg-white p-3.5 shadow-xs"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <div className="text-xs font-black text-[#111317]">
-                    {rm.buildingName} · {rm.roomNumber}
-                  </div>
-                  <div className="text-[11px] text-[#5E6675]">
-                    {rm.campus} · Open Seating ({rm.capacity})
-                  </div>
+            <li key={String(rm._id)} className={`${ui.card} space-y-[var(--sp-2)]`}>
+              <h3 className={ui.h3}>
+                {rm.buildingName} · {rm.roomNumber}
+              </h3>
+              <p className={ui.muted}>{rm.campus} · Open seating for {rm.capacity}</p>
+              <p className="text-sm">
+                <span className="font-bold">Crowd now: </span>
+                {rm.vibe ? vibeChip(rm.vibe.tierValue, rm.vibe.label) : <StateChip tone="neutral" glyph="◌" dashed>No recent reports</StateChip>}
+              </p>
+              <fieldset className="min-w-0">
+                <legend className="text-sm font-bold">Report how busy it is</legend>
+                <div className={`${ui.row} mt-[var(--sp-1)]`}>
+                  {VIBES.map(([vibeKey, label, glyph]) => (
+                    <button
+                      key={vibeKey}
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await submitVibe({ roomSlug: rm.slug, vibe: vibeKey });
+                          toast({ tone: "success", message: `Reported ${label} at ${rm.roomNumber}` });
+                        } catch (err) {
+                          toast({ tone: "error", message: "Couldn’t send your report", detail: errorMessage(err, "") });
+                        }
+                      }}
+                      className={ui.secondary}
+                    >
+                      <span aria-hidden="true">{glyph}</span>
+                      {label}
+                    </button>
+                  ))}
                 </div>
-                {rm.vibe && (
-                  <span className="rounded-full bg-[#DCFCE7] px-2.5 py-0.5 text-[11px] font-extrabold text-[#15803D]">
-                    {rm.vibe.label}
-                  </span>
-                )}
-              </div>
-
-              <div className="mt-2.5 flex items-center gap-1.5">
-                {(
-                  [
-                    ["quiet", "Quiet"],
-                    ["moderate", "Moderate"],
-                    ["packed", "Packed"],
-                  ] as const
-                ).map(([vibeKey, label]) => (
-                  <button
-                    key={vibeKey}
-                    type="button"
-                    onClick={async () => {
-                      await submitVibe({ roomSlug: rm.slug, vibe: vibeKey });
-                      setBanner(`Updated 45m '${label}' vibe on ${rm.roomNumber}.`);
-                    }}
-                    className="rounded-lg border border-[#E4E7EE] bg-[#F9FAFC] px-2.5 py-1 text-[11px] font-bold text-[#111317] hover:border-[#D99B00]"
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
+              </fieldset>
+            </li>
           ))}
-        </div>
+        </ul>
       </section>
 
-      {/* LibCal 30-Minute Availability Rooms */}
-      <section className="space-y-2.5">
-        <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#5E6675]">
-          LibCal Reservable Library &amp; AI Lab Rooms ({libcalRooms.length})
-        </h2>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {libcalRooms.slice(0, 20).map((rm) => (
-            <div
-              key={String(rm._id)}
-              className="rounded-2xl border border-[#E4E7EE] bg-white p-3.5 shadow-xs"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="flex items-center gap-1.5 text-xs font-black text-[#111317]">
-                    <BookOpen className="h-3.5 w-3.5" />
-                    <span>
-                      {rm.roomNumber} · {rm.buildingName}
-                    </span>
+      <section aria-labelledby={fieldId("libcal")} className="space-y-[var(--sp-3)]">
+        <h2 id={fieldId("libcal")} className={ui.h2}>Reservable library &amp; AI Lab rooms ({libcalRooms.length})</h2>
+        <ul className="lt-grid-1 grid grid-cols-1 gap-[var(--sp-3)] md:grid-cols-2">
+          {libcalRooms.slice(0, 20).map((rm) => {
+            const open = rm.openHalfHourSlotsCount;
+            const freshness = rm.isFixtureSnapshot
+              ? "Judge Demo availability"
+              : rm.availabilityFreshness
+                ? "LibCal · " + (rm.availabilityFreshness.label ?? "Synced")
+                : null;
+            return (
+              <li key={String(rm._id)} className={`${ui.card} space-y-[var(--sp-2)]`}>
+                <h3 className={`${ui.h3} flex min-w-0 items-center gap-[var(--sp-2)]`}>
+                  <BookOpen aria-hidden="true" className="h-5 w-5 shrink-0" />
+                  <span className="min-w-0">
+                    {rm.roomNumber} · {rm.buildingName}
+                  </span>
+                </h3>
+                <p className={ui.muted}>
+                  {rm.campus} · seats {rm.capacity}
+                  {freshness ? ` · ${freshness}` : ""}
+                </p>
+                <p className="text-sm">
+                  {open === null ? (
+                    <StateChip tone="neutral" glyph="◌" dashed>Availability unavailable</StateChip>
+                  ) : open > 0 ? (
+                    <StateChip tone="ok" glyph="○">{open} open half-hour slots {data?.targetDateET ? `on ${data.targetDateET}` : ""}</StateChip>
+                  ) : (
+                    <StateChip tone="bad" glyph="●">Fully booked</StateChip>
+                  )}
+                </p>
+                {rm.daytimeSlotsOpen.length > 0 && (
+                  <div>
+                    <p className="text-sm text-[var(--muted)]">8 AM to 10 PM ET · striped = open, solid = reserved</p>
+                    <div
+                      aria-hidden="true"
+                      className="mt-[var(--sp-1)] grid gap-px"
+                      style={{ gridTemplateColumns: `repeat(${rm.daytimeSlotsOpen.length}, minmax(0, 1fr))` }}
+                    >
+                      {rm.daytimeSlotsOpen.map((isOpen, idx) => (
+                        <span
+                          key={idx}
+                          className={`h-3 rounded-sm border border-[var(--line-strong)] ${isOpen ? "status-pattern-filling" : "bg-[var(--line-strong)]"}`}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className="text-[11px] text-[#5E6675]">
-                    {rm.campus} · Cap {rm.capacity} ·{" "}
-                    {rm.openHalfHourSlotsCount === null ? "LibCal availability unavailable" : (
-                      <><strong>{rm.openHalfHourSlotsCount}</strong> open 30m slots ({data?.targetDateET})</>
-                    )}
-                    {rm.isFixtureSnapshot ? " · Judge Demo availability"
-                      : rm.availabilityFreshness ? " · LibCal · " + (rm.availabilityFreshness.label ?? "Synced") : ""}
-                  </div>
-                </div>
+                )}
                 {rm.bookingUrl && (
-                  <a
-                    href={rm.bookingUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-[#111317] px-2.5 py-1.5 text-[11px] font-extrabold text-[#FDBB30]"
-                  >
-                    <span>Reserve Officially on LibCal</span>
-                    <ExternalLink className="h-3 w-3" />
+                  <a href={rm.bookingUrl} target="_blank" rel="noreferrer" className={ui.strong}>
+                    <span>Reserve on LibCal</span>
+                    <ExternalLink aria-hidden="true" className="h-5 w-5" />
+                    <NewTab />
                   </a>
                 )}
-              </div>
-
-              {/* Compact 8 AM - 10 PM 30-min Availability Strip */}
-              <div
-                className="mt-2.5 grid gap-0.5"
-                style={{ gridTemplateColumns: "repeat(28, minmax(0, 1fr))" }}
-                title="30-minute slots from 8:00 AM to 10:00 PM ET (Green = Open, Gray = Reserved)"
-              >
-                {rm.daytimeSlotsOpen.map((isOpen, idx) => (
-                  <span
-                    key={idx}
-                    className={`h-2.5 rounded-xs ${
-                      isOpen ? "bg-[#16A34A]" : "bg-[#CBD5E1]"
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+              </li>
+            );
+          })}
+        </ul>
       </section>
     </div>
   );

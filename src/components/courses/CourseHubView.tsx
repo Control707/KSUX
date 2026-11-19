@@ -1,61 +1,42 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { useAction } from "convex/react";
-import {
-  BookOpen,
-  CheckCircle2,
-  ExternalLink,
-  GraduationCap,
-  MessageSquare,
-  Search,
-  Send,
-} from "lucide-react";
+import { BookOpen, CheckCircle2, ExternalLink, GraduationCap, MessageSquare, Send } from "lucide-react";
 import { PrivateScheduleEditor } from "./PrivateScheduleEditor";
 import { api } from "@convex/_generated/api";
-import {
-  useViewerClient,
-  useViewerMutation,
-  useViewerQuery,
-} from "@/lib/viewerClient";
+import { useViewerClient, useViewerMutation, useViewerQuery } from "@/lib/viewerClient";
+import { useAnnouncer } from "@/components/a11y/Announcer";
+import { CampusBadge, SegmentedControl } from "@/components/a11y/controls";
+import { NewTab, StateChip, errorMessage, toggleClass, ui } from "@/components/communities/campusLifeUi";
+
+type Tab = "stream" | "syllabus" | "search";
 
 export function CourseHubView({ subjectCourse }: { subjectCourse: string }) {
+  const id = useId();
+  const { toast } = useAnnouncer();
   const { auth, authArgs } = useViewerClient();
-  const studentScope = auth.status === "demo" ? auth.demoShortCode + ":" + auth.demoPersonaHandle
-    : auth.status === "student" ? auth.studentId : auth.status;
+  const studentScope =
+    auth.status === "demo" ? auth.demoShortCode + ":" + auth.demoPersonaHandle : auth.status === "student" ? auth.studentId : auth.status;
   const [selectedTerm, setSelectedTerm] = useState<string>();
   const banner = useViewerQuery(api.courses.listBannerTerms, {});
   const termCode = selectedTerm ?? banner?.activeTerm;
-  const [activeTab, setActiveTab] = useState<"stream" | "syllabus" | "search">(
-    "stream"
-  );
+  const [activeTab, setActiveTab] = useState<Tab>("stream");
   const [sectionFilter, setSectionFilter] = useState<"all" | "mine">("all");
   const [searchInput, setSearchInput] = useState("");
   const [postBody, setPostBody] = useState("");
   const [crossPost, setCrossPost] = useState(false);
   const [loadingSyllabus, setLoadingSyllabus] = useState(false);
 
-  const detail = useViewerQuery(api.courses.getCourseHubDetail, termCode ? {
-    subjectCourse,
-    termCode,
-    sectionFilter,
-  } : "skip");
-
+  const detail = useViewerQuery(api.courses.getCourseHubDetail, termCode ? { subjectCourse, termCode, sectionFilter } : "skip");
   const searchResults = useViewerQuery(
     api.courses.searchCatalog,
     activeTab === "search" && termCode ? { termCode, queryText: searchInput } : "skip"
   );
-
   const syllabus = useViewerQuery(
     api.courses.getCourseSyllabus,
-    activeTab === "syllabus" && termCode
-      ? {
-          subjectCourse,
-          termCode,
-          crn: detail?.myEnrollment?.crn,
-        }
-      : "skip"
+    activeTab === "syllabus" && termCode ? { subjectCourse, termCode, crn: detail?.myEnrollment?.crn } : "skip"
   );
 
   const enrollMutation = useViewerMutation(api.courses.enrollInCourseHub);
@@ -69,412 +50,326 @@ export function CourseHubView({ subjectCourse }: { subjectCourse: string }) {
     if (openedCacheEntry) void touchSyllabus({ cacheEntryId: openedCacheEntry }).catch(() => {});
   }, [openedCacheEntry, touchSyllabus]);
 
+  const fail = (what: string) => (err: unknown) => toast({ tone: "error", message: what, detail: errorMessage(err, "") });
+
   const handlePostInHub = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!detail?.hub || !postBody.trim()) return;
-    await createPost({
-      body: postBody,
-      courseHubId: detail.hub._id,
-      crossPostToCampusFeed: crossPost,
-    });
-    setPostBody("");
+    try {
+      await createPost({ body: postBody, courseHubId: detail.hub._id, crossPostToCampusFeed: crossPost });
+      setPostBody("");
+      toast({ tone: "success", message: "Posted in the Course Hub" });
+    } catch (err) {
+      fail("Couldn’t post")(err);
+    }
   };
 
   const triggerLazySyllabusFetch = async () => {
     if (!authArgs) return;
     setLoadingSyllabus(true);
     try {
-      await fetchSyllabusAction({
-        ...authArgs,
-        subjectCourse,
-        termCode,
-        crn: detail?.myEnrollment?.crn,
-      });
+      await fetchSyllabusAction({ ...authArgs, subjectCourse, termCode, crn: detail?.myEnrollment?.crn });
+    } catch (err) {
+      fail("Couldn’t load the syllabus")(err);
     } finally {
       setLoadingSyllabus(false);
     }
   };
 
   return (
-    <div data-testid="course-hub-view" className="space-y-4 p-4">
-      {/* Header & Term Selector */}
-      <div className="rounded-2xl border border-[#E4E7EE] bg-white p-4 shadow-xs">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full bg-[#111317] px-2.5 py-0.5 text-xs font-extrabold text-[#FDBB30]">
-                <GraduationCap className="h-3.5 w-3.5" />
-                {detail?.hub.subjectCourse ?? subjectCourse}
-              </span>
-              <select
-                aria-label="Banner term"
-                value={termCode ?? ""}
-                disabled={!banner}
-                onChange={(e) => setSelectedTerm(e.currentTarget.value)}
-                className="rounded-lg border border-[#E4E7EE] bg-[#F4F6FA] px-2.5 py-1 text-xs font-bold text-[#111317]"
-              >
-                {!banner && <option value="">Loading terms…</option>}
-                {banner?.terms.map((term) => (
-                  <option key={term.code} value={term.code}>{term.label} ({term.code})</option>
-                ))}
-              </select>
-            </div>
-            {banner?.terms.filter(({ code }) => code === termCode).map((term) => (
-              <p key={term.code} className="mt-1 text-xs text-[#5E6675]">
-                Verified Banner subset · {term.sections} sections
-                {term.lastSuccessAt && " · Refreshed " + new Date(term.lastSuccessAt).toLocaleDateString("en-US", { timeZone: "America/New_York" })}
-              </p>
-            ))}
-            <h1 className="mt-1.5 text-lg font-black text-[#111317]">
-              {detail?.hub.title ?? "KSU Course Hub"}
-            </h1>
-            {detail?.myEnrollment && (
-              <p className="mt-0.5 text-xs font-semibold text-[#15803D]">
-                ✓ Enrolled (Private CRN {detail.myEnrollment.crn ?? "Bound"}
-                {detail.myEnrollment.section
-                  ? ` · Section ${detail.myEnrollment.section.sectionNumber} · ${detail.myEnrollment.section.campus}`
-                  : ""}
-                )
-              </p>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {detail?.groupChatId && (
-              <Link
-                href={`/chats/${detail.groupChatId}`}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-[#111317] px-3 py-2 text-xs font-extrabold text-[#FDBB30]"
-              >
-                <MessageSquare className="h-3.5 w-3.5" />
-                <span>Course Group Chat</span>
-              </Link>
-            )}
-
-          </div>
+    <div data-testid="course-hub-view" className={ui.page}>
+      <section className={`${ui.card} space-y-[var(--sp-3)]`}>
+        <div className={ui.row}>
+          <span className="inline-flex items-center gap-[var(--sp-1)] rounded-full bg-[var(--ink)] px-[var(--sp-2)] text-sm font-bold text-[var(--bg)]">
+            <GraduationCap aria-hidden="true" className="h-4 w-4" />
+            {detail?.hub.subjectCourse ?? subjectCourse}
+          </span>
+          <span className="text-sm text-[var(--muted)]">Course Hubs are KSU-wide</span>
         </div>
+        <h1 data-route-heading="" tabIndex={-1} className={ui.h1}>
+          {detail?.hub.title ?? `${subjectCourse} Course Hub`}
+        </h1>
+        <div className="max-w-md">
+          <label htmlFor={`${id}-term`} className={ui.label}>Banner term</label>
+          <select
+            id={`${id}-term`}
+            value={termCode ?? ""}
+            disabled={!banner}
+            onChange={(e) => setSelectedTerm(e.currentTarget.value)}
+            className={ui.input}
+          >
+            {!banner && <option value="">Loading terms…</option>}
+            {banner?.terms.map((term) => (
+              <option key={term.code} value={term.code}>
+                {term.label} ({term.code})
+              </option>
+            ))}
+          </select>
+        </div>
+        {banner?.terms
+          .filter(({ code }) => code === termCode)
+          .map((term) => (
+            <p key={term.code} className={ui.muted}>
+              Banner subset · {term.sections} sections
+              {term.lastSuccessAt &&
+                " · Refreshed " + new Date(term.lastSuccessAt).toLocaleDateString("en-US", { timeZone: "America/New_York" })}
+            </p>
+          ))}
+        {detail?.myEnrollment && (
+          <p>
+            <StateChip tone="ok" glyph="✓">
+              Enrolled · private CRN {detail.myEnrollment.crn ?? "saved"}
+              {detail.myEnrollment.section ? ` · Section ${detail.myEnrollment.section.sectionNumber}` : ""}
+            </StateChip>
+          </p>
+        )}
+        {detail?.groupChatId && (
+          <Link href={`/chats/${detail.groupChatId}`} className={ui.strong}>
+            <MessageSquare aria-hidden="true" className="h-5 w-5" />
+            <span>Course Group Chat</span>
+          </Link>
+        )}
 
         {termCode && <PrivateScheduleEditor key={studentScope + ":" + termCode} termCode={termCode} />}
 
-        {/* Section Picker / Enrollment Controls */}
         {detail && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#E4E7EE] pt-3">
-            {detail.sections.map((sec) => {
-              const isMine = detail.myEnrollment?.section?._id === sec._id;
-              return (
-                <button
-                  key={String(sec._id)}
-                  type="button"
-                  onClick={() =>
-                    void enrollMutation({
-                      termCode,
-                      sectionId: sec._id,
-                    })
-                  }
-                  className={`rounded-xl border px-3 py-1.5 text-left text-xs transition ${
-                    isMine
-                      ? "border-[#111317] bg-[#111317] font-extrabold text-[#FDBB30]"
-                      : "border-[#E4E7EE] bg-[#F9FAFC] font-semibold text-[#111317] hover:border-[#D99B00]"
-                  }`}
-                >
-                  <div>
-                    Sec {sec.sectionNumber} · CRN {sec.crn} ({sec.campus})
-                  </div>
-                  <div className="text-[10.5px] opacity-80">
-                    {sec.instructorName}
-                  </div>
-                </button>
-              );
-            })}
+          <section aria-labelledby={`${id}-sections`} className="space-y-[var(--sp-2)] border-t border-[var(--line)] pt-[var(--sp-3)]">
+            <h2 id={`${id}-sections`} className={ui.h2}>Sections</h2>
+            <p className={ui.muted}>Pick your section to join this Hub. Your CRN stays private.</p>
+            <ul className="lt-grid-1 grid grid-cols-1 gap-[var(--sp-2)] sm:grid-cols-2">
+              {detail.sections.map((sec) => {
+                const isMine = detail.myEnrollment?.section?._id === sec._id;
+                return (
+                  <li key={String(sec._id)} className="min-w-0">
+                    <button
+                      type="button"
+                      aria-pressed={isMine}
+                      onClick={() => void enrollMutation({ termCode, sectionId: sec._id }).catch(fail("Couldn’t join this section"))}
+                      className={`${toggleClass(isMine)} w-full flex-col items-start justify-center py-[var(--sp-2)] text-left`}
+                    >
+                      <span className="flex flex-wrap items-center gap-[var(--sp-2)]">
+                        {isMine && <span aria-hidden="true">✓</span>}
+                        Section {sec.sectionNumber} · CRN {sec.crn}
+                      </span>
+                      <span className="font-normal">{sec.instructorName}</span>
+                    </button>
+                    <span className="mt-[var(--sp-1)] inline-block">
+                      <CampusBadge campus={sec.campus} />
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
             {detail.isEnrolled && (
               <button
                 type="button"
-                onClick={() =>
-                  void leaveMutation({ courseHubId: detail.hub._id })
-                }
-                className="rounded-xl border border-[#E4E7EE] px-2.5 py-1.5 text-xs font-bold text-[#B91C1C]"
+                onClick={() => void leaveMutation({ courseHubId: detail.hub._id }).catch(fail("Couldn’t leave the Hub"))}
+                className={ui.danger}
               >
                 Leave Hub
               </button>
             )}
-          </div>
+          </section>
         )}
 
-        {/* Sub-Tabs */}
-        <div className="mt-3 flex gap-1.5 border-t border-[#E4E7EE] pt-3">
-          {(
-            [
-              ["stream", "Hub Activity"],
-              ["syllabus", "Simple Syllabus"],
-              ["search", "Search All Courses / CRN"],
-            ] as const
-          ).map(([tab, label]) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`rounded-full px-3 py-1 text-xs font-extrabold ${
-                activeTab === tab
-                  ? "bg-[#111317] text-[#FDBB30]"
-                  : "bg-[#F4F6FA] text-[#5E6675]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="border-t border-[var(--line)] pt-[var(--sp-3)]">
+          <SegmentedControl
+            label="Course Hub view"
+            options={[
+              { value: "stream", label: "Hub Activity" },
+              { value: "syllabus", label: "Syllabus" },
+              { value: "search", label: "Find a course" },
+            ] as const}
+            value={activeTab}
+            onChange={setActiveTab}
+            testIdPrefix="course-tab"
+          />
         </div>
-      </div>
+      </section>
 
-      {/* Tab 1: Hub Stream + All Sections | My Section Filter */}
       {activeTab === "stream" && detail && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="inline-flex rounded-xl border border-[#E4E7EE] bg-white p-1">
-              {(["all", "mine"] as const).map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setSectionFilter(f)}
-                  className={`rounded-lg px-3 py-1 text-xs font-bold ${
-                    sectionFilter === f
-                      ? "bg-[#111317] text-[#FDBB30]"
-                      : "text-[#5E6675]"
-                  }`}
-                >
-                  {f === "all" ? "All Sections" : "My Section"}
-                </button>
-              ))}
-            </div>
-
-            <Link
-              href="/study?host=1"
-              className="text-xs font-extrabold text-[#1E3A8A] hover:underline"
-            >
-              + Host Course Study Session →
+        <section aria-labelledby={`${id}-activity`} className="space-y-[var(--sp-3)]">
+          <h2 id={`${id}-activity`} className={ui.h2}>Hub Activity</h2>
+          <div className="lt-grid-1 grid grid-cols-1 items-end gap-[var(--sp-3)] sm:grid-cols-[minmax(0,1fr)_auto]">
+            <SegmentedControl
+              label="Show posts from"
+              hideLabel={false}
+              options={[{ value: "all", label: "All sections" }, { value: "mine", label: "My section" }] as const}
+              value={sectionFilter}
+              onChange={setSectionFilter}
+              testIdPrefix="course-section-filter"
+            />
+            <Link href="/study?host=1" className={ui.secondary}>
+              Host a Study Session
             </Link>
           </div>
 
-          <form
-            onSubmit={handlePostInHub}
-            className="space-y-2 rounded-2xl border border-[#E4E7EE] bg-white p-3.5"
-          >
+          <form onSubmit={handlePostInHub} className={`${ui.card} space-y-[var(--sp-2)]`}>
+            <label htmlFor={`${id}-post`} className={ui.label}>Ask a question in {detail.hub.subjectCourse}</label>
             <textarea
+              id={`${id}-post`}
               value={postBody}
               onChange={(e) => setPostBody(e.target.value)}
-              rows={2}
+              rows={3}
               maxLength={500}
-              placeholder={`Ask a question in ${detail.hub.subjectCourse} (stays in this Hub & Following unless cross-posted)...`}
-              className="w-full rounded-xl border border-[#E4E7EE] p-2.5 text-xs focus:border-[#111317] focus:outline-none"
+              className={`${ui.input} py-[var(--sp-2)]`}
             />
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-1.5 text-[11.5px] font-semibold text-[#5E6675]">
+            <div className="flex flex-wrap items-center justify-between gap-[var(--sp-2)]">
+              <label className={ui.checkRow}>
                 <input
                   type="checkbox"
                   checked={crossPost}
                   onChange={(e) => setCrossPost(e.target.checked)}
+                  className={ui.checkbox}
+                  data-target-exempt=""
                 />
-                <span>Cross-post to main Campus Feed</span>
+                <span className="min-w-0">Also post to the All KSU Feed</span>
               </label>
-              <button
-                type="submit"
-                disabled={!postBody.trim()}
-                className="inline-flex items-center gap-1 rounded-xl bg-[#111317] px-3.5 py-1.5 text-xs font-extrabold text-[#FDBB30] disabled:opacity-50"
-              >
-                <Send className="h-3.5 w-3.5" />
+              <button type="submit" disabled={!postBody.trim()} className={ui.strong}>
+                <Send aria-hidden="true" className="h-5 w-5" />
                 <span>Post in Hub</span>
               </button>
             </div>
           </form>
 
           {detail.studySessions.length > 0 && (
-            <div className="rounded-2xl border border-[#FDBB30] bg-[#FFFDF7] p-3.5">
-              <div className="text-xs font-extrabold text-[#111317]">
-                📚 Active Course Study Sessions
-              </div>
-              <div className="mt-2 space-y-1.5">
-                {detail.studySessions.map((ss: any) => (
-                  <Link
-                    key={String(ss._id)}
-                    href="/study"
-                    className="flex items-center justify-between rounded-xl border border-[#E4E7EE] bg-white px-3 py-2 text-xs"
-                  >
-                    <span className="font-bold text-[#111317]">{ss.title}</span>
-                    <span className="text-[11px] font-bold text-[#15803D]">
-                      {ss.attendeeIds.length}/{ss.maxSeats} seats ·{" "}
-                      {ss.visibility === "course_members_only"
-                        ? "Course Members Only"
-                        : "Campus-Open"}
-                    </span>
-                  </Link>
+            <section aria-labelledby={`${id}-ss`} className={`${ui.card} space-y-[var(--sp-2)]`}>
+              <h3 id={`${id}-ss`} className={ui.h3}>Active Course Study Sessions</h3>
+              <ul className="space-y-[var(--sp-2)]">
+                {detail.studySessions.map((ss: { _id: string; title: string; attendeeIds: unknown[]; maxSeats: number; visibility: string }) => (
+                  <li key={String(ss._id)}>
+                    <Link href="/study" className={`${ui.subCard} flex min-h-[var(--target)] flex-wrap items-center justify-between gap-[var(--sp-2)]`}>
+                      <span className="font-bold">{ss.title}</span>
+                      <span className="text-sm">
+                        {ss.attendeeIds.length} of {ss.maxSeats} seats ·{" "}
+                        {ss.visibility === "course_members_only" ? "Course members only" : "Anyone on Campus"}
+                      </span>
+                    </Link>
+                  </li>
                 ))}
-              </div>
-            </div>
+              </ul>
+            </section>
           )}
 
-          {detail.posts.map((p: any) => (
-            <div
-              key={String(p._id)}
-              className="rounded-2xl border border-[#E4E7EE] bg-white p-4 text-xs"
-            >
-              <div className="font-extrabold text-[#111317]">
-                {p.author.displayName}{" "}
-                <span className="font-normal text-[#5E6675]">
-                  @{p.author.handle}
-                </span>
-              </div>
-              <p className="mt-1.5 text-sm text-[#1B1F27]">{p.body}</p>
-            </div>
-          ))}
-        </div>
+          <ul className="space-y-[var(--sp-2)]">
+            {detail.posts.map((p: { _id: string; body: string; author: { displayName: string; handle: string } }) => (
+              <li key={String(p._id)} className={ui.card}>
+                <p className="font-bold">
+                  {p.author.displayName} <span className="font-normal text-[var(--muted)]">@{p.author.handle}</span>
+                </p>
+                <p className="mt-[var(--sp-1)] text-body">{p.body}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
-      {/* Tab 2: Lazy Simple Syllabus */}
       {activeTab === "syllabus" && (
-        <div className="rounded-2xl border border-[#E4E7EE] bg-white p-5 shadow-xs">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-black text-[#111317]">
-                Simple Syllabus Summary
-              </h2>
-              <p className="text-xs font-semibold text-[#5E6675]">
-                {syllabus?.matchedSectionLabel ?? "Checking syllabus cache..."}
-              </p>
-            </div>
-            {syllabus?.sourceUrl && (
-              <a
-                href={syllabus.sourceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-xl border border-[#E4E7EE] px-3 py-1.5 text-xs font-bold text-[#1E3A8A]"
-              >
-                <span>Official Simple Syllabus</span>
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            )}
-          </div>
-
-          {syllabus?.isFallbackSection && (
-            <div className="mt-3 rounded-xl bg-[#FEF3C7] px-3 py-2 text-xs font-bold text-[#92400E]">
-              Section Provenance: {syllabus.matchedSectionLabel}
-            </div>
+        <section aria-labelledby={`${id}-syl`} className={`${ui.card} space-y-[var(--sp-3)]`}>
+          <h2 id={`${id}-syl`} className={ui.h2}>Syllabus summary</h2>
+          <p className={ui.muted}>{syllabus?.matchedSectionLabel ?? "Checking the syllabus cache…"}</p>
+          {syllabus?.sourceUrl && (
+            <a href={syllabus.sourceUrl} target="_blank" rel="noreferrer" className={ui.secondary}>
+              <span>Open on Simple Syllabus</span>
+              <ExternalLink aria-hidden="true" className="h-5 w-5" />
+              <NewTab />
+            </a>
           )}
-
+          {syllabus?.isFallbackSection && (
+            <p>
+              <StateChip tone="warn" glyph="⚠">From another section: {syllabus.matchedSectionLabel}</StateChip>
+            </p>
+          )}
           {syllabus?.summary ? (
-            <div className="mt-4 space-y-3 text-xs">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-xl bg-[#F9FAFC] p-3">
-                  <div className="font-extrabold text-[#111317]">
-                    Instructor &amp; Office Hours
-                  </div>
-                  <p className="mt-1 text-[#374151]">
-                    {syllabus.summary.instructor} ·{" "}
-                    {syllabus.summary.officeHours}
+            <div className="space-y-[var(--sp-3)] text-sm">
+              <div className="lt-grid-1 grid grid-cols-1 gap-[var(--sp-3)] sm:grid-cols-2">
+                <div className={ui.subCard}>
+                  <h3 className="text-body font-bold">Instructor &amp; office hours</h3>
+                  <p className="mt-[var(--sp-1)]">
+                    {syllabus.summary.instructor} · {syllabus.summary.officeHours}
                   </p>
                 </div>
-                <div className="rounded-xl bg-[#F9FAFC] p-3">
-                  <div className="font-extrabold text-[#111317]">Textbooks</div>
-                  <ul className="mt-1 list-disc pl-4 text-[#374151]">
-                    {(syllabus.summary.textbooks ?? []).map(
-                      (tb: string, i: number) => (
-                        <li key={i}>{tb}</li>
-                      )
-                    )}
+                <div className={ui.subCard}>
+                  <h3 className="text-body font-bold">Textbooks</h3>
+                  <ul className="mt-[var(--sp-1)] list-disc pl-[var(--sp-4)]">
+                    {(syllabus.summary.textbooks ?? []).map((tb: string, i: number) => (
+                      <li key={i}>{tb}</li>
+                    ))}
                   </ul>
                 </div>
               </div>
-
-              <div className="rounded-xl bg-[#F9FAFC] p-3">
-                <div className="font-extrabold text-[#111317]">
-                  Grading Weights
-                </div>
-                <div className="mt-1.5 flex flex-wrap gap-2">
-                  {(syllabus.summary.gradingWeights ?? []).map(
-                    (gw: any, idx: number) => (
-                      <span
-                        key={idx}
-                        className="rounded-lg border border-[#E4E7EE] bg-white px-2.5 py-1 font-bold text-[#111317]"
-                      >
-                        {gw.label}: {gw.weight}
-                      </span>
-                    )
-                  )}
-                </div>
+              <div className={ui.subCard}>
+                <h3 className="text-body font-bold">Grading weights</h3>
+                <ul className="mt-[var(--sp-1)] flex flex-wrap gap-[var(--sp-2)]">
+                  {(syllabus.summary.gradingWeights ?? []).map((gw: { label: string; weight: string | number }, idx: number) => (
+                    <li key={idx} className="rounded-[var(--r-sm)] border border-[var(--line)] bg-[var(--surface)] px-[var(--sp-2)] font-bold">
+                      {gw.label}: {gw.weight}
+                    </li>
+                  ))}
+                </ul>
               </div>
-
-              {syllabus.summary.policies && (
-                <p className="text-[#5E6675]">{syllabus.summary.policies}</p>
-              )}
+              {syllabus.summary.policies && <p className="text-[var(--muted)]">{syllabus.summary.policies}</p>}
             </div>
           ) : (
-            <div className="mt-4">
-              <button
-                type="button"
-                disabled={loadingSyllabus}
-                onClick={triggerLazySyllabusFetch}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-[#111317] px-4 py-2 text-xs font-extrabold text-[#FDBB30]"
-              >
-                <BookOpen className="h-3.5 w-3.5" />
-                <span>
-                  {loadingSyllabus
-                    ? "Fetching from kennesaw.simplesyllabus.com..."
-                    : "Load Simple Syllabus Summary"}
-                </span>
-              </button>
-            </div>
+            <button type="button" disabled={loadingSyllabus} onClick={() => void triggerLazySyllabusFetch()} className={ui.strong}>
+              <BookOpen aria-hidden="true" className="h-5 w-5" />
+              <span>{loadingSyllabus ? "Loading from Simple Syllabus…" : "Load syllabus summary"}</span>
+            </button>
           )}
-        </div>
+        </section>
       )}
 
-      {/* Tab 3: Dual-Term Banner 9 CRN / Course Typeahead */}
       {activeTab === "search" && (
-        <div className="space-y-3 rounded-2xl border border-[#E4E7EE] bg-white p-4 shadow-xs">
-          <div className="flex items-center gap-2 rounded-xl border border-[#E4E7EE] bg-[#F9FAFC] px-3 py-2">
-            <Search className="h-4 w-4 text-[#5E6675]" />
+        <section aria-labelledby={`${id}-find`} className={`${ui.card} space-y-[var(--sp-3)]`}>
+          <h2 id={`${id}-find`} className={ui.h2}>Find a course</h2>
+          <div>
+            <label htmlFor={`${id}-q`} className={ui.label}>CRN or course code</label>
             <input
-              type="text"
+              id={`${id}-q`}
+              type="search"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search by 5-digit CRN (e.g. 83190) or course code (CS 3305, ME 3101)..."
-              className="w-full bg-transparent text-xs font-semibold text-[#111317] focus:outline-none"
+              placeholder="e.g. 83190 or CS 3305"
+              className={ui.input}
             />
           </div>
-
-          <div className="space-y-2">
-            {(searchResults ?? []).map((item: any) => (
-              <div
-                key={String(item._id)}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#E4E7EE] p-3 text-xs"
-              >
-                <div>
-                  <Link
-                    href={`/courses/${encodeURIComponent(item.subjectCourse)}`}
-                    className="font-black text-[#111317] hover:underline"
-                  >
-                    {item.subjectCourse} · {item.title}
-                  </Link>
-                  <div className="text-[11px] text-[#5E6675]">
-                    {item.matchedCrnSection
-                      ? `${item.matchedCrnSection.isFixture ? "Sample" : "Matched"} CRN ${item.matchedCrnSection.crn} · ${item.matchedCrnSection.campus}`
-                      : `${item.sections.length} ${item.sections.some((section: { isFixture?: boolean }) => section.isFixture) ? "sample" : "published"} sections in ${termCode}`}
+          <ul className="space-y-[var(--sp-2)]">
+            {(searchResults ?? []).map(
+              (item) => (
+                <li key={String(item._id)} className={`${ui.subCard} flex flex-wrap items-center justify-between gap-[var(--sp-2)]`}>
+                  <div className="min-w-0">
+                    <Link href={`/courses/${encodeURIComponent(item.subjectCourse)}`} className={ui.link}>
+                      {item.subjectCourse} · {item.title}
+                    </Link>
+                    <p className="text-sm text-[var(--muted)]">
+                      {item.matchedCrnSection
+                        ? `${item.matchedCrnSection.isFixture ? "Sample" : "Matched"} CRN ${item.matchedCrnSection.crn} · ${item.matchedCrnSection.campus}`
+                        : `${item.sections.length} ${item.sections.some((section: { isFixture?: boolean }) => section.isFixture) ? "sample" : "published"} sections in ${termCode}`}
+                    </p>
                   </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    void enrollMutation({
-                      termCode,
-                      courseHubId: item._id,
-                      sectionId: item.matchedCrnSection?._id,
-                    })
-                  }
-                  className="inline-flex items-center gap-1 rounded-xl bg-[#FDBB30] px-3 py-1.5 font-extrabold text-[#111317]"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span>Join Hub</span>
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void enrollMutation({
+                        termCode,
+                        courseHubId: item._id,
+                        sectionId: item.matchedCrnSection?._id,
+                      })
+                        .then(() => toast({ tone: "success", message: `Joined ${item.subjectCourse}` }))
+                        .catch(fail("Couldn’t join the Hub"))
+                    }
+                    className={ui.primary}
+                  >
+                    <CheckCircle2 aria-hidden="true" className="h-5 w-5" />
+                    <span>
+                      Join Hub<span className="sr-only"> {item.subjectCourse}</span>
+                    </span>
+                  </button>
+                </li>
+              )
+            )}
+          </ul>
+        </section>
       )}
     </div>
   );

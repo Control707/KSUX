@@ -18,24 +18,26 @@ export function ModulePlaceholder({
   const campus = summary?.viewer.activeCampusFilter ?? "Kennesaw";
 
   return (
-    <div className="space-y-3 p-4">
-      <div className="rounded-2xl border border-[#E4E7EE] bg-white p-5 shadow-xs">
-        <div className="flex items-center justify-between gap-2">
-          <h1 className="text-lg font-black text-[#111317]">{title}</h1>
-          <span className="rounded-full bg-[#FFF6DC] px-2.5 py-0.5 text-xs font-bold text-[#855A00]">
-            {preserveAcrossCampus ? "All Campuses Preserved" : `Scope: ${campus}`}
+    <div className="space-y-[var(--sp-3)] p-[var(--sp-4)]">
+      <section className="rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] p-[var(--sp-5)] text-[var(--ink)]">
+        <div className="flex flex-wrap items-center justify-between gap-[var(--sp-2)]">
+          <h1 data-route-heading="" tabIndex={-1} className="font-display text-2xl font-bold [overflow-wrap:anywhere]">
+            {title}
+          </h1>
+          <span className="rounded-full bg-[var(--accent-soft)] px-[var(--sp-2)] text-sm font-bold text-[var(--accent-ink)]">
+            {preserveAcrossCampus ? "All campuses" : `Campus: ${campus}`}
           </span>
         </div>
-        <p className="mt-2 text-xs text-[#5E6675]">{description}</p>
-        <div className="mt-4">
+        <p className="mt-[var(--sp-2)] text-body text-[var(--muted)]">{description}</p>
+        <div className="mt-[var(--sp-4)]">
           <Link
             href="/"
-            className="inline-flex rounded-xl bg-[#111317] px-3.5 py-2 text-xs font-extrabold text-[#FDBB30]"
+            className="inline-flex min-h-[var(--target)] items-center rounded-[var(--r-sm)] bg-[var(--accent)] px-[var(--sp-4)] text-sm font-bold text-[var(--on-accent)]"
           >
-            ← Back to Now HUD
+            Back to Now
           </Link>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

@@ -178,12 +178,9 @@ export async function appendMessageAndFanoutUnread(
 
   const members = await ctx.db
     .query("chatMembers")
-    .filter((q) =>
-      q.and(
-        q.eq(q.field("workspaceKey"), params.workspaceKey),
-        q.eq(q.field("chatId"), params.chat._id)
+      .withIndex("by_chat_student", (q) =>
+        q.eq("workspaceKey", params.workspaceKey).eq("chatId", params.chat._id)
       )
-    )
     .take(60);
 
   for (const m of members) {
@@ -358,12 +355,9 @@ export const getChatThread = viewerQuery({
     const [allMembersRaw, latestMessagesRaw, listingDoc] = await Promise.all([
       ctx.db
         .query("chatMembers")
-        .filter((q) =>
-          q.and(
-            q.eq(q.field("workspaceKey"), viewer.workspaceKey),
-            q.eq(q.field("chatId"), chat._id)
-          )
-        )
+      .withIndex("by_chat_student", (q) =>
+        q.eq("workspaceKey", viewer.workspaceKey).eq("chatId", chat._id)
+      )
         .take(55),
       ctx.db
         .query("chatMessages")
@@ -1361,11 +1355,8 @@ export const convertStudyChatToClosedGroup = viewerMutation({
 
     const members = await ctx.db
       .query("chatMembers")
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("workspaceKey"), viewer.workspaceKey),
-          q.eq(q.field("chatId"), chat._id)
-        )
+      .withIndex("by_chat_student", (q) =>
+        q.eq("workspaceKey", viewer.workspaceKey).eq("chatId", chat._id)
       )
       .take(55);
     for (const m of members) {

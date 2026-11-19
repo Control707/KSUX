@@ -84,10 +84,10 @@ export function ServiceWorkerManager() {
         reloadOnActivation.current = true;
         waitingWorker.postMessage({ type: "SKIP_WAITING" });
       }}
-      className="fixed bottom-20 right-4 z-50 inline-flex items-center gap-2 rounded-full border-2 border-[#FDBB30] bg-[#111317] px-4 py-2 text-xs font-extrabold text-[#FDBB30] shadow-xl lg:bottom-5"
+      className="fixed bottom-[calc(var(--chrome-bottom)+var(--sp-2))] right-[var(--sp-4)] z-50 inline-flex min-h-[var(--target)] items-center gap-[var(--sp-2)] rounded-full border-2 border-[var(--accent)] bg-[var(--ink)] px-[var(--sp-4)] text-sm font-bold text-[var(--bg)] shadow-[var(--shadow)] lg:bottom-[var(--sp-5)]"
     >
-      <RefreshCw className="h-3.5 w-3.5" />
-      <span>Update available · Tap to reload</span>
+      <RefreshCw aria-hidden="true" className="h-4 w-4" />
+      <span>Update available · Reload</span>
     </button>
   );
 }
@@ -157,51 +157,52 @@ export function InstallHomeScreenCard() {
   };
 
   return (
-    <div
+    <section
       data-testid="install-pwa-card"
-      className="rounded-2xl border border-[#FDBB30] bg-[#FFFDF7] p-3.5 text-xs shadow-xs"
+      aria-labelledby="install-pwa-title"
+      className="rounded-[var(--r-md)] border border-[var(--line-strong)] bg-[var(--surface)] p-[var(--sp-3)] text-[var(--ink)]"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <div className="font-extrabold text-[#111317]">
-            📲 Install KSUX to Home Screen
-          </div>
-          <p className="text-[11px] text-[#5E6675]">
-            Instant parking-deck offline campus map &amp; saved class schedule.
+      <div className="flex flex-wrap items-center justify-between gap-[var(--sp-2)]">
+        <div className="min-w-0">
+          <h2 id="install-pwa-title" className="font-display text-lg font-bold">
+            <span aria-hidden="true">📲 </span>Install KSUX on your Home Screen
+          </h2>
+          <p className="text-sm text-[var(--muted)] [overflow-wrap:anywhere]">
+            Open the campus map and your saved class schedule even when you are offline.
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-[var(--sp-1)]">
           <button
             type="button"
             onClick={() => void handleInstallClick()}
-            className="inline-flex items-center gap-1 rounded-xl bg-[#111317] px-3 py-1.5 font-extrabold text-[#FDBB30]"
+            aria-expanded={isIosSafari ? showIosSteps : undefined}
+            className="inline-flex min-h-[var(--target)] items-center gap-[var(--sp-2)] rounded-[var(--r-sm)] bg-[var(--accent)] px-[var(--sp-3)] text-sm font-bold text-[var(--on-accent)]"
           >
             {isIosSafari ? (
-              <Share className="h-3.5 w-3.5" />
+              <Share aria-hidden="true" className="h-4 w-4" />
             ) : (
-              <Download className="h-3.5 w-3.5" />
+              <Download aria-hidden="true" className="h-4 w-4" />
             )}
             <span>Install KSUX to Home Screen</span>
           </button>
           <button
             type="button"
             onClick={handleDismiss}
-            className="rounded-lg p-1 text-[#5E6675] hover:bg-[#F4F6FA]"
-            title="Dismiss"
+            aria-label="Dismiss install suggestion"
+            className="min-target inline-flex items-center justify-center rounded-full text-[var(--muted)] hover:bg-[var(--surface-2)]"
           >
-            <X className="h-4 w-4" />
+            <X aria-hidden="true" className="h-5 w-5" />
           </button>
         </div>
       </div>
 
       {showIosSteps && (
-        <div className="mt-2.5 rounded-xl bg-white p-2.5 text-[11.5px] font-semibold text-[#111317]">
-          iOS Safari 2-Step Install: <strong>1.</strong> Tap the browser{" "}
-          <strong>Share</strong> button · <strong>2.</strong> Tap{" "}
+        <p className="mt-[var(--sp-2)] rounded-[var(--r-sm)] bg-[var(--surface-2)] p-[var(--sp-2)] text-sm font-semibold">
+          On iPhone or iPad: 1. Tap the Safari <strong>Share</strong> button. 2. Tap{" "}
           <strong>Add to Home Screen</strong>.
-        </div>
+        </p>
       )}
-    </div>
+    </section>
   );
 }

@@ -12,8 +12,10 @@ import {
 
 // Routes added by Phase 0 render fully in Direction C and are checked whole.
 const PHASE0_SHELL_ROUTES = ["/leaderboard", "/leaderboard?campus=marietta", "/profile/notifications"];
-// Legacy screens: only the shell chrome around them is checked until Phase 1A.
-const LEGACY_ROUTES = ["/", "/feed", "/marketplace", "/chats", "/parking", "/transit", "/study", "/dining", "/events", "/clubs", "/profile", "/scrappy"];
+// Every other screen migrated in Phase 1A (#74) and is checked whole by its own
+// screenMatrix spec (tests/a11y/<area>.spec.ts). Only the shell chrome is checked
+// here for screens that are still mid-migration; the list may only shrink.
+const LEGACY_ROUTES: string[] = [];
 
 for (const theme of THEMES) {
   for (const [viewportName, viewport] of Object.entries(VIEWPORTS)) {

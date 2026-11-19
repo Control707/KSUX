@@ -565,11 +565,8 @@ export const inviteDealCoParty = viewerMutation({
 
     const existingMembers = await ctx.db
       .query("chatMembers")
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("workspaceKey"), viewer.workspaceKey),
-          q.eq(q.field("chatId"), chat._id)
-        )
+      .withIndex("by_chat_student", (q) =>
+        q.eq("workspaceKey", viewer.workspaceKey).eq("chatId", chat._id)
       )
       .take(10);
 

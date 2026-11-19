@@ -11,10 +11,10 @@ export function V2LaunchOps() {
   if (!data) return null;
   const { gate, io } = data;
   return (
-    <section className="space-y-3 rounded-xl border bg-white p-4" aria-labelledby="v2-launch-ops">
-      <h2 id="v2-launch-ops" className="font-bold">V2 launch readiness</h2>
+    <section className="space-y-[var(--sp-3)] rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] p-[var(--sp-4)] [overflow-wrap:anywhere]" aria-labelledby="v2-launch-ops">
+      <h2 id="v2-launch-ops" className="font-display text-xl font-bold">V2 launch readiness</h2>
       <p>Incident posting {gate.postingEnabled ? "enabled" : "disabled"}. {gate.moderatorCount} eligible appointed Moderators. Operations checklist {gate.opsChecklistDone ? "complete" : "pending"}. Production switch {gate.requested ? "on" : "off"}.</p>
-      <h3 className="font-semibold">Projected monthly database I/O</h3>
+      <h3 className="text-lg font-bold">Projected monthly database I/O</h3>
       {!io ? <p>No valid usage measurement has been recorded.</p> : (
         <>
           <p role="status">
@@ -23,7 +23,7 @@ export function V2LaunchOps() {
             {io.stale && " Measurement is stale."}
           </p>
           <p>Based on {io.sampleDays} measured days ending {new Date(io.measuredAt).toISOString().slice(0, 10)}.</p>
-          <dl className="grid grid-cols-[1fr_auto] gap-2">
+          <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-[var(--sp-2)] text-sm">
             {io.shapes.map((shape) => (
               <div key={shape.key} className="contents">
                 <dt>{shape.label}</dt>

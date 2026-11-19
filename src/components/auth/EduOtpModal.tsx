@@ -1,11 +1,30 @@
 "use client";
 
-import React, { useState } from "react";
-import { Mail, ShieldCheck, X } from "lucide-react";
+import React, { useId, useState } from "react";
+import { Mail, ShieldCheck } from "lucide-react";
+import { Dialog } from "@/components/a11y/Dialog";
 import { useViewerClient } from "@/lib/viewerClient";
 
+const CODE_LENGTH = 6;
+
+/** Keep only digits and cap at six, so pasting "123 456" or "Code: 123456" works. */
+export function normaliseOtpInput(raw: string): string {
+  return raw.replace(/\D/g, "").slice(0, CODE_LENGTH);
+}
+
+/**
+ * KSU .edu email sign-in (SPEC-v2 §2): a `Dialog` with a labelled email field,
+ * then a labelled one-time-code field. Errors use role=alert; "code sent" is
+ * a role=status message.
+ */
 export function EduOtpModal() {
   const { setOpenSignInModal, establishStudentSession } = useViewerClient();
+  const ids = useId();
+  const emailId = `${ids}-email`;
+  const emailHelpId = `${ids}-email-help`;
+  const codeId = `${ids}-code`;
+  const codeHelpId = `${ids}-code-help`;
+  const errorId = `${ids}-error`;
 
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
@@ -13,6 +32,8 @@ export function EduOtpModal() {
   const [devPreviewCode, setDevPreviewCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const close = () => setOpenSignInModal(false);
 
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,19 +47,12 @@ export function EduOtpModal() {
         body: JSON.stringify({ operation: "request", email }),
       });
       const res = await response.json().catch(() => null);
-      if (!response.ok || !res?.ok) throw new Error(res?.error ?? "Could not send verification code.");
-      if (res.devCodePreview) {
-        setDevPreviewCode(String(res.devCodePreview));
-      } else {
-        setDevPreviewCode(null);
-      }
+      if (!response.ok || !res?.ok) throw new Error(res?.error ?? res?.message ?? "Could not send a verification code.");
+      setDevPreviewCode(res.devCodePreview ? String(res.devCodePreview) : null);
+      setCode("");
       setStep("code");
     } catch (err: any) {
-      setError(
-        err?.data?.message ||
-          err?.message ||
-          "Could not send verification code."
-      );
+      setError(err?.data?.message || err?.message || "Could not send a verification code.");
     } finally {
       setLoading(false);
     }
@@ -51,135 +65,139 @@ export function EduOtpModal() {
     try {
       await establishStudentSession(email, code);
     } catch (err: any) {
-      setError(
-        err?.data?.message || err?.message || "Verification failed."
-      );
+      setError(err?.data?.message || err?.message || "Verification failed.");
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div
-      data-testid="edu-otp-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+  const fieldClass =
+    "mt-[var(--sp-1)] min-h-[var(--target)] w-full rounded-[var(--r-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-[var(--sp-3)] text-body text-[var(--ink)]";
+  const primaryButton =
+    "flex min-h-[var(--target)] items-center justify-center gap-[var(--sp-2)] rounded-[var(--r-sm)] bg-[var(--accent)] px-[var(--sp-4)] text-body font-bold text-[var(--on-accent)] disabled:opacity-60";
+
+  const errorBox = error && (
+    <p
+      id={errorId}
+      role="alert"
+      data-testid="edu-otp-error"
+      className="rounded-[var(--r-sm)] border border-[var(--bad-fg)] bg-[var(--bad-bg)] px-[var(--sp-3)] py-[var(--sp-2)] text-sm font-semibold text-[var(--bad-fg)] [overflow-wrap:anywhere]"
     >
-      <div className="w-full max-w-md rounded-3xl border border-[#2B3242] bg-[#181C25] p-6 text-white shadow-2xl">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#FDBB30] text-lg font-black text-[#111317]">
-              🦉
-            </span>
-            <div>
-              <h2 className="text-base font-black text-white">
-                Verify KSU .edu Email
-              </h2>
-              <p className="text-[11px] text-[#9CA3AF]">
-                Safe-Links-proof 6-digit numeric OTP
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setOpenSignInModal(false)}
-            className="rounded-lg p-1 text-[#9CA3AF] hover:text-white"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+      <span aria-hidden="true">⚠ </span>
+      {error}
+    </p>
+  );
 
-        {step === "email" ? (
-          <form onSubmit={handleRequestOtp} className="mt-4 space-y-3">
-            <div>
-              <label className="block text-xs font-bold text-[#D1D5DB]">
-                KSU Email Address
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="owl@students.kennesaw.edu"
-                className="mt-1 w-full rounded-xl border border-[#374151] bg-[#0F1218] px-3.5 py-2.5 text-sm text-white placeholder-[#6B7280] focus:border-[#FDBB30] focus:outline-none"
-              />
-              <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[#9CA3AF]">
-                <ShieldCheck className="h-3.5 w-3.5 text-[#FDBB30]" />
-                <span>
-                  Your raw email &amp; NetID are never shown publicly.
-                </span>
-              </p>
-            </div>
-
-            {error && (
-              <p className="rounded-xl bg-[#B91C1C]/20 px-3 py-2 text-xs font-semibold text-[#FCA5A5]">
-                {error}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FDBB30] py-2.5 text-sm font-extrabold text-[#111317] hover:bg-[#e7a820] disabled:opacity-50"
-            >
-              <Mail className="h-4 w-4" />
-              <span>{loading ? "Sending Code..." : "Send 6-Digit Code"}</span>
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyOtp} className="mt-4 space-y-3">
-            <p className="text-xs text-[#D1D5DB]">
-              Enter the 6-digit code sent to{" "}
-              <span className="font-bold text-[#FDBB30]">{email}</span> (valid
-              for 10 minutes).
-            </p>
-
-            {devPreviewCode && (
-              <div className="rounded-xl border border-[#FDBB30]/40 bg-[#FDBB30]/15 px-3 py-2 text-xs text-[#FDE68A]">
-                Local Dev OTP Preview:{" "}
-                <strong className="font-mono text-sm">{devPreviewCode}</strong>
-              </div>
-            )}
-
+  return (
+    <Dialog
+      open
+      onClose={close}
+      title="Sign in with your KSU .edu email"
+      description="We email you a 6-digit code. There is no link to click."
+      closeLabel="Close sign-in"
+      testId="edu-otp-modal"
+    >
+      {step === "email" ? (
+        <form onSubmit={handleRequestOtp} className="space-y-[var(--sp-3)]">
+          <div>
+            <label htmlFor={emailId} className="block text-sm font-bold">
+              KSU email address
+            </label>
             <input
+              id={emailId}
+              type="email"
+              name="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="owl@students.kennesaw.edu"
+              aria-describedby={error ? `${emailHelpId} ${errorId}` : emailHelpId}
+              aria-invalid={error ? true : undefined}
+              data-testid="edu-otp-email-input"
+              className={fieldClass}
+            />
+            <p id={emailHelpId} className="mt-[var(--sp-1)] flex items-start gap-[var(--sp-1)] text-sm text-[var(--muted)]">
+              <ShieldCheck aria-hidden="true" className="mt-[0.1rem] h-4 w-4 shrink-0" />
+              <span>Use @students.kennesaw.edu or @kennesaw.edu. Your email and NetID are never shown publicly.</span>
+            </p>
+          </div>
+
+          {errorBox}
+
+          <button type="submit" disabled={loading} data-testid="edu-otp-send-btn" className={`${primaryButton} w-full`}>
+            <Mail aria-hidden="true" className="h-5 w-5" />
+            <span>{loading ? "Sending code…" : "Send 6-digit code"}</span>
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={handleVerifyOtp} className="space-y-[var(--sp-3)]">
+          <p role="status" data-testid="edu-otp-sent-status" className="text-sm [overflow-wrap:anywhere]">
+            <span aria-hidden="true">✓ </span>
+            Code sent to <strong>{email}</strong>. It works for 10 minutes.
+          </p>
+
+          {devPreviewCode && (
+            <p className="rounded-[var(--r-sm)] border border-[var(--warn-fg)] bg-[var(--warn-bg)] px-[var(--sp-3)] py-[var(--sp-2)] text-sm text-[var(--warn-fg)]">
+              Local dev code preview: <strong className="font-mono text-body">{devPreviewCode}</strong>
+            </p>
+          )}
+
+          <div>
+            <label htmlFor={codeId} className="block text-sm font-bold">
+              6-digit code
+            </label>
+            <input
+              id={codeId}
               type="text"
+              name="one-time-code"
               inputMode="numeric"
+              autoComplete="one-time-code"
               pattern="[0-9]{6}"
-              maxLength={6}
               required
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-              placeholder="000000"
-              className="w-full rounded-xl border border-[#374151] bg-[#0F1218] px-4 py-3 text-center font-mono text-2xl font-black tracking-[0.4em] text-[#FDBB30] focus:border-[#FDBB30] focus:outline-none"
+              onChange={(e) => setCode(normaliseOtpInput(e.target.value))}
+              onPaste={(e) => {
+                const pasted = normaliseOtpInput(e.clipboardData.getData("text"));
+                if (pasted) {
+                  e.preventDefault();
+                  setCode(pasted);
+                }
+              }}
+              aria-describedby={error ? `${codeHelpId} ${errorId}` : codeHelpId}
+              aria-invalid={error ? true : undefined}
+              data-testid="edu-otp-code-input"
+              className={`${fieldClass} text-center font-mono text-2xl font-bold tracking-[0.3em]`}
             />
+            <p id={codeHelpId} className="mt-[var(--sp-1)] text-sm text-[var(--muted)]">
+              Type or paste the six numbers from the email.
+            </p>
+          </div>
 
-            {error && (
-              <p className="rounded-xl bg-[#B91C1C]/20 px-3 py-2 text-xs font-semibold text-[#FCA5A5]">
-                {error}
-              </p>
-            )}
+          {errorBox}
 
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("email");
-                  setError(null);
-                }}
-                className="rounded-xl border border-[#374151] px-3.5 py-2.5 text-xs font-bold text-[#9CA3AF]"
-              >
-                Back
-              </button>
-              <button
-                type="submit"
-                disabled={loading || code.length !== 6}
-                className="flex-1 rounded-xl bg-[#FDBB30] py-2.5 text-sm font-extrabold text-[#111317] disabled:opacity-50"
-              >
-                {loading ? "Verifying..." : "Verify & Sign In"}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
+          <div className="flex flex-wrap gap-[var(--sp-2)]">
+            <button
+              type="button"
+              onClick={() => {
+                setStep("email");
+                setError(null);
+              }}
+              className="min-h-[var(--target)] rounded-[var(--r-sm)] border border-[var(--line-strong)] px-[var(--sp-4)] text-body font-bold text-[var(--ink)] hover:bg-[var(--surface-2)]"
+            >
+              Use a different email
+            </button>
+            <button
+              type="submit"
+              disabled={loading || code.length !== CODE_LENGTH}
+              data-testid="edu-otp-verify-btn"
+              className={`${primaryButton} flex-1`}
+            >
+              {loading ? "Checking…" : "Verify and sign in"}
+            </button>
+          </div>
+        </form>
+      )}
+    </Dialog>
   );
 }

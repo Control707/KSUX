@@ -5,9 +5,9 @@ export default function StudyPage() {
   return (
     <Suspense
       fallback={
-        <div className="p-4 text-xs font-semibold text-[#5E6675]">
-          Loading KSU Study Rooms...
-        </div>
+        <p role="status" className="p-[var(--sp-4)] text-sm text-[var(--muted)]">
+          Loading Study Rooms…
+        </p>
       }
     >
       <StudyView />

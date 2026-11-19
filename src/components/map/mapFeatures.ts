@@ -21,6 +21,77 @@ export type MapItemKind = "lot" | "route" | "stop" | "bus" | "meetup";
 
 export type BBox = [number, number, number, number];
 
+export type RoutePattern = "solid" | "dashed" | "dotted";
+
+/**
+ * Route identity (SPEC-v2 §4, Transit verdict): the code text comes first,
+ * then the line pattern, then an Okabe–Ito-derived colour with separate light
+ * and dark values. No two routes serving the same Campus share both colour and
+ * pattern. KM keeps KSU gold at 1.35× width. These are map data values (MapLibre
+ * paint needs resolved colours), not UI tokens.
+ */
+export const ROUTE_STYLE: Record<string, { light: string; dark: string; pattern: RoutePattern; width?: number }> = {
+  KM: { light: "#FDBB30", dark: "#FDBB30", pattern: "solid", width: 1.35 },
+  KL: { light: "#0072B2", dark: "#4EA3E0", pattern: "solid" },
+  ML: { light: "#0072B2", dark: "#4EA3E0", pattern: "solid" },
+  BS: { light: "#009E73", dark: "#2FC495", pattern: "solid" },
+  WC: { light: "#B84F00", dark: "#FF7A33", pattern: "solid" },
+  CP: { light: "#CC79A7", dark: "#E39BC4", pattern: "solid" },
+  SS: { light: "#0072B2", dark: "#4EA3E0", pattern: "dashed" },
+  EC: { light: "#E69F00", dark: "#E69F00", pattern: "dashed" },
+  SH: { light: "#B84F00", dark: "#FF7A33", pattern: "dashed" },
+  KS: { light: "#009E73", dark: "#2FC495", pattern: "dotted" },
+  MS: { light: "#CC79A7", dark: "#E39BC4", pattern: "dotted" },
+};
+
+/** Badge text candidates: the light-theme ink and white. */
+export const BADGE_INK = "#1F1A14";
+export const BADGE_WHITE = "#FFFFFF";
+
+export const PATTERN_LABEL: Record<RoutePattern, string> = {
+  solid: "solid line",
+  dashed: "dashed line",
+  dotted: "dotted line",
+};
+
+export function routeStyle(code: string | undefined, dark: boolean, fallback?: string) {
+  const style = code ? ROUTE_STYLE[code] : undefined;
+  return {
+    color: style ? (dark ? style.dark : style.light) : fallback ?? "#5C5245",
+    pattern: style?.pattern ?? ("solid" as RoutePattern),
+    width: style?.width ?? 1,
+  };
+}
+
+function channel(value: number) {
+  const v = value / 255;
+  return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+}
+
+/** WCAG relative luminance of a #RRGGBB or rgb()/rgba() colour. */
+export function relativeLuminance(color: string): number {
+  let rgb: number[];
+  const hex = /^#([0-9a-f]{6})$/i.exec(color.trim());
+  if (hex) {
+    const n = parseInt(hex[1]!, 16);
+    rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  } else {
+    rgb = (color.match(/[\d.]+/g) ?? ["0", "0", "0"]).slice(0, 3).map(Number);
+  }
+  return 0.2126 * channel(rgb[0]!) + 0.7152 * channel(rgb[1]!) + 0.0722 * channel(rgb[2]!);
+}
+
+export function contrastRatio(a: string, b: string): number {
+  const x = relativeLuminance(a);
+  const y = relativeLuminance(b);
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+/** Ink or white, whichever has more contrast on the route colour (≥4.5:1 for every route above). */
+export function badgeTextColor(background: string): string {
+  return contrastRatio(background, BADGE_INK) >= contrastRatio(background, BADGE_WHITE) ? BADGE_INK : BADGE_WHITE;
+}
+
 /** One map feature and its paired list row (same order, same count). */
 export interface MapListItem {
   id: string;
@@ -32,6 +103,10 @@ export interface MapListItem {
   /** Route identity text shown before colour (SPEC-v2 §4). */
   code?: string;
   colorHex?: string;
+  /** Bus heading in degrees; absent when the feed gives none. */
+  heading?: number;
+  /** Bus position is stale (no update for 36 s or the feed is down). */
+  stale?: boolean;
   bbox: BBox;
   center: [number, number];
   geometry: GeoJSON.Geometry;
@@ -103,7 +178,16 @@ export interface BuildMapItemsInput {
   shuttles?: GeoJSON.FeatureCollection | null;
   meetups?: GeoJSON.FeatureCollection | null;
   lotStatuses?: { slug: string; status: FullnessStatus }[];
-  vehicles?: { busId: string; busName: string; latitude: number; longitude: number; loadLabel?: string }[];
+  vehicles?: {
+    busId: string;
+    busName: string;
+    latitude: number;
+    longitude: number;
+    loadLabel?: string;
+    routeCode?: string;
+    heading?: number;
+    stale?: boolean;
+  }[];
   showStops?: boolean;
 }
 
@@ -172,12 +256,18 @@ export function buildMapItems(input: BuildMapItemsInput): MapListItem[] {
 
   for (const v of input.vehicles ?? []) {
     const geometry: GeoJSON.Point = { type: "Point", coordinates: [v.longitude, v.latitude] };
+    const detail = [v.stale ? "Position not updating" : undefined, v.loadLabel ? `Load ${v.loadLabel}` : undefined]
+      .filter(Boolean)
+      .join(" · ");
     items.push({
       id: `bus:${v.busId}`,
       key: v.busId,
       kind: "bus",
-      name: v.busName,
-      detail: v.loadLabel ? `Load ${v.loadLabel}` : undefined,
+      name: v.routeCode ? `${v.routeCode} bus · ${v.busName}` : v.busName,
+      code: v.routeCode,
+      heading: v.stale ? undefined : v.heading,
+      stale: v.stale,
+      detail: detail || undefined,
       bbox: [v.longitude, v.latitude, v.longitude, v.latitude],
       center: [v.longitude, v.latitude],
       geometry,
@@ -204,23 +294,41 @@ export function buildMapItems(input: BuildMapItemsInput): MapListItem[] {
   return items.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
 }
 
-export function itemsToFeatureCollection(items: MapListItem[], selectedId: string | null): GeoJSON.FeatureCollection {
+export function itemsToFeatureCollection(
+  items: MapListItem[],
+  selectedId: string | null,
+  opts: { dark?: boolean; surface?: string; muted?: string } = {},
+): GeoJSON.FeatureCollection {
+  const dark = opts.dark ?? false;
+  const surface = opts.surface ?? BADGE_WHITE;
   return {
     type: "FeatureCollection",
-    features: items.map((item) => ({
-      type: "Feature",
-      id: item.id,
-      geometry: item.geometry,
-      properties: {
-        itemId: item.id,
-        kind: item.kind,
-        name: item.name,
-        code: item.code ?? "",
-        label: item.kind === "lot" && item.code ? item.code : item.code ?? item.name,
-        status: item.status ?? "none",
-        colorHex: item.colorHex ?? "#5C5245",
-        selected: item.id === selectedId,
-      },
-    })),
+    features: items.map((item) => {
+      const style = item.kind === "route" || item.kind === "bus"
+        ? routeStyle(item.code, dark, item.colorHex ?? opts.muted)
+        : { color: item.colorHex ?? opts.muted ?? "#5C5245", pattern: "solid" as RoutePattern, width: 1 };
+      return {
+        type: "Feature",
+        id: item.id,
+        geometry: item.geometry,
+        properties: {
+          itemId: item.id,
+          kind: item.kind,
+          name: item.name,
+          code: item.code ?? "",
+          label: item.kind === "lot" && item.code ? item.code : item.code ?? item.name,
+          status: item.status ?? "none",
+          colorHex: style.color,
+          pattern: style.pattern,
+          widthScale: style.width,
+          // A surface casing, or an ink casing when the line is too close to the surface (gold on white).
+          casingInk: contrastRatio(style.color, surface) < 3,
+          heading: item.heading ?? 0,
+          hasHeading: item.heading !== undefined && !item.stale,
+          stale: Boolean(item.stale),
+          selected: item.id === selectedId,
+        },
+      };
+    }),
   };
 }
