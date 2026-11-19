@@ -77,6 +77,21 @@ describe("Student session route", () => {
     expect(args).toEqual({ sessionToken: "a-test-session" });
   });
 
+  it("signs out when the framework supplies an empty body stream", async () => {
+    mocks.readCookie.mockReturnValue({ value: "a-test-session" });
+    mocks.mutation.mockResolvedValue({ ok: true, pushRemoved: false });
+    const response = await DELETE(new Request("http://localhost/api/auth/session", {
+      method: "DELETE",
+      body: new ReadableStream({ start(controller) { controller.close(); } }),
+      // @ts-expect-error Node's fetch requires duplex for stream bodies.
+      duplex: "half",
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.mutation.mock.calls[0]?.[1]).toEqual({ sessionToken: "a-test-session" });
+    expect(mocks.deleteCookie).toHaveBeenCalledWith("ksux_session");
+  });
+
   it("forwards the current browser's push endpoint with the cookie session", async () => {
     const pushEndpoint = "https://push.example/current-browser";
     mocks.readCookie.mockReturnValue({ value: "a-test-session" });

@@ -110,8 +110,12 @@ export async function DELETE(request: Request) {
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value?.trim();
   if (token) {
     let pushEndpoint: string | undefined;
-    if (request.body) {
-      const body: unknown = await request.json().catch(() => null);
+    // Next.js gives every non-GET/HEAD request a body stream, even when it is empty,
+    // so decide on the actual content rather than on `request.body` being present.
+    const rawBody = await request.text().catch(() => "");
+    if (rawBody.trim()) {
+      let body: unknown = null;
+      try { body = JSON.parse(rawBody); } catch { body = null; }
       if (!body || typeof body !== "object" || !("pushEndpoint" in body) ||
           typeof body.pushEndpoint !== "string" || !body.pushEndpoint.trim() || body.pushEndpoint.length > 4096) {
         return json({ error: "Invalid push subscription endpoint." }, 400);
