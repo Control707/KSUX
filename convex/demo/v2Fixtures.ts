@@ -1,6 +1,7 @@
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { easternDate } from "../lib/easternDate";
+import { DEMO_INCIDENT_PHOTO } from "../lib/incidentPhotos";
 
 const minute = 60_000;
 const hour = 60 * minute;
@@ -18,7 +19,7 @@ export async function seedV2DemoStates(
   const workspaceKey = "demo:" + demoSessionId;
   const photoId = await ctx.db.insert("mediaAssets", {
     workspaceKey, demoSessionId, ownerStudentId: jordanId,
-    fileKey: "local-inline:demo-incident-" + demoSessionId, url: "/icons/icon-192.svg",
+    fileKey: "local-inline:demo-incident-" + demoSessionId, url: DEMO_INCIDENT_PHOTO,
     purpose: "incident", byteSize: 0, width: 192, height: 192, status: "attached",
     reviewStatus: "held", holdExpiresAt: now + 2 * day, createdAt: now,
   });

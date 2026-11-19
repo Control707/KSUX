@@ -1,5 +1,5 @@
 "use client";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
@@ -10,10 +10,13 @@ import { Dialog } from "@/components/a11y/Dialog";
 import { useAnnouncer } from "@/components/a11y/Announcer";
 import { useIncidentMutation, incidentError } from "@/components/safety/incidentClient";
 import { modButton, modCard, modField, modDate, modAge, actionLabels, type ModerationAction as Action } from "./consoleUi";
+import { IncidentPhoto } from "@/components/safety/IncidentPhoto";
 
 type Item = FunctionReturnType<typeof api.moderatorConsole.queue>["items"][number];
 export function ModerationReview({ item, maintainer, onDone }: { item: Item; maintainer: boolean; onDone: (action: Action) => void }) {
   const [showPhoto, setShowPhoto] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(timer); }, []);
   const detail = useViewerQuery(api.moderatorConsole.review, { targetType: item.targetType, targetId: item.targetId, showPhoto });
   const links = useViewerQuery(api.moderatorConsole.noteLinks, item.targetType === "incident" ? {} : "skip");
   const act = useIncidentMutation(api.moderatorConsole.act);
@@ -37,7 +40,10 @@ export function ModerationReview({ item, maintainer, onDone }: { item: Item; mai
       setAction(null); onDone(action);
     } catch (e) { setError(incidentError(e)); } finally { setBusy(false); }
   }
-  const actions: Action[] = [item.status === "under_review" ? "restore" : "dismiss", ...(item.targetType === "incident" ? ["redact", "note"] as Action[] : []), "remove", "suspend"];
+  const actions: Action[] = [...(detail?.photo && detail.photo.expiresAt > now ? ["photo_approve", "photo_approve_blur", "photo_reject"] as Action[] : []), ...(item.reasons.length ? [item.status === "under_review" ? "restore" : "dismiss"] as Action[] : []), ...(item.targetType === "incident" ? ["redact", "note"] as Action[] : []), "remove", "suspend"];
+  const photoEffect = action === "photo_reject" ? "The photo is deleted. A dated Photo not approved note is added. Incident text and separate reports stay unchanged."
+    : action === "photo_approve_blur" ? "Only whole-photo-blurred pixels can be shown with a visible Incident. Incident text and separate reports stay unchanged."
+      : action === "photo_approve" ? "The photo can be shown with a visible Incident. Any author-requested blur stays applied. Incident text and separate reports stay unchanged." : null;
   return <div className="space-y-3">
     {detail === undefined ? <p role="status">Loading original…</p> : detail === null ? <p role="status">This item is no longer available to you. Return to the queue.</p> : <div className={modCard}>
       {detail.category && <p className="font-bold">{INCIDENT_CATEGORIES[detail.category].shape} {INCIDENT_CATEGORIES[detail.category].label} · {detail.campus}</p>}
@@ -47,8 +53,8 @@ export function ModerationReview({ item, maintainer, onDone }: { item: Item; mai
         <dt className="font-bold">Reports</dt><dd>{item.reporterCount} verified reporters. {item.reasons.map(([r, n]) => `${INCIDENT_REASONS[r as keyof typeof INCIDENT_REASONS] ?? r}: ${n}`).join(" · ")}</dd></dl>
       <h3 className="text-lg font-bold">Original</h3><blockquote className="whitespace-pre-wrap border-l-4 border-[var(--line)] pl-3">{detail.text}</blockquote>
       {!!detail.updates.length && <><h3 className="text-lg font-bold">Incident Updates</h3><ol className="space-y-2">{detail.updates.map((u) => <li key={u.id}><p>{u.kind === "author_update" ? "Author Update" : "Moderator note"} · {modDate(u.createdAt)}</p><p>{u.text} {u.href && <Link href={u.href}>View linked source</Link>}</p></li>)}</ol></>}
-      {detail.photo && <div><p>Held photo · Students can’t see it. Discarded in {modAge(Date.now(), detail.photo.expiresAt)} if nobody reviews it. Photo decisions are part of the photo-review rollout.</p><button className={modButton} aria-pressed={showPhoto} onClick={() => setShowPhoto(!showPhoto)}>{showPhoto ? "Hide photo" : "Show photo"}</button>
-        {showPhoto && detail.photo.url && <img src={detail.photo.url} alt="Held Incident photo for Moderator review" className="mt-2 max-h-80 max-w-full" />}</div>}
+      {detail.photo && <div><p>Held photo · Students can’t see it. {detail.photo.expiresAt > now ? `Discarded in ${modAge(now, detail.photo.expiresAt)} if nobody reviews it.` : "The 48-hour hold has expired. Awaiting automatic discard."}</p><button className={modButton} aria-pressed={showPhoto} onClick={() => setShowPhoto(!showPhoto)}>{showPhoto ? "Hide photo" : "Show photo"}</button>
+        {showPhoto && detail.photo.expiresAt > now && <IncidentPhoto incidentId={item.targetId} review blurred={detail.photo.blurred} />}</div>}
     </div>}
     <div aria-label="Review actions" className="sticky bottom-0 z-10 flex flex-wrap gap-2 border-t border-[var(--line-strong)] bg-[var(--surface)] p-3 pb-[max(.75rem,env(safe-area-inset-bottom))]">
       {actions.map((a) => <button type="button" key={a} className={modButton} data-testid={a === "restore" ? "moderation-restore-btn" : undefined} aria-disabled={!detail || a === "suspend" && !maintainer}
@@ -59,7 +65,7 @@ export function ModerationReview({ item, maintainer, onDone }: { item: Item; mai
       <div className="space-y-3">
         <p className="font-bold">{item.kind} · {item.title}</p>
         <ul className="list-disc space-y-1 pl-5">
-          <li>{action === "remove" ? "Hidden immediately. Purged 30 days after removal." : action === "redact" ? "Every occurrence of the exact words becomes [removed by moderators]. An identifying-details note is added; the Incident becomes visible." : action === "note" ? "A dated fixed-template note is added. The item stays in the queue." : action === "suspend" ? "The author loses access to KSUX except moderation notices and Appeals. Their Incidents become Removed and their Clout is reversed." : action === "restore" ? "The item becomes visible again and its reports are closed. Identifies-me claimants are told." : "Reports are closed. Content stays unchanged. Reporters are not told the outcome."}</li>
+          <li>{photoEffect ?? (action === "remove" ? "Hidden immediately. Purged 30 days after removal." : action === "redact" ? "Every occurrence of the exact words becomes [removed by moderators]. An identifying-details note is added; the Incident becomes visible." : action === "note" ? "A dated fixed-template note is added. The item stays in the queue." : action === "suspend" ? "The author loses access to KSUX except moderation notices and Appeals. Their Incidents become Removed and their Clout is reversed." : action === "restore" ? "The item becomes visible again and its reports are closed. Identifies-me claimants are told." : "Reports are closed. Content stays unchanged. Reporters are not told the outcome.")}</li>
           <li>{action === "dismiss" ? "No author notice." : "The author receives an in-app notice only. No push is sent."}</li>
           <li>{["remove", "redact", "suspend"].includes(action ?? "") ? "The author may submit one Appeal until the 30-day snapshot purge." : "No new Appeal opens."}</li>
         </ul>

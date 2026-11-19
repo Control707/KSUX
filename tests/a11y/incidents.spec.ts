@@ -5,7 +5,7 @@ import { enterDemo, expectMinTextSize, expectNoSeriousAxe, expectTargetSizes, TH
 test.use({ actionTimeout: 15_000 });
 
 for (const theme of THEMES) for (const [size, viewport] of Object.entries(VIEWPORTS)) {
-  test(`Incident list, detail and text-only steps · ${theme} · ${size}`, async ({ page }) => {
+  test(`Incident list, detail and seven steps · ${theme} · ${size}`, async ({ page }) => {
     test.setTimeout(180_000);
     await page.setViewportSize(viewport);
     await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
@@ -34,8 +34,8 @@ for (const theme of THEMES) for (const [size, viewport] of Object.entries(VIEWPO
     await page.getByTestId("report-incident-btn").focus(); await page.keyboard.press("Enter");
     await page.getByTestId("report-emergency-panel").getByTestId("emergency-continue").click();
     const form = page.getByTestId("incident-form");
-    for (let step = 0; step < 6; step++) {
-      await expect(form).toContainText(`Step ${step + 1} of 6`);
+    for (let step = 0; step < 7; step++) {
+      await expect(form).toContainText(`Step ${step + 1} of 7`);
       await expect(form.locator("h1")).toBeFocused();
       await page.getByTestId("report-incident-dialog").evaluate(async (el) => { await Promise.all(el.getAnimations({ subtree: true }).map((animation) => animation.finished)); });
       await expectNoSeriousAxe(page, { label: `Incident step ${step + 1} ${theme} ${size}` });
@@ -49,8 +49,14 @@ for (const theme of THEMES) for (const [size, viewport] of Object.entries(VIEWPO
       }
       if (step === 2) await form.getByLabel("Claimed observed time").selectOption("0");
       if (step === 3) await form.getByLabel("Description").fill("temporary entrance obstruction");
-      if (step === 4) await form.getByRole("button", { name: "Student · name hidden", exact: true }).click();
-      if (step < 5) await form.getByRole("button", { name: "Next", exact: true }).click();
+      if (step === 4) {
+        await form.getByRole("button", { name: "Use Demo fixture photo", exact: true }).click();
+        await form.getByLabel("Blur the whole photo", { exact: true }).check();
+        await expectNoSeriousAxe(page, { label: "Photo selected with whole-photo blur" });
+        await expectTargetSizes(page, '[data-testid="report-incident-dialog"]', "Photo options");
+      }
+      if (step === 5) await form.getByRole("button", { name: "Student · name hidden", exact: true }).click();
+      if (step < 6) await form.getByRole("button", { name: "Next", exact: true }).click();
     }
     await page.setViewportSize({ width: 320, height: 844 });
     await page.addStyleTag({ content: "html { font-size: 200% !important; } * { letter-spacing: .12em !important; word-spacing: .16em !important; }" });

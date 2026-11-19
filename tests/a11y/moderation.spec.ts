@@ -4,6 +4,35 @@ import { screenMatrix } from "./screens";
 
 screenMatrix("moderation sections", ["/moderation", "/moderation?section=appeals", "/moderation?section=log", "/profile/moderation"]);
 
+for (const theme of THEMES) for (const [size, viewport] of Object.entries(VIEWPORTS)) test(`Held photo review and confirms · ${theme} · ${size}`, async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize(viewport); await page.emulateMedia({ colorScheme: theme });
+  await enterDemo(page, "/moderation");
+  await page.getByTestId("judge-demo-pill").click(); await page.getByTestId("persona-switch-alex_owl").click();
+  await page.getByTestId("moderation-row").filter({ hasText: "▧ Held photo" }).click();
+  const show = page.getByRole("button", { name: "Show photo", exact: true });
+  await expect(show).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("img", { name: "Held Incident photo for Moderator review" })).toHaveCount(0);
+  await show.click(); await expect(page.getByRole("button", { name: "Hide photo", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("img", { name: "Held Incident photo for Moderator review" })).toBeVisible();
+  await expectNoSeriousAxe(page, { label: `Held photo ${theme} ${size}` });
+  await expectTargetSizes(page, "body", "Held photo review"); await expectMinTextSize(page, "body", "Held photo review");
+  for (const action of ["Approve", "Approve with blur", "Reject"]) {
+    const trigger = page.getByRole("button", { name: action, exact: true }); await trigger.click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+    await dialog.evaluate(async (el) => { await Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)); });
+    await expectNoSeriousAxe(page, { label: `Photo ${action} confirm` });
+    await expectTargetSizes(page, '[role="alertdialog"]', "Photo confirm");
+    await page.keyboard.press("Escape"); await expect(trigger).toBeFocused();
+  }
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.addStyleTag({ content: "html{font-size:200% !important} *{font-family:Verdana,'DejaVu Sans',sans-serif !important;letter-spacing:.02em}" });
+  await expectNoHorizontalOverflow(page, "Held photo 320px / 200%");
+  await page.getByRole("button", { name: "Approve with blur", exact: true }).click();
+  await expectNoHorizontalOverflow(page, "Photo blur confirm 320px / 200%");
+});
+
 for (const theme of THEMES) for (const [size, viewport] of Object.entries(VIEWPORTS)) test(`Moderator review and confirms · ${theme} · ${size}`, async ({ page }) => {
   test.setTimeout(180_000);
   await page.setViewportSize(viewport); await page.emulateMedia({ colorScheme: theme });

@@ -10,6 +10,8 @@ import { presentSource } from "./officialAlerts";
 import { sourceInfo } from "./lib/officialAlerts";
 import type { ReviewCtx } from "./lib/moderationPolicy";
 import { sha256Hex } from "./lib/crypto";
+import { heldPhoto } from "./lib/incidentPhotos";
+import { queueMediaDeletion } from "./lib/mediaCleanup";
 
 const targetType = v.union(v.literal("incident"), v.literal("post"), v.literal("listing"), v.literal("study_session"), v.literal("student"), v.literal("chat_message"));
 type Ctx = MutationCtx & { viewer: ViewerContext };
@@ -24,7 +26,7 @@ export const queue = viewerQuery({
     const reports = (await Promise.all((["open", "quarantined"] as const).map((status) => ctx.db.query("moderationReports")
       .withIndex("by_queue_priority", (q) => q.eq("workspaceKey", ctx.viewer.workspaceKey).eq("queueStatus", status)).take(200)))).flat();
     const keys = new Map(reports.map((r) => [r.targetKey, { type: r.targetType, id: r.targetKey.slice(r.targetType.length + 1) }]));
-    // Photos may be held without a Moderation Report. P1's review actions are deliberately separate.
+    // Photos may be held without a Moderation Report. Their decisions preserve independent reports.
     const held = ctx.viewer.isCsa ? [] : await ctx.db.query("mediaAssets").withIndex("by_review_hold", (q) =>
       q.eq("workspaceKey", ctx.viewer.workspaceKey).eq("reviewStatus", "held").gt("holdExpiresAt", Date.now())).take(100);
     for (const asset of held) {
@@ -42,16 +44,16 @@ export const queue = viewerQuery({
       const rows = (await targetReports(ctx, type, id)).filter(pending);
       const incident = type === "incident" ? target.row as Doc<"incidents"> : null;
       const asset = incident?.photoAssetId ? await ctx.db.get(incident.photoAssetId) : null;
-      const heldPhoto = asset?.workspaceKey === ctx.viewer.workspaceKey && asset.reviewStatus === "held" && (asset.holdExpiresAt ?? 0) > Date.now();
-      const priority = rows.some((r) => r.reason === "identifies_me") ? 0 : heldPhoto ? 1 : type === "incident" ? 2 : 3;
-      if (!rows.length && !heldPhoto) continue;
+      const hasHeldPhoto = heldPhoto(asset, ctx.viewer.workspaceKey);
+      const priority = rows.some((r) => r.reason === "identifies_me") ? 0 : hasHeldPhoto ? 1 : type === "incident" ? 2 : 3;
+      if (!rows.length && !hasHeldPhoto) continue;
       const kind = priority === 0 ? "identifies_me" : priority === 1 ? "photo" : type;
       items.push({ key, targetType: type, targetId: id, kind: labels[kind] ?? type.replaceAll("_", " "), priority,
         title: incident ? INCIDENT_PLACES.find((p) => p.id === incident.buildingId)?.name ?? "Incident" : target.text.slice(0, 80),
         campus: incident?.campus, category: incident?.category, status: target.status,
         reasons: Object.entries(rows.reduce<Record<string, number>>((counts, r) => { counts[r.reason] = (counts[r.reason] ?? 0) + 1; return counts; }, {})),
         reporterCount: new Set(rows.map((r) => r.reporterId)).size,
-        waitingSince: Math.min(...rows.map((r) => r.createdAt), ...(heldPhoto ? [asset!.createdAt] : [])),
+        waitingSince: Math.min(...rows.map((r) => r.createdAt), ...(hasHeldPhoto ? [asset!.createdAt] : [])),
       });
     }
     return { items: items.sort((a, b) => a.priority - b.priority || a.waitingSince - b.waitingSince || a.key.localeCompare(b.key)), conflicts, isCsa: ctx.viewer.isCsa, now: Date.now() };
@@ -68,7 +70,7 @@ export const review = viewerQuery({
     const incident = args.targetType === "incident" ? target.row as Doc<"incidents"> : null;
     const updates = incident ? await ctx.db.query("incidentUpdates").withIndex("by_incident", (q) => q.eq("workspaceKey", ctx.viewer.workspaceKey).eq("incidentId", incident._id)).take(100) : [];
     const photo = incident?.photoAssetId ? await ctx.db.get(incident.photoAssetId) : null;
-    const photoValid = photo?.workspaceKey === ctx.viewer.workspaceKey && photo.reviewStatus === "held" && (photo.holdExpiresAt ?? 0) > Date.now();
+    const photoValid = !["removed", "deleted"].includes(target.status) && heldPhoto(photo, ctx.viewer.workspaceKey);
     return { text: target.text, status: target.status, authorHandle: author?.handle ?? "removed", authorId: target.authorId,
       campus: incident?.campus, category: incident?.category,
       building: incident ? INCIDENT_PLACES.find((p) => p.id === incident.buildingId)?.name ?? "Building unavailable" : undefined,
@@ -76,7 +78,7 @@ export const review = viewerQuery({
       authorLabel: incident?.nameLevel === "hidden" ? "Student · name hidden" : `@${author?.handle ?? "removed"}`,
       updates: updates.filter((u) => u.purgeAt > Date.now()).map((u) => ({ id: u._id, kind: u.kind, text: u.kind === "author_update" ? u.text : INCIDENT_NOTES[u.templateId ?? ""], createdAt: u.createdAt,
         href: u.alertId ? `/safety/alerts/${u.alertId}` : u.duplicateIncidentId ? `/safety/${u.duplicateIncidentId}` : undefined })),
-      photo: photoValid ? { expiresAt: photo!.holdExpiresAt!, url: args.showPhoto ? photo!.url : undefined } : null,
+      photo: photoValid ? { expiresAt: photo!.holdExpiresAt!, blurred: !!photo!.blurred, url: args.showPhoto && ctx.viewer.mode === "demo" ? photo!.url : undefined } : null,
     };
   },
 });
@@ -110,7 +112,7 @@ async function addNote(ctx: Ctx, incident: Doc<"incidents">, templateId: string,
 }
 
 export const act = moderatorMutation({
-  args: { targetType, targetId: v.string(), requestId: v.string(), action: v.union(v.literal("restore"), v.literal("dismiss"), v.literal("remove"), v.literal("redact"), v.literal("note"), v.literal("suspend")),
+  args: { targetType, targetId: v.string(), requestId: v.string(), action: v.union(v.literal("restore"), v.literal("dismiss"), v.literal("remove"), v.literal("redact"), v.literal("note"), v.literal("suspend"), v.literal("photo_approve"), v.literal("photo_approve_blur"), v.literal("photo_reject")),
     reasonId: v.optional(v.string()), words: v.optional(v.string()), templateId: v.optional(v.string()), addInaccurateNote: v.optional(v.boolean()),
     alertId: v.optional(v.id("alertItems")), duplicateIncidentId: v.optional(v.id("incidents")) },
   handler: async (ctx, args) => {
@@ -123,8 +125,26 @@ export const act = moderatorMutation({
     const reports = (await targetReports(ctx, args.targetType, args.targetId)).filter(pending);
     const incident = args.targetType === "incident" ? target.row as Doc<"incidents"> : null;
     const photo = incident?.photoAssetId ? await ctx.db.get(incident.photoAssetId) : null;
+    if (args.action.startsWith("photo_")) {
+      if (!incident || !heldPhoto(photo, ctx.viewer.workspaceKey)) moderationError("This held photo has expired or already been reviewed.");
+      if (args.action === "photo_reject") {
+        await queueMediaDeletion(ctx, photo!);
+        await ctx.db.patch(photo!._id, { reviewStatus: "rejected", url: "" });
+        await ctx.db.patch(incident._id, { photoAssetId: undefined, lastActivityAt: Date.now() });
+        await addNote(ctx, incident, "photo_rejected");
+      } else {
+        await ctx.db.patch(photo!._id, { reviewStatus: "approved", holdExpiresAt: undefined, blurred: !!photo!.blurred || args.action === "photo_approve_blur" });
+        await ctx.db.patch(incident._id, { lastActivityAt: Date.now() });
+      }
+      const actionId = await writeAction(ctx, { action: args.action, targetType: "incident", targetKey: args.targetId,
+        subjectId: target.authorId, requestId, templateId: args.action === "photo_reject" ? "photo_rejected" : undefined });
+      await notice(ctx, target.authorId, actionId, args.action === "photo_reject" ? "Photo not approved" :
+        photo!.blurred || args.action === "photo_approve_blur" ? "Your Incident photo was approved with whole-photo blur." : "Your Incident photo was approved.");
+      // Photo review never disposes of independent reports or restores quarantined text.
+      return { actionId };
+    }
     let redactionNoteId: Id<"incidentUpdates"> | undefined;
-    if (!reports.length && !(photo?.reviewStatus === "held" && (photo.holdExpiresAt ?? 0) > Date.now())) moderationError("This item has already left the queue.");
+    if (!reports.length && !heldPhoto(photo, ctx.viewer.workspaceKey)) moderationError("This item has already left the queue.");
     if (args.action === "remove" && !Object.hasOwn(INCIDENT_REMOVE_REASONS, args.reasonId ?? "")) moderationError("Choose a removal reason the author will see.");
     if (["redact", "note"].includes(args.action) && !incident) moderationError("Only Incidents support Redaction and template notes.");
     if (args.action === "restore" && target.status !== "under_review") moderationError("Only an Under-review item can be restored.");
@@ -188,7 +208,7 @@ export const actionLog = viewerQuery({ args: {}, handler: async (ctx) => {
     if (row.purgeAt <= Date.now() || ctx.viewer.isCsa && row.targetType === "incident") continue;
     // The log contains metadata only. Content snapshots are disclosed solely in a guarded Appeal.
     items.push({ id: row._id, action: row.action, targetType: row.targetType, targetKey: row.targetKey, createdAt: row.createdAt,
-      moderator: (await ctx.db.get(row.actorId))?.handle ?? "removed", reason: INCIDENT_REMOVE_REASONS[row.reasonId ?? ""] ?? INCIDENT_NOTES[row.templateId ?? ""],
+      moderator: row.actorId ? (await ctx.db.get(row.actorId))?.handle ?? "removed" : "Automatic discard", reason: INCIDENT_REMOVE_REASONS[row.reasonId ?? ""] ?? INCIDENT_NOTES[row.templateId ?? ""],
       snapshotUntil: row.contentSnapshot && (row.snapshotPurgeAt ?? 0) > Date.now() ? row.snapshotPurgeAt : undefined });
   }
   return items;
@@ -232,7 +252,7 @@ export const appeals = viewerQuery({ args: {}, handler: async (ctx) => {
     if (involved) { conflicts++; continue; }
     items.push({ id: row._id, status: row.status, createdAt: row.createdAt, text: row.text, decisionId: decision._id,
       action: decision.action, targetType: decision.targetType, targetKey: decision.targetKey, reason: INCIDENT_REMOVE_REASONS[decision.reasonId ?? ""],
-      moderator: (await ctx.db.get(decision.actorId))?.handle ?? "removed", decidedAt: decision.createdAt, maintainerOnly: decision.action === "suspend" });
+      moderator: decision.actorId ? (await ctx.db.get(decision.actorId))?.handle ?? "removed" : "Automatic discard", decidedAt: decision.createdAt, maintainerOnly: decision.action === "suspend" });
   }
   return { items, csaExcluded, conflicts };
 } });
@@ -270,7 +290,9 @@ export const decideAppeal = moderatorMutation({ args: { appealId: v.id("appeals"
   const target = await loadTarget(ctx, decision.targetType, decision.targetKey);
   if (args.reverse) {
     if (!target || target.status === "deleted" || target.purgeAt !== undefined && target.purgeAt <= Date.now()) moderationError("The original item is no longer available.");
-    const later = await ctx.db.query("moderatorActions").withIndex("by_target", (q) => q.eq("workspaceKey", ctx.viewer.workspaceKey).eq("targetType", decision.targetType).eq("targetKey", decision.targetKey)).order("desc").first();
+    // Photo-only decisions cannot supersede a text/visibility decision or block its Appeal.
+    const later = await ctx.db.query("moderatorActions").withIndex("by_target", (q) => q.eq("workspaceKey", ctx.viewer.workspaceKey).eq("targetType", decision.targetType).eq("targetKey", decision.targetKey))
+      .filter((q) => q.and(...["photo_approve", "photo_approve_blur", "photo_reject", "photo_discard"].map((action) => q.neq(q.field("action"), action)))).order("desc").first();
     if (later?._id !== decision._id) moderationError("A newer decision exists. A maintainer must review the current item.");
     if (decision.action === "suspend") await ctx.db.patch(appeal.appellantId, { accountStatus: "active" });
     else if (decision.targetType === "incident") {

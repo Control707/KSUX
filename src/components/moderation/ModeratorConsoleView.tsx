@@ -53,11 +53,12 @@ function Console() {
   });
   function done(action: ModerationAction) {
     const next = queue?.items.find((i) => i.key !== selectedKey);
-    if (action !== "note") {
+    const stays = action === "note" || action.startsWith("photo_") && (selected?.reasons.length ?? 0) > 0;
+    if (!stays) {
       navigate("queue", window.matchMedia("(min-width: 1024px)").matches ? next?.key : undefined, true);
       setTimeout(() => rowRefs.current.get(next?.key ?? "")?.focus(), 200);
     }
-    toast({ message: `${actionLabels[action]} complete. Logged. ${action === "note" ? "Item stays in the queue." : next ? `Next: ${next.kind}, ${next.title}.` : "No more items in your queue."}` });
+    toast({ message: `${actionLabels[action]} complete. Logged. ${stays ? "Item stays in the queue." : next ? `Next: ${next.kind}, ${next.title}.` : "No more items in your queue."}` });
   }
   if (!summary) return <div className="p-4"><h1 className="text-2xl font-bold">Moderator console</h1><p role="status">Checking Moderator access…</p></div>;
   if (!isModerator) return <div className="p-4"><h1 className="text-2xl font-bold">Moderator access required</h1><p>Appointed Student Moderators and maintainers can open this console. Try it in Judge Demo Mode.</p><Link href="/profile/moderation" className={modButton}>Your moderation notices and Appeals</Link></div>;

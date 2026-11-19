@@ -42,13 +42,13 @@ async function readMultipart(request: Request) {
   }
 }
 
-async function decodeWebP(file: File) {
+async function decodeWebP(file: File, blur = false) {
   const input = Buffer.from(await file.arrayBuffer());
   const decoder = sharp(input, { limitInputPixels: MAX_DIMENSION ** 2, failOn: "warning" });
   const { format, width, height, pages } = await decoder.metadata();
   if (format !== "webp" || !width || !height || width > MAX_DIMENSION || height > MAX_DIMENSION ||
       (pages ?? 1) !== 1) return null;
-  const sanitized = await decoder.webp({ quality: 82 }).toBuffer();
+  const sanitized = await (blur ? decoder.blur(24) : decoder).webp({ quality: 82 }).toBuffer();
   return { sanitized, width, height };
 }
 
@@ -68,13 +68,18 @@ export async function POST(request: Request) {
   const file = parsed.form.get("file");
   const purpose = parsed.form.get("purpose") ?? "post";
   if (!(file instanceof File) || file.type !== "image/webp" ||
-      (purpose !== "avatar" && purpose !== "post" && purpose !== "listing" && purpose !== "chat")) {
+      (purpose !== "avatar" && purpose !== "post" && purpose !== "listing" && purpose !== "chat" && purpose !== "incident")) {
     return NextResponse.json({ error: "A still WebP file and valid upload purpose are required." }, { status: 400 });
   }
   if (file.size <= 0 || file.size > MAX_WEBP_BYTES) {
     return NextResponse.json({ error: "Image exceeds the 1 MB limit." }, { status: 413 });
   }
-  const image = await decodeWebP(file).catch(() => null);
+  // Incident media must never fall back to an inline/public asset, including Demo.
+  if (purpose === "incident" && (authEnvelope.demoShortCode || !uploadToken)) {
+    return NextResponse.json({ error: "Incident uploads require private storage. Demo uses static fixture photos." }, { status: 403 });
+  }
+  const blurred = purpose === "incident" && parsed.form.get("blur") === "true";
+  const image = await decodeWebP(file, blurred).catch(() => null);
   if (!image) return NextResponse.json({ error: "Invalid WebP image or dimensions above 1440px." }, { status: 400 });
   if (image.sanitized.length > MAX_WEBP_BYTES) {
     return NextResponse.json({ error: "Encoded image exceeds the 1 MB limit." }, { status: 413 });
@@ -87,12 +92,13 @@ export async function POST(request: Request) {
   let fileKey: string | undefined;
   try {
     reservationId = await client.mutation(api.uploads.reserveUpload, {
-      ...authEnvelope, purpose, byteSize, width, height, serverSecret,
+      ...authEnvelope, purpose, byteSize, width, height, serverSecret, blurred: purpose === "incident" ? blurred : undefined,
     });
     let url: string;
     if (uploadToken) {
       const storage = new UTApi({ token: uploadToken });
-      const uploaded = await storage.uploadFiles(new File([new Uint8Array(sanitized)], "campus-image.webp", { type: "image/webp" }));
+      const uploaded = await storage.uploadFiles(new File([new Uint8Array(sanitized)], "campus-image.webp", { type: "image/webp" }),
+        purpose === "incident" ? { acl: "private" } : undefined);
       if (!uploaded.data) throw new Error("Image storage rejected the file.");
       fileKey = uploaded.data.key;
       url = uploaded.data.ufsUrl || uploaded.data.url;
@@ -101,8 +107,9 @@ export async function POST(request: Request) {
       url = `data:image/webp;base64,${sanitized.toString("base64")}`;
     }
     const mediaAssetId = await client.mutation(api.uploads.registerMediaAsset, {
-      ...authEnvelope, reservationId, fileKey, url, serverSecret,
+      ...authEnvelope, reservationId, fileKey, url: purpose === "incident" ? "" : url, serverSecret,
     });
+    if (purpose === "incident") return NextResponse.json({ mediaAssetId }, { headers: { "Cache-Control": "no-store" } });
     return NextResponse.json({ mediaAssetId, fileKey, url, width, height, byteSize });
   } catch (error) {
     if (reservationId) {

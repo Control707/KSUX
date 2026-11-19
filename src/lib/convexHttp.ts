@@ -3,10 +3,10 @@ import { cookies } from "next/headers";
 
 export const SESSION_COOKIE_NAME = "ksux_session";
 
-export function createServerConvexClient(): ConvexHttpClient {
+export function createServerConvexClient(options?: { fetch?: typeof fetch }): ConvexHttpClient {
   const url =
     process.env.NEXT_PUBLIC_CONVEX_URL || "http://127.0.0.1:3210";
-  return new ConvexHttpClient(url);
+  return new ConvexHttpClient(url, options);
 }
 
 export async function extractForwardedAuthEnvelope(request: Request): Promise<{

@@ -1,18 +1,24 @@
 import { ConvexError, v } from "convex/values";
 import { publicAuthMutation, viewerMutation } from "./lib/viewer";
 import { requireServerSecret } from "./lib/sessionCredential";
+import { getIncidentLaunchGate } from "./lib/v2Launch";
+import { PHOTO_HOLD_MS } from "./lib/incidentPhotos";
 
 const MAX_UPLOAD_BYTES = 1_048_576;
 const MAX_DIMENSION_PX = 1440;
 const MAX_DEMO_UPLOADS = 20;
 const RESERVATION_TTL_MS = 15 * 60_000;
-const purpose = v.union(v.literal("avatar"), v.literal("post"), v.literal("listing"), v.literal("chat"));
-const metadata = { purpose, byteSize: v.number(), width: v.number(), height: v.number() };
+const purpose = v.union(v.literal("avatar"), v.literal("post"), v.literal("listing"), v.literal("chat"), v.literal("incident"));
+const metadata = { purpose, byteSize: v.number(), width: v.number(), height: v.number(), blurred: v.optional(v.boolean()) };
 
 export const reserveUpload = viewerMutation({
   args: { ...metadata, serverSecret: v.string() },
   handler: async (ctx, args) => {
     await requireServerSecret(args.serverSecret);
+    if (args.purpose === "incident" && (ctx.viewer.mode === "demo" || process.env.KSUX_V2_INCIDENT_PHOTOS !== "true" ||
+      !(await getIncidentLaunchGate(ctx.db, ctx.viewer.mode)).postingEnabled)) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Incident photo uploads are unavailable. Demo uses static fixture photos." });
+    }
     if (!Number.isSafeInteger(args.byteSize) || args.byteSize <= 0 || args.byteSize > MAX_UPLOAD_BYTES) {
       throw new ConvexError({ code: "PAYLOAD_TOO_LARGE", message: "Images must be WebP files under 1 MB." });
     }
@@ -39,6 +45,7 @@ export const reserveUpload = viewerMutation({
     return ctx.db.insert("uploadReservations", {
       workspaceKey, demoSessionId, ownerStudentId: actorStudent._id,
       purpose: args.purpose, byteSize: args.byteSize, width: args.width, height: args.height,
+      blurred: args.purpose === "incident" ? args.blurred : undefined,
       expiresAt: now + RESERVATION_TTL_MS,
     });
   },
@@ -77,6 +84,9 @@ export const registerMediaAsset = viewerMutation({
       fileKey: args.fileKey, url: args.url, purpose: lease.purpose,
       byteSize: lease.byteSize, width: lease.width, height: lease.height,
       status: "pending", createdAt: now,
+      blurred: lease.blurred,
+      reviewStatus: lease.purpose === "incident" ? "held" : undefined,
+      holdExpiresAt: lease.purpose === "incident" ? now + PHOTO_HOLD_MS : undefined,
     });
     if (demoSessionId) {
       const demo = await ctx.db.get(demoSessionId);
