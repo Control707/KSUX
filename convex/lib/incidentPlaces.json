@@ -1,0 +1,843 @@
+[
+  {
+    "id": "bldg-osm-1041593165",
+    "name": "Academic Learning Center",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.58302649999999,
+    "latitude": 34.039546
+  },
+  {
+    "id": "bldg-osm-246710792",
+    "name": "Austin Residence Complex",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "housing",
+    "longitude": -84.584055,
+    "latitude": 34.0328455
+  },
+  {
+    "id": "bldg-osm-246710685",
+    "name": "Austin Residence Complex Town Hall",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "services",
+    "longitude": -84.584463,
+    "latitude": 34.0329085
+  },
+  {
+    "id": "bldg-osm-246651455",
+    "name": "Auxiliary Services & Programs",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "services",
+    "longitude": -84.58682350000001,
+    "latitude": 34.036967000000004
+  },
+  {
+    "id": "bldg-osm-749660542",
+    "name": "Bagwell Education Building",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.58088749999999,
+    "latitude": 34.039283
+  },
+  {
+    "id": "bldg-osm-246651458",
+    "name": "Bailey Athletic Complex",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "athletics",
+    "longitude": -84.5819845,
+    "latitude": 34.034415499999994
+  },
+  {
+    "id": "bldg-osm-749660292",
+    "name": "Bailey Performance Center",
+    "campus": "Kennesaw",
+    "aliases": [
+      "Bailey"
+    ],
+    "category": "academic",
+    "longitude": -84.583765,
+    "latitude": 34.0408725
+  },
+  {
+    "id": "bldg-osm-246651461",
+    "name": "Burruss Building",
+    "campus": "Kennesaw",
+    "aliases": [
+      "Burruss"
+    ],
+    "category": "academic",
+    "longitude": -84.581817,
+    "latitude": 34.0393815
+  },
+  {
+    "id": "bldg-osm-246651462",
+    "name": "Campus Services",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "services",
+    "longitude": -84.58498700000001,
+    "latitude": 34.031799500000005
+  },
+  {
+    "id": "bldg-osm-246651460",
+    "name": "Carmichael Student Center",
+    "campus": "Kennesaw",
+    "aliases": [
+      "Carmichael",
+      "Student Center"
+    ],
+    "category": "academic",
+    "longitude": -84.58309299999999,
+    "latitude": 34.038489999999996
+  },
+  {
+    "id": "bldg-osm-246651531",
+    "name": "Catholic Center at KSU",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "services",
+    "longitude": -84.5870075,
+    "latitude": 34.036319500000005
+  },
+  {
+    "id": "bldg-osm-246651463",
+    "name": "Center for Excellence in Teaching & Learning (CETL)",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "services",
+    "longitude": -84.5856015,
+    "latitude": 34.032592
+  },
+  {
+    "id": "bldg-osm-246651467",
+    "name": "Central Parking Deck",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "parking",
+    "longitude": -84.5815305,
+    "latitude": 34.041666
+  },
+  {
+    "id": "bldg-osm-1283748278",
+    "name": "Clendenin Building",
+    "campus": "Kennesaw",
+    "aliases": [
+      "Clendenin",
+      "Computer Science",
+      "CS"
+    ],
+    "category": "academic",
+    "longitude": -84.5835515,
+    "latitude": 34.035945
+  },
+  {
+    "id": "bldg-osm-246651471",
+    "name": "Convocation Center",
+    "campus": "Kennesaw",
+    "aliases": [
+      "Convocation",
+      "Basketball"
+    ],
+    "category": "athletics",
+    "longitude": -84.58041,
+    "latitude": 34.0369945
+  },
+  {
+    "id": "bldg-osm-246651472",
+    "name": "Cox Family Enterprise Center",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "services",
+    "longitude": -84.5871085,
+    "latitude": 34.036659
+  },
+  {
+    "id": "bldg-osm-246651509",
+    "name": "Department of Event and Venue Management",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "services",
+    "longitude": -84.58569349999999,
+    "latitude": 34.032879
+  },
+  {
+    "id": "bldg-osm-246651473",
+    "name": "Digital Learning Innovations",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "services",
+    "longitude": -84.5847685,
+    "latitude": 34.031555
+  },
+  {
+    "id": "bldg-osm-246651474",
+    "name": "East Parking Deck",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "parking",
+    "longitude": -84.580851,
+    "latitude": 34.0360125
+  },
+  {
+    "id": "bldg-osm-246651480",
+    "name": "English Building",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.584251,
+    "latitude": 34.039452499999996
+  },
+  {
+    "id": "bldg-osm-246651478",
+    "name": "Hitting and Pitching Building",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "athletics",
+    "longitude": -84.58149,
+    "latitude": 34.0344835
+  },
+  {
+    "id": "bldg-osm-246651515",
+    "name": "Horace W. Sturgis Library",
+    "campus": "Kennesaw",
+    "aliases": [
+      "Sturgis",
+      "Kennesaw library"
+    ],
+    "category": "academic",
+    "longitude": -84.583958,
+    "latitude": 34.038271
+  },
+  {
+    "id": "bldg-osm-246651481",
+    "name": "Hospitality House",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "services",
+    "longitude": -84.5860155,
+    "latitude": 34.033446
+  },
+  {
+    "id": "bldg-osm-246685622",
+    "name": "J.M. Wilson Building",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.58366050000001,
+    "latitude": 34.0403505
+  },
+  {
+    "id": "bldg-osm-246651486",
+    "name": "Joel A. Katz Music and Entertainment Business Program",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "services",
+    "longitude": -84.58542349999999,
+    "latitude": 34.0323025
+  },
+  {
+    "id": "bldg-osm-246651483",
+    "name": "Kennesaw Hall",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.5805245,
+    "latitude": 34.038473499999995
+  },
+  {
+    "id": "bldg-osm-246710676",
+    "name": "KSU Admissions",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.58138149999999,
+    "latitude": 34.030067
+  },
+  {
+    "id": "bldg-osm-246710707",
+    "name": "KSU Place Apartments Club House",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "services",
+    "longitude": -84.583291,
+    "latitude": 34.044374000000005
+  },
+  {
+    "id": "bldg-osm-246651482",
+    "name": "Leo Delle and Lex Jolley Lodge",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "services",
+    "longitude": -84.5849345,
+    "latitude": 34.041828
+  },
+  {
+    "id": "bldg-osm-246651485",
+    "name": "Math & Statistics Building",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.5841525,
+    "latitude": 34.0377255
+  },
+  {
+    "id": "bldg-osm-246685612",
+    "name": "Music Building",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.58287250000001,
+    "latitude": 34.040397
+  },
+  {
+    "id": "bldg-osm-246651489",
+    "name": "North Parking Deck",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "parking",
+    "longitude": -84.584755,
+    "latitude": 34.043799
+  },
+  {
+    "id": "bldg-osm-246651453",
+    "name": "Office of Alumni Affairs and Alumni Association",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "services",
+    "longitude": -84.5852165,
+    "latitude": 34.0320335
+  },
+  {
+    "id": "bldg-osm-246651494",
+    "name": "Pilcher Public Service Building",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.58429000000001,
+    "latitude": 34.038272
+  },
+  {
+    "id": "bldg-osm-246685617",
+    "name": "Prillaman Health Sciences",
+    "campus": "Kennesaw",
+    "aliases": [
+      "Prillaman",
+      "Nursing"
+    ],
+    "category": "academic",
+    "longitude": -84.58201199999999,
+    "latitude": 34.040955499999995
+  },
+  {
+    "id": "bldg-osm-246651495",
+    "name": "Public Safety Building",
+    "campus": "Kennesaw",
+    "aliases": [
+      "Campus Police",
+      "KSU Police"
+    ],
+    "category": "academic",
+    "longitude": -84.58524249999999,
+    "latitude": 34.037858
+  },
+  {
+    "id": "bldg-osm-246651452",
+    "name": "School of Conflict Management",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "services",
+    "longitude": -84.58456,
+    "latitude": 34.031307999999996
+  },
+  {
+    "id": "bldg-osm-1283748269",
+    "name": "Science Building",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.58413949999999,
+    "latitude": 34.036072
+  },
+  {
+    "id": "bldg-osm-1283748270",
+    "name": "Science Laboratory",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.5841385,
+    "latitude": 34.035717000000005
+  },
+  {
+    "id": "bldg-osm-749662184",
+    "name": "Siegel Student Recreation & Activities Center",
+    "campus": "Kennesaw",
+    "aliases": [
+      "SRAC",
+      "ARC",
+      "Rec Center",
+      "Recreation Center",
+      "Gym"
+    ],
+    "category": "athletics",
+    "longitude": -84.58185850000001,
+    "latitude": 34.036783
+  },
+  {
+    "id": "bldg-osm-989800205",
+    "name": "Social Science Lab Complex (SSLC)",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.5845185,
+    "latitude": 34.029788499999995
+  },
+  {
+    "id": "bldg-osm-246651487",
+    "name": "Social Sciences Building",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.58555999999999,
+    "latitude": 34.038786
+  },
+  {
+    "id": "bldg-osm-1108501034",
+    "name": "Summit",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "housing",
+    "longitude": -84.58356599999999,
+    "latitude": 34.0348735
+  },
+  {
+    "id": "bldg-osm-246651517",
+    "name": "Technology Annex",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.584711,
+    "latitude": 34.037633
+  },
+  {
+    "id": "bldg-osm-246651464",
+    "name": "Technology Services",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.5848865,
+    "latitude": 34.0431425
+  },
+  {
+    "id": "bldg-osm-749660293",
+    "name": "The Commons",
+    "campus": "Kennesaw",
+    "aliases": [
+      "Commons",
+      "Dining Hall"
+    ],
+    "category": "dining",
+    "longitude": -84.581796,
+    "latitude": 34.039919999999995
+  },
+  {
+    "id": "bldg-osm-246651522",
+    "name": "University Hall",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.58417850000001,
+    "latitude": 34.038824500000004
+  },
+  {
+    "id": "bldg-osm-777865663",
+    "name": "University Village Suites",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "services",
+    "longitude": -84.5826675,
+    "latitude": 34.043501500000005
+  },
+  {
+    "id": "bldg-osm-751994960",
+    "name": "Visual Arts Building",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.5852645,
+    "latitude": 34.0401355
+  },
+  {
+    "id": "bldg-osm-246651512",
+    "name": "Wellstar Student Health Services Clinic",
+    "campus": "Kennesaw",
+    "aliases": [
+      "Health Clinic",
+      "Student Health"
+    ],
+    "category": "services",
+    "longitude": -84.585864,
+    "latitude": 34.0331675
+  },
+  {
+    "id": "bldg-osm-246651526",
+    "name": "West Parking Deck",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "parking",
+    "longitude": -84.58592,
+    "latitude": 34.03785
+  },
+  {
+    "id": "bldg-osm-246651528",
+    "name": "Willingham Hall",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.584695,
+    "latitude": 34.038853
+  },
+  {
+    "id": "bldg-osm-749661570",
+    "name": "Wilson Annex - Onyx Theater",
+    "campus": "Kennesaw",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.5837965,
+    "latitude": 34.040335
+  },
+  {
+    "id": "bldg-osm-749660291",
+    "name": "Zuckerman Museum of Art",
+    "campus": "Kennesaw",
+    "aliases": [
+      "Zuckerman"
+    ],
+    "category": "academic",
+    "longitude": -84.583427,
+    "latitude": 34.0409585
+  },
+  {
+    "id": "bldg-osm-225446888",
+    "name": "Academic Building",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.5205375,
+    "latitude": 33.9383565
+  },
+  {
+    "id": "bldg-osm-225473229",
+    "name": "Administration Building",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.519754,
+    "latitude": 33.9396675
+  },
+  {
+    "id": "bldg-osm-225446884",
+    "name": "Architecture",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.5189275,
+    "latitude": 33.9363125
+  },
+  {
+    "id": "bldg-osm-225446898",
+    "name": "Atrium Building",
+    "campus": "Marietta",
+    "aliases": [
+      "Atrium",
+      "J Building",
+      "Computing"
+    ],
+    "category": "academic",
+    "longitude": -84.52019949999999,
+    "latitude": 33.9376565
+  },
+  {
+    "id": "bldg-osm-225477833",
+    "name": "Baptist Union Center",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.5226695,
+    "latitude": 33.9394745
+  },
+  {
+    "id": "bldg-osm-258840541",
+    "name": "Center for Athletics and Sports Health Science",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "athletics",
+    "longitude": -84.5174565,
+    "latitude": 33.9311665
+  },
+  {
+    "id": "bldg-osm-225476490",
+    "name": "Civil Engineering Soils Lab",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.5204645,
+    "latitude": 33.935385499999995
+  },
+  {
+    "id": "bldg-osm-225476484",
+    "name": "Civil Engineering Technology",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.52031149999999,
+    "latitude": 33.935681
+  },
+  {
+    "id": "bldg-osm-225456285",
+    "name": "Commons",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "housing",
+    "longitude": -84.51718550000001,
+    "latitude": 33.937292
+  },
+  {
+    "id": "bldg-osm-225448612",
+    "name": "Community Center",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.518018,
+    "latitude": 33.9386315
+  },
+  {
+    "id": "bldg-osm-225442776",
+    "name": "Courtyard",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "housing",
+    "longitude": -84.516768,
+    "latitude": 33.9391315
+  },
+  {
+    "id": "bldg-osm-225473227",
+    "name": "Crawford Lab Building",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.521672,
+    "latitude": 33.93915
+  },
+  {
+    "id": "bldg-osm-225477834",
+    "name": "Design 1 Building",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.521281,
+    "latitude": 33.9380355
+  },
+  {
+    "id": "bldg-osm-225491447",
+    "name": "Design 2 Building",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.52125749999999,
+    "latitude": 33.937814
+  },
+  {
+    "id": "bldg-osm-225473222",
+    "name": "Engineering Lab Building",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.5212925,
+    "latitude": 33.9384615
+  },
+  {
+    "id": "bldg-osm-225446894",
+    "name": "Engineering Technology Center",
+    "campus": "Marietta",
+    "aliases": [
+      "ETC"
+    ],
+    "category": "academic",
+    "longitude": -84.5227145,
+    "latitude": 33.938485
+  },
+  {
+    "id": "bldg-osm-225476499",
+    "name": "Gymnasium",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "athletics",
+    "longitude": -84.5183725,
+    "latitude": 33.935817
+  },
+  {
+    "id": "bldg-osm-225476495",
+    "name": "Hornet Village",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "housing",
+    "longitude": -84.5216535,
+    "latitude": 33.9367405
+  },
+  {
+    "id": "bldg-osm-225446897",
+    "name": "Howell Residence Hall",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "housing",
+    "longitude": -84.5189225,
+    "latitude": 33.938154499999996
+  },
+  {
+    "id": "bldg-osm-225473219",
+    "name": "Joe Mack Wilson Student Center",
+    "campus": "Marietta",
+    "aliases": [
+      "JMW",
+      "Student Center",
+      "Marietta Student Center"
+    ],
+    "category": "academic",
+    "longitude": -84.520409,
+    "latitude": 33.9405785
+  },
+  {
+    "id": "bldg-osm-225446886",
+    "name": "Lawrence V. Johnson Library",
+    "campus": "Marietta",
+    "aliases": [
+      "Johnson Library",
+      "Marietta library"
+    ],
+    "category": "academic",
+    "longitude": -84.520297,
+    "latitude": 33.939137
+  },
+  {
+    "id": "bldg-osm-225473217",
+    "name": "Mathematics Building",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.5207835,
+    "latitude": 33.939896000000005
+  },
+  {
+    "id": "bldg-osm-225446887",
+    "name": "Norton Residence Hall",
+    "campus": "Marietta",
+    "aliases": [
+      "Norton"
+    ],
+    "category": "housing",
+    "longitude": -84.51925299999999,
+    "latitude": 33.9390265
+  },
+  {
+    "id": "bldg-osm-517434198",
+    "name": "Pump House",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.5209455,
+    "latitude": 33.937323
+  },
+  {
+    "id": "bldg-osm-225470232",
+    "name": "Recreation and Wellness Center",
+    "campus": "Marietta",
+    "aliases": [
+      "Marietta Rec",
+      "Gym"
+    ],
+    "category": "athletics",
+    "longitude": -84.517628,
+    "latitude": 33.941218
+  },
+  {
+    "id": "bldg-osm-225448606",
+    "name": "Resident Community Center",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.517791,
+    "latitude": 33.938314
+  },
+  {
+    "id": "bldg-osm-1134398612",
+    "name": "Science Lab Annex",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.521693,
+    "latitude": 33.938702
+  },
+  {
+    "id": "bldg-osm-225473216",
+    "name": "Stingers",
+    "campus": "Marietta",
+    "aliases": [
+      "Stingers Dining",
+      "Dining Hall"
+    ],
+    "category": "dining",
+    "longitude": -84.522278,
+    "latitude": 33.937375
+  },
+  {
+    "id": "bldg-osm-225476488",
+    "name": "Student Competition Team Building",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.52081,
+    "latitude": 33.935174
+  },
+  {
+    "id": "bldg-osm-225485359",
+    "name": "Student, Visitor and Paying Staff Only",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.52277950000001,
+    "latitude": 33.9378485
+  },
+  {
+    "id": "bldg-osm-225473210",
+    "name": "University Columns",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "housing",
+    "longitude": -84.525159,
+    "latitude": 33.9350015
+  },
+  {
+    "id": "bldg-osm-225446895",
+    "name": "W. Claire Harris Textile Center",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.519857,
+    "latitude": 33.936696
+  },
+  {
+    "id": "bldg-osm-225476487",
+    "name": "Wilder Communications Center",
+    "campus": "Marietta",
+    "aliases": [],
+    "category": "academic",
+    "longitude": -84.52095299999999,
+    "latitude": 33.9344915
+  }
+]

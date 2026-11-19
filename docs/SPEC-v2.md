@@ -583,7 +583,7 @@ Every new index starts with the workspace key, and every demo row is purged with
 
 | Table | Key fields | Notes |
 |---|---|---|
-| **incidents** | author, category, campus, building id, area detail ≤60, claimed observed time, text ≤280, name level (show_handle/hidden), photo asset?, visibility (visible/under_review/removed/deleted), published at, **locked at (= +5 min)**, last activity, update count, purge at | lifecycle computed at read time; index by (campus, visibility, published) |
+| **incidents** | author, category, campus, building id, area detail ≤60, claimed observed time, text ≤280, name level (show_handle/hidden), photo asset?, visibility (visible/under_review/removed/deleted), published at, **locked at (= +5 min)**, last activity, update count, purge at | lifecycle computed at read time; indexes by (campus, visibility, published) and (campus, visibility, last activity); #79 adds the activity index so bounded list/pin reads and Older pagination sort by Updates without renewing the published-time lifecycle |
 | **incidentUpdates** | incident, kind (author_update/moderator_note), author?, text?, template id?, linked Alert? / official URL?, created, purge | max 5 author updates; bumps last activity |
 | **moderators** | student, appointed by, CSA statement text, is CSA, appointed, revoked? | maintainers stay env-derived, and a maintainer CSA row may exist |
 | **moderatorActions** (append-only) | action, target type/key, actor, template/reason id?, content snapshot?, snapshot purge (30 d), purge (1 yr) | the snapshot is patched away at 30 d; the entry is kept |
