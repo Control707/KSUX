@@ -365,7 +365,7 @@ export function NowHudView() {
                     <div className={muted}>{[route.nextStopName, route.loadLabel].filter(Boolean).join(" · ")}</div>
                   )}
                 </div>
-                <span className="shrink-0 rounded-[var(--r-sm)] bg-[var(--ink)] px-[var(--sp-2)] py-[var(--sp-1)] font-display text-body font-bold text-[var(--bg)]">
+                <span className="min-w-0 max-w-full rounded-[var(--r-sm)] text-center [overflow-wrap:anywhere] bg-[var(--ink)] px-[var(--sp-2)] py-[var(--sp-1)] font-display text-body font-bold text-[var(--bg)]">
                   {route.etaMinutes == null ? "No live ETA" : `${route.etaMinutes} min`}
                 </span>
               </li>
