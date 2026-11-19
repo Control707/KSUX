@@ -5,6 +5,8 @@ import { api } from "@convex/_generated/api";
 import { useAnnouncer } from "@/components/a11y/Announcer";
 import { useViewerQuery } from "@/lib/viewerClient";
 
+export const CLOUT_PAYOUT_EVENT = "ksux:clout-payout";
+
 const SOURCE_PHRASE: Record<string, string> = {
   parking_report: "report was confirmed",
   spot_opening: "Spot Opening was taken",
@@ -32,6 +34,10 @@ export function CloutPayoutToast({ viewerKey }: { viewerKey: string }) {
     const ids = seen.current.ids;
     const fresh = clout.payouts.filter((p) => !ids.has(p.id));
     for (const payout of fresh) ids.add(payout.id);
+    if (fresh.some((p) => p.kind === "earn" || p.kind === "release")) {
+      // An open /leaderboard re-reads once (SPEC-v2 §14: one-shot on the payout toast).
+      window.dispatchEvent(new Event(CLOUT_PAYOUT_EVENT));
+    }
     for (const payout of [...fresh].reverse()) {
       if (payout.kind !== "earn" && payout.kind !== "release") continue;
       const phrase = SOURCE_PHRASE[payout.sourceType] ?? "report was confirmed";

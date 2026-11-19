@@ -153,7 +153,7 @@ Set the Convex variable `KSUX_V2_DB_IO_SAMPLE` to JSON with `days` (elapsed days
 {"days":7,"measuredAt":"2026-11-18T00:00:00Z","bytes":{"alertSourceStatus":0,"activeIncidents":0,"olderIncidents":0,"incidentDetail":0,"leaderboard":0,"other":0}}
 ```
 
-Maintain this weekly during the pilot. The maintainer panel projects each measured total over 30 days, flags 50% and 70% of 1 GB, and marks samples older than seven days stale. Compare with the full team budget separately. Use the §13 rollout rules before enabling the Leaderboard. Above 70%, keep the Leaderboard off first and then lengthen Incident list refresh intervals if needed.
+Maintain this weekly during the pilot. The maintainer panel projects each measured total over 30 days, flags 50% and 70% of 1 GB, and marks samples older than seven days stale. Compare with the full team budget separately. The Leaderboard (§13 gate 2(a)) reads the same sample: `/leaderboard` opens in production only when the sample covers at least 14 days of P0, is under seven days old, and projects under 50% of 1 GB. Otherwise it shows "coming soon", and earning Clout is unaffected. If a later sample is stale or projects 50% or more, the board closes again by itself. Above 70%, keep the Leaderboard off first and then lengthen Incident list refresh intervals if needed. The maintainer panel on `/moderation` shows the gate's current state and the Clout anomaly view (top weekly gainers, most-reversed accounts over seven days). Demo always shows its seeded boards.
 
 ### P0 release record
 
