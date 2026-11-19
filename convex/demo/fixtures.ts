@@ -1233,7 +1233,7 @@ export async function cloneDemoWorkspaceFixtures(
     expiresAt: now + 11 * MIN,
   });
 
-  await seedV2DemoStates(ctx, demoSessionId, { mayaId, jordanId, alexId }, now);
+  await seedV2DemoStates(ctx, demoSessionId, { mayaId, jordanId, alexId, samId, taylorId }, now);
 
   return { mayaId, jordanId, alexId };
 }

@@ -86,3 +86,25 @@ export async function getIncidentLaunchGate(db: QueryCtx["db"], mode: "student" 
   const requested = process.env.KSUX_V2_INCIDENT_POSTING === "true";
   return { postingEnabled: incidentPostingIsReady(requested, opsChecklistDone, moderatorCount), moderatorCount, opsChecklistDone, requested };
 }
+
+/** SPEC-v2 §13 gate 2(a): at least 14 measured days of P0 and a projection under 50 % of 1 GB. */
+export const LEADERBOARD_MIN_SAMPLE_DAYS = 14;
+
+export type LeaderboardGate =
+  | { open: true }
+  | { open: false; reason: "no_measurement" | "stale_measurement" | "too_few_days" | "over_budget" };
+
+export function leaderboardGateFromSample(raw: string | undefined, now = Date.now()): LeaderboardGate {
+  const io = projectMonthlyV2Io(raw, now);
+  if (!io) return { open: false, reason: "no_measurement" };
+  if (io.stale) return { open: false, reason: "stale_measurement" };
+  if (io.sampleDays < LEADERBOARD_MIN_SAMPLE_DAYS) return { open: false, reason: "too_few_days" };
+  if (io.band !== "under_50") return { open: false, reason: "over_budget" };
+  return { open: true };
+}
+
+/** Demo always shows its seeded boards; prod follows the measured I/O gate. */
+export function getLeaderboardGate(mode: "student" | "demo", now = Date.now()): LeaderboardGate {
+  if (mode === "demo") return { open: true };
+  return leaderboardGateFromSample(process.env.KSUX_V2_DB_IO_SAMPLE, now);
+}

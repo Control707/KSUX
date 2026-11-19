@@ -1218,6 +1218,7 @@ export default defineSchema({
     updateCount: v.number(), purgeAt: v.number(),
     demoLabel: v.optional(v.literal("Demo · not real")),
   }).index("by_campus_visibility_published", ["workspaceKey", "campus", "visibility", "publishedAt"])
+    .index("by_campus_visibility_activity", ["workspaceKey", "campus", "visibility", "lastActivityAt"])
     .index("by_author", ["workspaceKey", "authorId"])
     .index("by_author_visibility", ["workspaceKey", "authorId", "visibility"])
     .index("by_photo", ["workspaceKey", "photoAssetId"])

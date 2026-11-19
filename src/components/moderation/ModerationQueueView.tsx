@@ -22,6 +22,7 @@ import { CampusBadge } from "@/components/a11y/controls";
 
 import { V2LaunchOps } from "./V2LaunchOps";
 import { AlertSourceOps } from "./AlertSourceOps";
+import { CloutAnomalies } from "./CloutAnomalies";
 
 const outcomeLabels = {
   pending: "Awaiting first sync",
@@ -120,6 +121,7 @@ export function ModerationQueueView() {
 
       {isModerator && auth.status === "student" && <V2LaunchOps />}
       {isModerator && auth.status === "student" && <AlertSourceOps />}
+      {isModerator && <CloutAnomalies />}
       {showFeedHealth && (
         <section aria-labelledby="campus-feed-health" className={card}>
           <h2 id="campus-feed-health" className="font-display text-xl font-bold">Campus feed health</h2>
