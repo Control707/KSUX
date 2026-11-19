@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ExternalLink, X } from "lucide-react";
+import { ChevronRight, ExternalLink, TriangleAlert, X } from "lucide-react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import { usePublicViewerQuery } from "@/lib/viewerClient";
@@ -59,7 +59,6 @@ const CATEGORY_WORDS: Record<AlertItem["category"], string> = {
   timely_warning: "Timely Warning", emergency_advisory: "Emergency advisory",
 };
 
-const card = "space-y-[var(--sp-2)] rounded-[var(--r-md)] border border-[var(--line-strong)] p-[var(--sp-3)] [overflow-wrap:anywhere]";
 const linkClass = "inline-flex min-h-[var(--target)] max-w-full items-center gap-[var(--sp-1)] font-bold underline";
 
 export function OfficialPageLink({ source, label }: { source: Pick<AlertSource, "href" | "sourceName" | "pageTitle">; label?: string }) {
@@ -88,26 +87,33 @@ export function AlertTimes({ item, source }: { item: AlertItem; source: AlertSou
 }
 
 export function AlertItemCard({ item, source, linkToDetails = true }: { item: AlertItem; source: AlertSource; linkToDetails?: boolean }) {
+  // Issued or updated notices get the full red treatment; all-clear and no-longer-listed stay calm.
+  const active = item.state === "issued" || item.state === "updated";
   return (
-    <article className={card} data-testid="official-alert-item" aria-labelledby={`alert-${item._id}`}>
-      <p className="text-[length:var(--fs-sm)] font-bold">
-        {item.demoLabel && <span className="mr-[var(--sp-1)] rounded-[var(--r-sm)] bg-[var(--warn-bg)] px-[var(--sp-2)] text-[var(--warn-fg)]">{item.demoLabel}</span>}
-        Official · {source.sourceName} · {CATEGORY_WORDS[item.category]} · {STATE_WORDS[item.state]}
+    <article
+      className={`overflow-hidden rounded-[var(--r-md)] [overflow-wrap:anywhere] ${active ? "border-2 border-[var(--alert-bg)] shadow-md" : "border border-[var(--line-strong)]"}`}
+      data-testid="official-alert-item" data-active={active} aria-labelledby={`alert-${item._id}`}>
+      <p className={`flex flex-wrap items-center gap-x-[var(--sp-2)] gap-y-[var(--sp-1)] px-[var(--sp-3)] py-[var(--sp-2)] text-[length:var(--fs-sm)] font-bold ${active ? "bg-[var(--alert-bg)] text-[var(--alert-fg)]" : "bg-[var(--surface-2)]"}`}>
+        {active && <TriangleAlert aria-hidden="true" className="h-5 w-5 shrink-0" />}
+        {item.demoLabel && <span className="rounded-[var(--r-sm)] bg-[var(--warn-bg)] px-[var(--sp-2)] text-[var(--warn-fg)]">{item.demoLabel}</span>}
+        <span>Official · {source.sourceName} · {CATEGORY_WORDS[item.category]} · {STATE_WORDS[item.state]}</span>
       </p>
-      <h3 id={`alert-${item._id}`} className="text-[length:var(--fs-lg)] font-bold">{item.headline}</h3>
-      {item.state === "no_longer_listed" && item.noLongerListedAt !== null ? (
-        <p>No longer listed on {source.sourceName}’s {source.pageTitle} as of {formatTime(item.noLongerListedAt)}. KSUX can’t say whether it’s over.</p>
-      ) : (
-        <blockquote className="border-l-4 border-[var(--line-strong)] pl-[var(--sp-3)]">
-          <p>“{item.excerpt}”</p>
-          <footer className="text-[length:var(--fs-sm)]">Quoted from {source.sourceName}</footer>
-        </blockquote>
-      )}
-      <p className="text-[length:var(--fs-sm)]">{item.campus ? `Campus named by the source: ${item.campus}` : "Campus not specified"}</p>
-      <AlertTimes item={item} source={source} />
-      <div className="flex flex-wrap gap-x-[var(--sp-4)]">
-        {linkToDetails && <Link className={linkClass} href={`/safety/alerts/${item._id}`}>Alert details</Link>}
-        <OfficialPageLink source={source} label="Read the full notice on KSU’s page" />
+      <div className={`space-y-[var(--sp-2)] p-[var(--sp-3)] ${active ? "bg-[var(--alert-soft)]" : ""}`}>
+        <h3 id={`alert-${item._id}`} className="font-display text-[length:var(--fs-xl)] font-bold leading-tight">{item.headline}</h3>
+        {item.state === "no_longer_listed" && item.noLongerListedAt !== null ? (
+          <p>No longer listed on {source.sourceName}’s {source.pageTitle} as of {formatTime(item.noLongerListedAt)}. KSUX can’t say whether it’s over.</p>
+        ) : (
+          <blockquote className={`border-l-4 pl-[var(--sp-3)] ${active ? "border-[var(--alert-bg)]" : "border-[var(--line-strong)]"}`}>
+            <p className="text-[length:var(--fs-lg)]">“{item.excerpt}”</p>
+            <footer className="text-[length:var(--fs-sm)]">Quoted from {source.sourceName}</footer>
+          </blockquote>
+        )}
+        <p className="text-[length:var(--fs-sm)]">{item.campus ? `Campus named by the source: ${item.campus}` : "Campus not specified"}</p>
+        <AlertTimes item={item} source={source} />
+        <div className="flex flex-wrap gap-x-[var(--sp-4)]">
+          {linkToDetails && <Link className={linkClass} href={`/safety/alerts/${item._id}`}>Alert details</Link>}
+          <OfficialPageLink source={source} label="Read the full notice on KSU’s page" />
+        </div>
       </div>
     </article>
   );
@@ -188,13 +194,27 @@ export function OfficialAlertBanner() {
     setDismissed(next);
   };
   const verb = top.item.state === "updated" ? "updated" : "posted";
+  const more = fresh.length - 1;
   return (
     <div role="region" aria-label="Official Alert" data-testid="official-alert-banner" data-alert-id={top.item._id}
-      className="flex min-w-0 items-center gap-[var(--sp-2)] border-b border-[var(--line-strong)] bg-[var(--warn-bg)] px-[var(--sp-3)] text-[var(--warn-fg)] [overflow-wrap:anywhere]">
-      <Link href="/safety#official-alerts" className="inline-flex min-h-[var(--target)] min-w-0 flex-1 items-center font-bold underline">
-        {top.item.demoLabel ? `${top.item.demoLabel}: ` : ""}{top.source.sourceName} {verb} a {CATEGORY_WORDS[top.item.category]}. See Safety.
+      className="flex min-w-0 flex-wrap items-center gap-[var(--sp-2)] border-b-4 border-[var(--ink)] bg-[var(--alert-bg)] px-[var(--sp-3)] py-[var(--sp-1)] text-[var(--alert-fg)] shadow-lg [overflow-wrap:anywhere]">
+      <span aria-hidden="true" className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--alert-fg)] text-[var(--alert-bg)]">
+        <TriangleAlert className="h-5 w-5" />
+        <span className="ksux-alert-pulse absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-[var(--alert-bg)] bg-[var(--accent)]" />
+      </span>
+      <Link href="/safety#official-alerts" className="inline-flex min-h-[var(--target)] min-w-0 flex-[1_1_10rem] items-center gap-[var(--sp-1)] font-bold">
+        <span className="min-w-0">
+          <span className="block text-[length:var(--fs-sm)] uppercase tracking-wide [overflow-wrap:anywhere]">
+            Official Alert{top.item.demoLabel ? ` · ${top.item.demoLabel}` : ""}{more > 0 ? ` · ${more} more` : ""}
+          </span>
+          <span className="block text-[length:var(--fs-lg)] leading-tight underline">
+            {top.source.sourceName} {verb} a {CATEGORY_WORDS[top.item.category]}
+          </span>
+        </span>
+        <ChevronRight aria-hidden="true" className="ml-auto h-5 w-5 shrink-0" />
       </Link>
-      <button type="button" onClick={dismiss} className="inline-flex min-h-[var(--target)] min-w-[var(--target)] items-center justify-center"
+      <button type="button" onClick={dismiss}
+        className="inline-flex min-h-[var(--target)] min-w-[var(--target)] shrink-0 items-center justify-center rounded-[var(--r-sm)] border-2 border-[var(--alert-fg)]"
         aria-label={`Dismiss the ${top.source.sourceName} Alert banner`}>
         <X aria-hidden="true" className="h-5 w-5" />
       </button>

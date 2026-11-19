@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
-import { AlertSourceBlock, NoAlertIsntSafe, useOfficialAlertStatus } from "./officialAlertsUi";
+import { AlertSourceBlock, NoAlertIsntSafe, displayOf, useOfficialAlertStatus } from "./officialAlertsUi";
 import { DemoAlertTrigger } from "./DemoAlertTrigger";
 import {
   CAMPUS_CONTACTS,
@@ -49,10 +49,20 @@ export function OfficialLink({ sourceKey, testId }: { sourceKey: KsuSourceKey; t
 export function OfficialAlertsSection({ mode, online }: { mode: EmergencyPanelMode; online: boolean }) {
   const { status, serverNow } = useOfficialAlertStatus(online);
   const copied = status?.sources.filter((source) => source.demo || source.display !== "links_only" || source.reason !== "not_enabled") ?? [];
+  // Only current, fresh issued/updated notices count; stale, quiet and switched-off never raise the alarm.
+  const activeCount = online ? copied.filter((source) => displayOf(source, serverNow) === "ok")
+    .flatMap((source) => source.items).filter((item) => item.state === "issued" || item.state === "updated").length : 0;
   return (
-    <section className={card} aria-labelledby="official-alerts" data-testid="official-alerts" id="official-alerts-section">
-      <h2 id="official-alerts" tabIndex={-1} className="font-display text-[length:var(--fs-xl)] font-bold">
+    <section className={activeCount ? card.replace("border border-[var(--line)]", "border-4 border-[var(--alert-bg)]") : card}
+      aria-labelledby="official-alerts" data-testid="official-alerts" data-active-count={activeCount} id="official-alerts-section">
+      <h2 id="official-alerts" tabIndex={-1} className="flex flex-wrap items-center gap-[var(--sp-2)] font-display text-[length:var(--fs-xl)] font-bold">
         Official Alerts
+        {activeCount > 0 && (
+          <span data-testid="official-alert-count" className="inline-flex items-center gap-[var(--sp-1)] rounded-[var(--r-pill)] bg-[var(--alert-bg)] px-[var(--sp-3)] py-[2px] font-sans text-[length:var(--fs-sm)] text-[var(--alert-fg)]">
+            <span aria-hidden="true" className="ksux-alert-pulse inline-block h-2.5 w-2.5 rounded-full bg-[var(--accent)]" />
+            {activeCount} active
+          </span>
+        )}
       </h2>
       {copied.length === 0 ? (
         <p>
