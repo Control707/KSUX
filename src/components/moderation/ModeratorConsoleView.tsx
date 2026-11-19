@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useTransition } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "@convex/_generated/api";
@@ -25,6 +25,7 @@ function Console() {
   const appeals = useViewerQuery(api.moderatorConsole.appeals, isModerator ? {} : "skip");
   const params = useSearchParams();
   const router = useRouter();
+  const [navigating, startTransition] = useTransition();
   const section = params.get("section") ?? "queue";
   const selectedKey = params.get("item");
   const selected = queue?.items.find((i) => i.key === selectedKey);
@@ -35,7 +36,7 @@ function Console() {
   const showFeedHealth = maintainer && auth.status === "student";
   const navigate = (nextSection: string, key?: string, replace = false) => {
     const url = `/moderation?section=${nextSection}${key ? `&item=${encodeURIComponent(key)}` : ""}`;
-    if (replace) router.replace(url, { scroll: false }); else router.push(url, { scroll: false });
+    startTransition(() => { if (replace) router.replace(url, { scroll: false }); else router.push(url, { scroll: false }); });
   };
   const previousKey = useRef<string | null>(null);
   useEffect(() => {
@@ -60,7 +61,7 @@ function Console() {
   }
   if (!summary) return <div className="p-4"><h1 className="text-2xl font-bold">Moderator console</h1><p role="status">Checking Moderator access…</p></div>;
   if (!isModerator) return <div className="p-4"><h1 className="text-2xl font-bold">Moderator access required</h1><p>Appointed Student Moderators and maintainers can open this console. Try it in Judge Demo Mode.</p><Link href="/profile/moderation" className={modButton}>Your moderation notices and Appeals</Link></div>;
-  return <div data-testid="moderation-queue-view" className="min-w-0 space-y-4 p-4 [overflow-wrap:anywhere]">
+  return <div data-testid="moderation-queue-view" aria-busy={navigating} className="min-w-0 space-y-4 p-4 [overflow-wrap:anywhere]">
     <header className={modCard}><Link href="/profile" className={modButton}>Back to Profile</Link><h1 className="font-display text-2xl font-bold">Moderator console</h1>
       {auth.status === "demo" && <p className="font-bold">Demo · not real</p>}<p>Volunteer Moderators aren’t on call. No review time is promised. Every decision is confirmed and logged.</p></header>
     <nav aria-label="Moderation sections" className="flex flex-wrap gap-2 lg:hidden">

@@ -157,7 +157,7 @@ export function AppShell({
               </Link>
             )}
 
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-[var(--sp-2)]">
+            <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-[var(--sp-2)] [overflow-wrap:anywhere]">
               <Link
                 href="/search"
                 data-testid="header-search-link"
@@ -431,7 +431,7 @@ function DemoMenu({ displayName, homeCampus }: { displayName: string; homeCampus
   const itemClass = "flex min-h-[var(--target)] w-full items-center gap-[var(--sp-2)] rounded-[var(--r-sm)] px-[var(--sp-3)] text-left text-sm font-bold hover:bg-[var(--surface-2)] disabled:opacity-60";
 
   return (
-    <div className="relative">
+    <div className="relative min-w-0 max-w-full">
       <button
         ref={buttonRef}
         type="button"
@@ -439,11 +439,11 @@ function DemoMenu({ displayName, homeCampus }: { displayName: string; homeCampus
         aria-expanded={open}
         aria-controls={menuId}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex min-h-[var(--target)] min-w-[var(--target)] items-center justify-center gap-[var(--sp-1)] rounded-[var(--r-pill)] border-2 border-[var(--accent-ink)] bg-[var(--accent-soft)] px-[var(--sp-3)] text-sm font-bold text-[var(--ink)]"
+        className="inline-flex min-h-[var(--target)] min-w-[var(--target)] max-w-full items-center justify-center gap-[var(--sp-1)] rounded-[var(--r-pill)] border-2 border-[var(--accent-ink)] bg-[var(--accent-soft)] px-[var(--sp-3)] text-sm font-bold text-[var(--ink)]"
       >
         <span aria-hidden="true">⚡</span>
         {/* Collapses to the icon in large-text mode; the name stays. */}
-        <span className="lt-hide-label">
+        <span className="lt-hide-label min-w-0">
           Demo · {displayName} ({homeCampus})
         </span>
         <span className="sr-only">, Judge Demo Mode menu</span>

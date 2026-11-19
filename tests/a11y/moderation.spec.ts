@@ -12,7 +12,9 @@ for (const theme of THEMES) for (const [size, viewport] of Object.entries(VIEWPO
   const row = page.getByTestId("moderation-row").filter({ hasText: "◆ Identifies me" });
   await row.click();
   await expect(page.getByRole("heading", { name: /^Review ◆/ })).toBeFocused();
+  await expect(page.getByTestId("moderation-queue-view")).toHaveAttribute("aria-busy", "false");
   await expect(page.getByTestId("mobile-bottom-nav")).toHaveCount(0);
+  await expect(page).toHaveTitle(/KSUX/);
   await expectNoSeriousAxe(page, { label: `review ${theme} ${size}` });
   await expectTargetSizes(page, "body", "review"); await expectMinTextSize(page, "body", "review");
   const trigger = page.getByRole("button", { name: "Redact", exact: true }); await trigger.click();
@@ -26,7 +28,8 @@ for (const theme of THEMES) for (const [size, viewport] of Object.entries(VIEWPO
   await page.keyboard.press("Tab"); await expect(dialog.getByRole("button", { name: "Close", exact: true })).toBeFocused();
   await page.keyboard.press("Shift+Tab"); await expect(dialog.getByRole("button", { name: "Confirm", exact: true })).toBeFocused();
   await page.setViewportSize({ width: 320, height: 700 });
-  const textStyle = await page.addStyleTag({ content: "html{font-size:200% !important}" });
+  const textStyle = await page.addStyleTag({ content: "html{font-size:200% !important} *{font-family:Verdana,'DejaVu Sans',sans-serif !important;letter-spacing:.02em}" });
+  await expect(page.locator("html")).toHaveAttribute("data-large-text", "");
   await expectNoHorizontalOverflow(page, "redaction confirm at 320px / 200%");
   await textStyle.evaluate((el) => el.parentNode?.removeChild(el)); await page.setViewportSize(viewport);
   await page.keyboard.press("Escape"); await expect(dialog).toHaveCount(0); await expect(trigger).toBeFocused();
@@ -37,6 +40,7 @@ for (const theme of THEMES) for (const [size, viewport] of Object.entries(VIEWPO
   await expect(page.getByRole("table")).toHaveAccessibleName("Moderator actions · latest 200 entries");
   await expect(page.getByRole("region", { name: "Moderator action log, scroll horizontally" })).toHaveAttribute("tabindex", "0");
   await page.setViewportSize({ width: 320, height: 700 });
-  await page.addStyleTag({ content: "html{font-size:200% !important}" });
+  await page.addStyleTag({ content: "html{font-size:200% !important} *{font-family:Verdana,'DejaVu Sans',sans-serif !important;letter-spacing:.02em}" });
+  await expect(page.locator("html")).toHaveAttribute("data-large-text", "");
   await expectNoHorizontalOverflow(page, "log 320px / 200%");
 });
