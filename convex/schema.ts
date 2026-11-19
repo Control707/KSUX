@@ -1230,6 +1230,7 @@ export default defineSchema({
     authorId: v.optional(v.id("students")), text: v.optional(v.string()),
     templateId: v.optional(v.string()), alertId: v.optional(v.id("alertItems")),
     officialUrl: v.optional(v.string()), createdAt: v.number(), purgeAt: v.number(),
+    duplicateIncidentId: v.optional(v.id("incidents")),
   }).index("by_incident", ["workspaceKey", "incidentId", "createdAt"])
     .index("by_author", ["workspaceKey", "authorId"])
     .index("by_author_kind", ["workspaceKey", "authorId", "kind"])
@@ -1247,9 +1248,11 @@ export default defineSchema({
     workspaceKey: v.string(), actorId: v.id("students"), action: v.string(),
     targetType: v.string(), targetKey: v.string(), templateId: v.optional(v.string()),
     reasonId: v.optional(v.string()), contentSnapshot: v.optional(v.string()),
+    subjectId: v.optional(v.id("students")), requestId: v.optional(v.string()),
     snapshotPurgeAt: v.optional(v.number()), createdAt: v.number(), purgeAt: v.number(),
   }).index("by_target", ["workspaceKey", "targetType", "targetKey", "createdAt"])
     .index("by_created", ["workspaceKey", "createdAt"])
+    .index("by_request", ["workspaceKey", "actorId", "requestId"])
     .index("by_snapshot_purge", ["workspaceKey", "snapshotPurgeAt"])
     .index("by_purge", ["workspaceKey", "purgeAt"]),
 
@@ -1260,6 +1263,12 @@ export default defineSchema({
     text: v.optional(v.string()), createdAt: v.number(), purgeAt: v.number(),
   }).index("by_decision", ["workspaceKey", "decisionActionId"])
     .index("by_status", ["workspaceKey", "status", "createdAt"])
+    .index("by_purge", ["workspaceKey", "purgeAt"]),
+
+  moderationNotices: defineTable({
+    workspaceKey: v.string(), studentId: v.id("students"), actionId: v.id("moderatorActions"),
+    message: v.string(), canAppeal: v.boolean(), createdAt: v.number(), purgeAt: v.number(),
+  }).index("by_student", ["workspaceKey", "studentId", "createdAt"])
     .index("by_purge", ["workspaceKey", "purgeAt"]),
 
   alertSources: defineTable({

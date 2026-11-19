@@ -2,7 +2,7 @@
 
 import React, { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Check, ChevronDown, Compass, Copy, Home, MessageSquare, RotateCcw, Search, Shield, ShoppingBag } from "lucide-react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
@@ -17,11 +17,13 @@ import { QuickSheet } from "./QuickSheet";
 import { WelcomeGate } from "./WelcomeGate";
 import { CloutPayoutToast } from "@/components/clout/CloutPayoutToast";
 import { AgendaReminders } from "@/components/agenda/AgendaReminders";
+import { ModerationNotices } from "@/components/moderation/ModerationNotices";
 
 const DEMO_PERSONAS = [
-  { handle: "maya_cs", label: "Maya Patel (@maya_cs)", role: "Kennesaw · CS '27 Commuter" },
-  { handle: "jordan_me", label: "Jordan Brooks (@jordan_me)", role: "Marietta · MechE '26" },
-  { handle: "alex_owl", label: "Alex Rivera (@alex_owl)", role: "Kennesaw · Club Officer & Seller" },
+  { handle: "maya_cs", label: "Maya Patel (@maya_cs)", role: "Kennesaw · Maintainer · report conflicts" },
+  { handle: "jordan_me", label: "Jordan Brooks (@jordan_me)", role: "Marietta · Author · submit an Appeal" },
+  { handle: "alex_owl", label: "Alex Rivera (@alex_owl)", role: "Kennesaw · Moderator" },
+  { handle: "sam_cpe", label: "Sam (@sam_cpe)", role: "Marietta · Second Moderator · Appeals" },
 ] as const;
 
 export function AppShell({
@@ -37,10 +39,11 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { auth, openSignInModal, setOpenSignInModal } = useViewerClient();
+  const { auth, openSignInModal, setOpenSignInModal, signOut, switchDemoPersona } = useViewerClient();
   const { toast } = useAnnouncer();
 
   const summary = useViewerQuery(api.shell.shellSummary, {});
+  const showModerationSections = pathname.startsWith("/moderation") && summary?.viewer.isModerator === true;
   const [quickSheetOpen, setQuickSheetOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const lastSeenToastAtRef = useRef<number>(Date.now());
@@ -107,6 +110,8 @@ export function AppShell({
     );
   }
 
+  if (summary?.viewer.suspended) return <main id={MAIN_CONTENT_ID} className="mx-auto min-w-0 max-w-3xl p-4"><p role="status" className="font-bold">Your account is suspended. Only moderation notices and Appeals are available.</p><ModerationNotices />{auth.status === "demo" && <div className="flex flex-wrap gap-3"><button className="min-h-11 rounded border p-3" onClick={() => switchDemoPersona("maya_cs")}>Demo · switch to Maya (maintainer)</button><button className="min-h-11 rounded border p-3" onClick={() => switchDemoPersona("sam_cpe")}>Demo · switch to Sam (second Moderator)</button></div>}<button className="min-h-11 rounded border p-3" onClick={() => void signOut()}>Sign out</button></main>;
+
   if (auth.status === "offline" || isOffline) {
     return (
       <>
@@ -136,7 +141,7 @@ export function AppShell({
               <button
                 type="button"
                 data-testid="shell-back-btn"
-                onClick={() => (window.history.length > 1 ? router.back() : router.push(pathname === "/scrappy" ? "/" : "/chats"))}
+                onClick={() => (window.history.length > 1 ? router.back() : router.push(pathname.startsWith("/moderation") ? "/profile" : pathname === "/scrappy" ? "/" : "/chats"))}
                 className="inline-flex min-h-[var(--target)] items-center gap-[var(--sp-2)] rounded-[var(--r-pill)] px-[var(--sp-2)] font-bold hover:bg-[var(--surface-2)]"
               >
                 <ArrowLeft aria-hidden="true" className="h-5 w-5" />
@@ -195,7 +200,7 @@ export function AppShell({
           {onboardingSlot}
         </main>
       ) : (
-        <div className={`mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 lg:grid-cols-[15rem_minmax(0,1fr)_19rem] lg:pb-0 ${focusedComposer ? "pb-0" : "pb-[var(--chrome-bottom)]"}`}>
+        <div className={`mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 ${pathname.startsWith("/moderation") ? "lg:grid-cols-[15rem_minmax(0,1fr)]" : "lg:grid-cols-[15rem_minmax(0,1fr)_19rem]"} lg:pb-0 ${focusedComposer ? "pb-0" : "pb-[var(--chrome-bottom)]"}`}>
           <nav aria-label="Destinations" data-testid="desktop-left-rail" className="hidden border-r border-[var(--line)] p-[var(--sp-3)] lg:block">
             {RAIL_GROUPS.map((group) => (
               <RailGroup key={group.label} label={group.label}>
@@ -234,7 +239,7 @@ export function AppShell({
               </RailGroup>
             ))}
             {auth.status === "demo" || summary?.viewer.isModerator ? (
-              <RailGroup label="Moderators">
+              <RailGroup label="Moderation">
                 <li>
                   <Link
                     href={MODERATION_DESTINATION.href}
@@ -245,6 +250,7 @@ export function AppShell({
                     Moderation
                   </Link>
                 </li>
+                {showModerationSections && <React.Suspense fallback={null}><ModerationRailSections productionMaintainer={summary?.viewer.isMaintainer === true && auth.status === "student"} /></React.Suspense>}
               </RailGroup>
             ) : null}
             <button
@@ -261,7 +267,7 @@ export function AppShell({
             {children}
           </main>
 
-          <aside aria-labelledby="campus-pulse-heading" data-testid="desktop-campus-pulse-rail" className="hidden border-l border-[var(--line)] p-[var(--sp-3)] lg:block">
+          <aside aria-labelledby="campus-pulse-heading" data-testid="desktop-campus-pulse-rail" className={`hidden border-l border-[var(--line)] p-[var(--sp-3)] ${pathname.startsWith("/moderation") ? "" : "lg:block"}`}>
             <CampusPulse summary={summary} />
           </aside>
         </div>
@@ -328,6 +334,14 @@ function RailGroup({ label, children }: { label: string; children: React.ReactNo
       </ul>
     </div>
   );
+}
+
+function ModerationRailSections({ productionMaintainer }: { productionMaintainer: boolean }) {
+  const params = useSearchParams();
+  const queue = useViewerQuery(api.moderatorConsole.queue, {});
+  const appeals = useViewerQuery(api.moderatorConsole.appeals, {});
+  const sections = [["queue", `Queue (${queue?.items.length ?? 0})`], ["appeals", `Appeals (${appeals?.items.filter((a) => a.status === "open").length ?? 0})`], ["log", "Action log"], ...(productionMaintainer ? [["health", "Feed health"], ["roster", "Moderators"]] : [])];
+  return <>{sections.map(([key, label]) => <li key={key}><Link href={`/moderation?section=${key}`} aria-current={(params.get("section") ?? "queue") === key ? "page" : undefined} className="flex min-h-11 items-center rounded-[var(--r-sm)] px-3 text-sm font-bold hover:bg-[var(--surface-2)]">{label}</Link></li>)}</>;
 }
 
 function BarLink({

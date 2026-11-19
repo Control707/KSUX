@@ -54,6 +54,7 @@ export const setCampusFilter = viewerMutation({
 });
 
 export const shellSummary = viewerQuery({
+  allowSuspended: true,
   args: {
     campusOverride: v.optional(campusFilterValidator),
   },
@@ -215,6 +216,7 @@ export const shellSummary = viewerQuery({
         isModerator: viewer.isModerator,
         isMaintainer: viewer.isMaintainer,
         isCsa: viewer.isCsa,
+        suspended: viewer.actorStudent.accountStatus === "suspended",
         student: toPublicStudent(viewer.actorStudent),
         activeCampusFilter: viewer.actorStudent.activeCampusFilter,
         permitTier: viewer.actorStudent.permitTier,

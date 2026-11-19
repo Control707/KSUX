@@ -47,9 +47,11 @@ export async function seedV2DemoStates(
     workspaceKey, incidentId: redacted, kind: "moderator_note", authorId: alexId,
     templateId: "redaction", createdAt: now - hour, purgeAt: now + 29 * day,
   });
+  const appealedIncident = await incident("Exercise: an obstruction removed for review.", now - 2 * hour);
+  await ctx.db.patch(appealedIncident, { visibility: "removed" });
   const decisionActionId = await ctx.db.insert("moderatorActions", {
-    workspaceKey, actorId: alexId, targetType: "incident", targetKey: String(redacted),
-    action: "redact", templateId: "redaction", contentSnapshot: demoLabel,
+    workspaceKey, actorId: alexId, subjectId: jordanId, targetType: "incident", targetKey: String(appealedIncident),
+    action: "remove", reasonId: "not_incident", contentSnapshot: JSON.stringify({ text: "Exercise: an obstruction removed for review.", status: "visible" }),
     snapshotPurgeAt: now + 29 * day, createdAt: now - hour, purgeAt: now + 364 * day,
   });
   await ctx.db.insert("moderatorActions", {
@@ -60,6 +62,8 @@ export async function seedV2DemoStates(
     workspaceKey, decisionActionId, appellantId: jordanId, status: "open",
     createdAt: now - minute, purgeAt: now + 29 * day,
   });
+  await ctx.db.insert("moderationNotices", { workspaceKey, studentId: jordanId, actionId: decisionActionId,
+    message: "Removed: Not a campus safety incident", canAppeal: true, createdAt: now - hour, purgeAt: now + 29 * day });
 
   const source = (sourceKey: string, lastResult: "ok" | "quiet" | "unavailable", age: number) =>
     ctx.db.insert("alertSources", {

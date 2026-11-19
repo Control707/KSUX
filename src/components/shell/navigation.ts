@@ -64,6 +64,7 @@ export const RAIL_GROUPS: { label: string; items: Destination[] }[] = [
       { href: "/saved", label: "Saved", icon: Bookmark },
       { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
       { href: "/profile/notifications", label: "Notifications", icon: Bell },
+      { href: "/profile/moderation", label: "Moderation notices", icon: Shield },
     ],
   },
 ];
@@ -85,5 +86,5 @@ export function isActive(pathname: string, item: Destination): boolean {
 
 /** Chat threads and Ask Scrappy hide the bottom bar and show a Back header. */
 export function isFocusedComposerRoute(pathname: string): boolean {
-  return /^\/chats\/[^/]+/.test(pathname) || pathname === "/scrappy";
+  return /^\/chats\/[^/]+/.test(pathname) || pathname === "/scrappy" || pathname.startsWith("/moderation");
 }

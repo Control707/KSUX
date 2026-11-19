@@ -4,7 +4,7 @@ Unified Kennesaw State University campus social network and daily-life companion
 
 ## Capabilities
 
-- **Dual-Path Identity & Instant Evaluation**: 6-digit numeric `.edu` email OTP (`@students.kennesaw.edu` & `@kennesaw.edu`) + 1-click isolated 3-persona **Judge Demo Mode** (`/?demo=1` & 2-tab `?demo=<shortCode>&persona=alex_owl` WebSocket co-testing).
+- **Dual-Path Identity & Instant Evaluation**: 6-digit numeric `.edu` email OTP (`@students.kennesaw.edu` & `@kennesaw.edu`) + 1-click isolated 4-persona **Judge Demo Mode** (`/?demo=1` & 2-tab `?demo=<shortCode>&persona=alex_owl` WebSocket co-testing).
 - **5-Slot Mobile Shell & 3-Column Desktop Workspace**: 0-tap **Now** Commuter Bento HUD, 3-stream **Feed** (`All KSU` | `Following` | `Trending (24h)`), center **Scrappy** + 10-module Quick Sheet, peer-to-peer **Marketplace**, and unified **Chats** (`Direct Messages`, `Group Chats`, and per-buyer `Deal Chats`), with a `Kennesaw` | `Marietta` **Campus** switcher on location screens only (ADR-0008).
 - **Public Campus Feeds and Student Reports**: **Parking Reports** and **Spot Openings**, Big Owl Bus **Shuttle Routes**, LibCal **Study Rooms** and **Study Sessions**, Nutrislice **Dining Venues**, **Clubs**, university calendar **Events**, and **Course Hubs** with a verified Banner subset, stateless `.ics` import, and Simple Syllabus lookup. An isolated fixture deployment supports the full judge scenario. [Data provenance](./KSUX.md#campus-data-provenance)
 - **Chat-Isolated Scrappy the Owl AI**: 3-tier OpenAI-compatible router (Groq `openai/gpt-oss-120b` / `openai/gpt-oss-20b` → PII-stripped Gemini → Cloudflare Workers AI) with clickable Citation Pills and client-confirmed Pre-Filled Draft Cards, architecturally excluded from all `Chats` and database mutations.
@@ -36,6 +36,12 @@ requires manual deployment/live checks. Do not copy production credentials into
 Preview builds or teammates' development deployments.
 
 ## Quickstart & Verification
+
+The **Moderator console** at `/moderation` has a priority queue, original-content
+review, confirmed actions, a retained Action log and different-reviewer Appeals.
+Authors receive private in-app decisions at `/profile/moderation`. Maintainers
+manage Student appointments and CSA declarations, with Feed health kept in its
+own section. [Console operations and checks](./docs/RUNBOOK.md#moderator-console-and-appeals-87)
 
 The text-only **Incident pilot** at `/safety` has an Emergency Panel before every
 submission, Campus-scoped community list and map, dated Incident Updates and

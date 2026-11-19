@@ -131,6 +131,93 @@ All accounts below require **zero credit cards** and **zero custom domains**:
 
 ---
 
+## Moderator console and Appeals (#87)
+
+`/moderation` implements SPEC-v2 §8 and the #68 Variant A verdict. It is KSU-wide,
+with one priority queue: identifies-me claims, held photos, other Incident
+reports, then Posts/Listings and the retained v1 report types, oldest first within
+each band. A phone row opens a review page with sticky actions; desktop keeps
+the list and review side by side. Back/Esc restores row focus. Every action has
+an `alertdialog` with effects, in-app notices, Appeal eligibility and a log-line
+preview; Cancel is focused first. A Note stays in the queue. After other actions,
+phones return to the list and desktop opens the next item.
+
+`convex/moderatorConsole.ts` exposes `queue`, `review`, `noteLinks`, `act`,
+`actionLog`, `appeals`, `appealSnapshot`, `decideAppeal`, `myNotices`,
+`submitAppeal`, `roster`, `appoint` and `revoke`. Production appointments require
+an active `@students.kennesaw.edu` Student, their plain-text CSA declaration and
+the maintainer's assessment. Ambiguous declarations must be resolved before
+granting Incident access. Revoking a CSA maintainer's appointment retains their
+CSA declaration: the separate maintainer role must not bypass the guard.
+Faculty/Staff cannot receive an appointment.
+
+Both query and mutation boundaries enforce workspace, author/report/claim
+conflicts and the CSA Incident exclusion. The author and deciding Moderator
+cannot read an Appeal snapshot or decide it. A suspension Appeal requires a
+different maintainer. Exclusions are explained with notes; no review time is
+promised. Direct API calls cannot bypass these checks. Feed health and V2 launch
+readiness remain production-maintainer-only in **Feed health**; the **Moderators**
+section retains manual Club officer review alongside the roster.
+
+Remove reasons and Note templates are code constants. Redaction replaces every
+occurrence of the exact supplied words and adds the identifying-details template.
+It restores an Under-review Incident and closes its pending reports. An inaccurate
+note on Restore is optional and unchecked; it is accepted only when there were
+false/misleading reports. Official-note links must reference a listed, unexpired
+Official Alert from the institutional partition (or the same isolated Demo), and
+duplicate links must name another currently visible Incident in the workspace.
+Held photos are hidden until **Show photo** and include their remaining hold time;
+approval, blur and rejection remain the photo workflow in #89.
+
+Each confirmed decision writes one `moderatorActions` row and closes only pending
+reports, preserving earlier outcomes for the identifies-me abuse policy. The new
+decision API uses a per-request identifier so a lost-response retry does not write
+a second action, notice or note. Snapshots are kept for 30 days and patched away
+by existing housekeeping; metadata stays for 365 days. The Action log discloses
+metadata and snapshot expiry only, with a captioned table in a labelled focusable
+scroll region. Snapshots are disclosed only through a guarded Appeal request.
+Reads enforce expiry even before housekeeping runs. No moderation action sends
+push or contacts police.
+
+Authors read decisions at `/profile/moderation`, accessible from the You rail and
+Quick Sheet, and submit one 1–1000-character Appeal per eligible decision before
+its snapshot expires. There is no second Appeal after Uphold or Reverse. Reversal
+restores removed content if still available; a newer decision or author deletion
+prevents an older Appeal from overwriting it. Reversing a suspension restores
+account access; previously removed artifacts and reversed Clout stay removed.
+Suspended Students retain their identity and restricted sessions for notices and
+Appeals. During that window OTP reauthentication reaches the same restricted
+screen and cannot create a replacement profile or access ordinary app APIs.
+
+The queue initially reads up to 200 open and 200 quarantined reports with the
+workspace/status/priority index, plus 100 unexpired held assets. It then groups
+targets, loads their reports and applies exclusions before projection. Review
+loads at most 100 Updates; Note choices load at most 50 Alerts and 50 visible
+Incidents per Campus; the log shows the latest 200 entries; Appeals show at most
+100 of each status; notices and roster show at most 100 rows. These are bounded
+review windows, not total-backlog counts. Measure the RUNBOOK I/O meter before
+raising them. The `moderationNotices` table adds recipient-led reads and the
+existing workspace-led retention/Demo purge; `moderatorActions.by_request` supports
+retry deduplication. No additional content store or notification delivery service
+is introduced.
+
+Demo menu: Maya is the maintainer and has fixture report conflicts; Alex is a
+Moderator; Sam is a second Moderator for Appeals; Jordan is the Incident author.
+Open `/moderation?demo=1`, switch to Alex to review, switch to Jordan at
+`/profile/moderation` to Appeal, then Sam to answer. Every fixture is labelled
+**Demo · not real**. The restricted suspension screen includes persona-switch
+buttons so an evaluator can leave the suspended persona safely.
+
+Verification: `tests/convex/moderator-console.test.ts` covers queue order,
+exclusions, held-photo disclosure, fixed templates and link boundaries, exact-word
+Redaction, one log on retries, optional inaccurate notes, private notices,
+Appeals/Uphold/Reverse, restricted suspension sign-in and retention. Browser
+coverage is `tests/e2e/moderator-console.spec.ts`; Layer 4 coverage is
+`tests/a11y/moderation.spec.ts` plus the updated Profile/restore checks. Use the
+standard `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:e2e` and
+`pnpm build` checks in the isolated local deployment. Real-device manual AT
+verification remains the release-level checklist.
+
 ## KSUX v2 launch and Moderation operations
 
 ### Incident posting switch
@@ -193,7 +280,7 @@ insert time. Author edits lock after five minutes, Author Updates cap at five,
 and deleting does not reset the rolling 3/hour or 6/day allowance. Age uses the
 posted time, never the observed time or a recent Update. Original text is never
 changed by an author after lock. The Moderator console and Redaction actions are
-#87; Scrappy's deterministic Safety Card is #88.
+documented in the Moderator console section above (#87); Scrappy's deterministic Safety Card is #88.
 
 Active reads share one projection for list and pins, bounded to 50 visible rows
 per Campus, ordered by last activity. A workspace-led activity index ensures an

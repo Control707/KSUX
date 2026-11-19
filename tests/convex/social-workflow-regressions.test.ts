@@ -199,7 +199,7 @@ describe("Social workflow regressions", () => {
       crossPostToCampusFeed: false,
     });
     const moderation = { sessionToken: june.sessionToken, targetType: "post" as const, targetId: postId };
-    await t.mutation(api.moderation.reviewModerationTarget, { ...moderation, decision: "remove" });
+    await t.mutation(api.moderation.reviewModerationTarget, { ...moderation, decision: "remove", reasonId: "harassment" });
     await t.mutation(api.moderation.reviewModerationTarget, { ...moderation, decision: "restore" });
 
     expect(await t.run((ctx) => ctx.db.get(postId))).toMatchObject({

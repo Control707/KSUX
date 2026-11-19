@@ -240,9 +240,9 @@ describe("Handoff Clout, holds and reversals", () => {
     await t.mutation(api.moderation.reviewModerationTarget, { sessionToken: maintainer!.sessionToken,
       targetType: "listing", targetId: deal.listingId, decision: "restore" });
     await t.mutation(api.moderation.reviewModerationTarget, { sessionToken: maintainer!.sessionToken,
-      targetType: "listing", targetId: deal.listingId, decision: "remove" });
+      targetType: "listing", targetId: deal.listingId, decision: "remove", reasonId: "harassment" });
     await t.mutation(api.moderation.reviewModerationTarget, { sessionToken: maintainer!.sessionToken,
-      targetType: "listing", targetId: deal.listingId, decision: "remove" });
+      targetType: "listing", targetId: deal.listingId, decision: "remove", reasonId: "harassment" });
     expect(await counted(t, seller!.studentId)).toBe(0);
     expect(await lifetime(t, seller!.studentId)).toBe(0);
     expect(await lifetime(t, buyer!.studentId)).toBe(10);

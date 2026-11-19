@@ -1,6 +1,6 @@
 import React from "react";
-import { ModerationQueueView } from "@/components/moderation/ModerationQueueView";
+import { ModeratorConsoleView } from "@/components/moderation/ModeratorConsoleView";
 
 export default function ModerationPage() {
-  return <ModerationQueueView />;
+  return <React.Suspense fallback={<div className="p-4"><h1 className="text-2xl font-bold">Moderator console</h1><p role="status">Loading console…</p></div>}><ModeratorConsoleView /></React.Suspense>;
 }

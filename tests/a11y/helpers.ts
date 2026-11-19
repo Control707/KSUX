@@ -36,7 +36,7 @@ export async function expectNoSeriousAxe(page: Page, opts: { include?: string[];
   for (const selector of opts.exclude ?? []) builder = builder.exclude(selector);
   const results = await builder.analyze();
   const blocking = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
-  const summary = blocking.map((v) => `${v.id} (${v.impact}): ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`);
+  const summary = blocking.map((v) => `${v.id} (${v.impact}): ${v.nodes.slice(0, 3).map((n) => `${n.target.join(" ")}: ${n.failureSummary}`).join(" | ")}`);
   expect(summary, `axe serious/critical violations · ${opts.label}`).toEqual([]);
 }
 
