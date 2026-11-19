@@ -59,3 +59,35 @@ export const sendPushPayloadNode = internalAction({
     return { delivered: result.delivered };
   },
 });
+
+/** Official Alert fan-out (ADR-0007): one batch of opted-in subscriptions, source-named payload only. */
+export const sendPushToSubscriptionsNode = internalAction({
+  args: {
+    subscriptions: v.array(v.object({ endpoint: v.string(), p256dh: v.string(), auth: v.string() })),
+    title: v.string(),
+    body: v.string(),
+    href: v.string(),
+    tag: v.string(),
+  },
+  handler: async (ctx, { subscriptions, ...payload }) => {
+    const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
+    const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
+    if (!publicKey || !privateKey) return { delivered: 0, skipped: "vapid_not_configured" };
+    webpush.setVapidDetails(
+      process.env.VAPID_SUBJECT?.trim() || "mailto:maintainer@students.kennesaw.edu", publicKey, privateKey);
+    let delivered = 0;
+    const stale: string[] = [];
+    const encoded = JSON.stringify(payload);
+    for (const sub of subscriptions) {
+      try {
+        await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, encoded, { TTL: 60 * 60 });
+        delivered++;
+      } catch (err: any) {
+        const status = Number(err?.statusCode ?? 0);
+        if (status === 404 || status === 410) stale.push(sub.endpoint);
+      }
+    }
+    if (stale.length) await ctx.runMutation(internal.push.pruneStaleEndpointsInternal, { endpoints: stale });
+    return { delivered };
+  },
+});

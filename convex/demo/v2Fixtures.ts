@@ -79,7 +79,9 @@ export async function seedV2DemoStates(
       itemKey: "demo-alert-" + index, category: "timely_warning", headline: demoLabel,
       excerpt: "Exercise only. No real campus incident is described.",
       officialIssuedAt: firstObservedAt, firstObservedAt, lastSeenAt: now - minute, state,
-      confirmedFetches: 2, purgeAt: now + 29 * day,
+      stateChangedAt: state === "updated" ? now - 10 * minute : firstObservedAt,
+      noLongerListedAt: state === "no_longer_listed" ? now - 20 * minute : undefined,
+      contentHash: "demo-" + index, confirmedFetches: 2, purgeAt: now + 29 * day,
     });
   }
   const dow = new Date(easternDate(now) + "T12:00:00Z").getUTCDay();
