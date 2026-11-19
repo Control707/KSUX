@@ -18,6 +18,7 @@ import {
 import { appendMessageAndFanoutUnread } from "./chats";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx } from "./_generated/server";
+import { awardClout, CLOUT_HANDOFF_POINTS } from "./lib/cloutLedger";
 
 const MAX_ACTIVE_LISTINGS_PER_STUDENT = 15;
 const MAX_DEAL_CHAT_PARTICIPANTS = 6;
@@ -988,12 +989,16 @@ export const confirmBuyerPickup = viewerMutation({
     }
 
     if (listing.buyerConfirmedPickup) {
-      return { ok: true, trustIncremented: false };
+      return { ok: true, trustIncremented: false, cloutPaid: false };
     }
 
     await ctx.db.patch(listing._id, {
       buyerConfirmedPickup: true,
     });
+
+    // Read before the card flips to completed: handoff Clout needs a Meetup Spot
+    // both sides confirmed (SPEC-v2 §12).
+    const confirmedSpot = chat.handoffCard?.status === "confirmed" ? chat.handoffCard : undefined;
 
     if (chat.handoffCard) {
       await ctx.db.patch(chat._id, {
@@ -1054,6 +1059,23 @@ export const confirmBuyerPickup = viewerMutation({
       trustIncremented = true;
     }
 
+    // 10 Clout each, only when the pair rule incremented and the Meetup Spot was
+    // confirmed. A Listing already under review pays straight into a hold.
+    let cloutPaid = false;
+    if (trustIncremented && confirmedSpot) {
+      const common = {
+        workspaceKey: viewer.workspaceKey, sourceType: "handoff" as const, sourceKey: String(chat._id),
+        targetKey: `handoff:${pairKey}`, campus: confirmedSpot.meetupCampus,
+        amount: CLOUT_HANDOFF_POINTS, now,
+      };
+      const seller = await awardClout(ctx, {
+        ...common, studentId: chat.primarySellerId, partnerId: chat.primaryBuyerId,
+        holdImmediately: listing.visibilityStatus === "under_review",
+      });
+      const buyer = await awardClout(ctx, { ...common, studentId: chat.primaryBuyerId, partnerId: chat.primarySellerId });
+      cloutPaid = seller.paid || buyer.paid;
+    }
+
     const freshChat = (await ctx.db.get(chat._id))!;
     await appendMessageAndFanoutUnread(ctx, {
       workspaceKey: viewer.workspaceKey,
@@ -1065,7 +1087,7 @@ export const confirmBuyerPickup = viewerMutation({
       now,
     });
 
-    return { ok: true, trustIncremented };
+    return { ok: true, trustIncremented, cloutPaid };
   },
 });
 

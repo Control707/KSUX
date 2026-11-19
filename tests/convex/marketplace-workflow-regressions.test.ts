@@ -155,10 +155,12 @@ describe("Marketplace workflow regressions", () => {
     await expect(t.mutation(api.marketplace.confirmBuyerPickup, { ...buyerAuth, chatId })).resolves.toEqual({
       ok: true,
       trustIncremented: true,
+      cloutPaid: false,
     });
     await expect(t.mutation(api.marketplace.confirmBuyerPickup, { ...buyerAuth, chatId })).resolves.toEqual({
       ok: true,
       trustIncremented: false,
+      cloutPaid: false,
     });
 
     for (const auth of [sellerAuth, buyerAuth]) {

@@ -18,6 +18,7 @@ import {
   decodeSlotMask48Slots,
 } from "./sync/libcalSync";
 import { Doc, Id } from "./_generated/dataModel";
+import { corroboratePulse } from "./lib/cloutLedger";
 
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
@@ -331,6 +332,8 @@ export const triggerStudySwrRefresh = viewerMutation({
   },
 });
 
+const TWENTY_MINUTES_MS = 20 * 60 * 1000;
+
 export const submitWalkInVibe = viewerMutation({
   args: {
     roomSlug: v.string(),
@@ -343,16 +346,56 @@ export const submitWalkInVibe = viewerMutation({
   },
   handler: async (ctx, args) => {
     const now = workflowTime(args.nowOverride);
-    await ctx.db.insert("campusPulses", {
-      workspaceKey: ctx.viewer.workspaceKey,
+    const { viewer } = ctx;
+    const roomSlug = args.roomSlug.trim().toLowerCase();
+    let room: Doc<"studyRooms"> | null = null;
+    for (const campus of ["Kennesaw", "Marietta"] as const) {
+      for (const roomKind of ["walk_in", "libcal"] as const) {
+        room ??= await ctx.db
+          .query("studyRooms")
+          .withIndex("by_campus_kind", (q) => q.eq("campus", campus).eq("roomKind", roomKind).eq("slug", roomSlug))
+          .first();
+      }
+    }
+    if (!room) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Study Room not found." });
+    }
+
+    // 1 vibe per 20 min per Student per room (SPEC-v2 §12), so vibes can't be
+    // farmed for Clout.
+    const cooldownKey = `study_vibe:${viewer.workspaceKey}:${viewer.actorStudent._id}:${roomSlug}`;
+    const cooldown = await ctx.db
+      .query("rateLimitBuckets")
+      .withIndex("by_key", (q) => q.eq("key", cooldownKey))
+      .unique();
+    if (cooldown && cooldown.expiresAt > now) {
+      throw new ConvexError({
+        code: "RATE_LIMITED",
+        message: "You already reported this room recently (1 per 20 minutes).",
+      });
+    }
+    if (cooldown) {
+      await ctx.db.patch(cooldown._id, { count: 1, windowStart: now, expiresAt: now + TWENTY_MINUTES_MS });
+    } else {
+      await ctx.db.insert("rateLimitBuckets", { key: cooldownKey, count: 1, windowStart: now, expiresAt: now + TWENTY_MINUTES_MS });
+    }
+
+    const pulseId = await ctx.db.insert("campusPulses", {
+      workspaceKey: viewer.workspaceKey,
       targetType: "study_room",
-      targetKey: args.roomSlug.trim().toLowerCase(),
-      authorId: ctx.viewer.actorStudent._id,
+      targetKey: roomSlug,
+      authorId: viewer.actorStudent._id,
       tierValue: args.vibe,
       publishedAt: now,
       expiresAt: now + FORTY_FIVE_MINUTES_MS,
     });
-    return { ok: true, expiresAt: now + FORTY_FIVE_MINUTES_MS };
+
+    const clout = await corroboratePulse(ctx, {
+      workspaceKey: viewer.workspaceKey, pulseId, targetType: "study_room", targetKey: roomSlug,
+      authorId: viewer.actorStudent._id, tierValue: args.vibe, campus: room.campus,
+      windowMs: TWENTY_MINUTES_MS, now, blocked: viewer.blockedStudentIds,
+    });
+    return { ok: true, expiresAt: now + FORTY_FIVE_MINUTES_MS, corroborated: clout.corroborated };
   },
 });
 

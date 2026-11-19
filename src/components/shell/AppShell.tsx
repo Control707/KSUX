@@ -15,6 +15,7 @@ import { LocationCampusSwitcher } from "./CampusSwitcher";
 import { MODERATION_DESTINATION, RAIL_GROUPS, isActive, isFocusedComposerRoute } from "./navigation";
 import { QuickSheet } from "./QuickSheet";
 import { WelcomeGate } from "./WelcomeGate";
+import { CloutPayoutToast } from "@/components/clout/CloutPayoutToast";
 import { AgendaReminders } from "@/components/agenda/AgendaReminders";
 
 const DEMO_PERSONAS = [
@@ -125,6 +126,7 @@ export function AppShell({
     <div className="flex min-h-screen flex-col bg-[var(--bg)] text-[var(--ink)]">
       <SkipLink />
       <RouteHeadingFocus />
+      <CloutPayoutToast viewerKey={viewerKey} />
       <LargeTextMode />
 
       <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--header)] px-[var(--sp-3)] py-[var(--sp-2)] pt-[calc(var(--sp-2)+env(safe-area-inset-top,0px))]">

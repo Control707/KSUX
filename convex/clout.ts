@@ -1,11 +1,15 @@
 import { v } from "convex/values";
 import { easternDate } from "./lib/easternDate";
+import { weekKeyET } from "./lib/cloutLedger";
 import { viewerMutation, viewerQuery } from "./lib/viewer";
+import type { Doc, Id } from "./_generated/dataModel";
+import type { QueryCtx } from "./_generated/server";
 
 /**
  * Read side of the private Profile "Your Clout" card (SPEC-v2 §12). Awarding,
- * holds and reversals belong to the Clout ledger (#81); this file only reads
- * the viewer's own rows and flips their own "Hide me from leaderboards".
+ * holds and reversals live in lib/cloutLedger.ts and run inside the report
+ * mutations; this file only reads the viewer's own rows and flips their own
+ * "Hide me from leaderboards". Other Students' Clout is never returned here.
  */
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -13,8 +17,19 @@ const CAMPUSES = ["Kennesaw", "Marietta"] as const;
 
 /** Monday (ET) of the week containing `now`, as YYYY-MM-DD. */
 export function currentWeekKeyET(now: number): string {
-  const dow = new Date(easternDate(now) + "T12:00:00Z").getUTCDay();
-  return easternDate(now, -((dow + 6) % 7));
+  return weekKeyET(now);
+}
+
+/** A short, non-identifying place label for the payout toast and log. */
+async function payoutPlace(ctx: QueryCtx, event: Doc<"cloutEvents">): Promise<string | undefined> {
+  const [kind, key] = event.targetKey.split(":", 2);
+  if (kind === "parking_lot" && key) {
+    const lotId = ctx.db.normalizeId("parkingLots", key);
+    const lot = lotId && await ctx.db.get(lotId as Id<"parkingLots">);
+    return lot ? `Lot ${lot.lotCode}` : undefined;
+  }
+  if ((kind === "dining_venue" || kind === "study_room") && key) return key.replace(/-/g, " ");
+  return undefined;
 }
 
 export const getMyClout = viewerQuery({
@@ -43,20 +58,43 @@ export const getMyClout = viewerQuery({
       .order("desc")
       .take(50);
 
-    return {
-      weekKey,
-      thisWeek,
-      lifetime: student.lifetimeClout ?? 0,
-      hidden: student.leaderboardHidden === true,
-      isDemo: viewer.mode === "demo",
-      payouts: events.map((event) => ({
+    // Own active Parking Reports that haven't been corroborated yet.
+    const activeReports = await ctx.db
+      .query("parkingReports")
+      .withIndex("by_author_status", (q) =>
+        q.eq("workspaceKey", viewer.workspaceKey).eq("authorId", student._id).eq("status", "active"))
+      .take(20);
+    let pendingReports = 0;
+    for (const report of activeReports) {
+      if (report.expiresAt <= now) continue;
+      const sourceType = report.reportKind === "fullness" ? "parking_report" : "spot_opening";
+      const paid = await ctx.db.query("cloutEvents").withIndex("by_source", (q) =>
+        q.eq("workspaceKey", viewer.workspaceKey).eq("sourceType", sourceType).eq("sourceKey", String(report._id))
+          .eq("studentId", student._id).eq("kind", "earn")).first();
+      if (!paid) pendingReports += 1;
+    }
+
+    const payouts = [];
+    for (const [index, event] of events.entries()) {
+      payouts.push({
         id: String(event._id),
         kind: event.kind,
         amount: event.amount,
         sourceType: event.sourceType,
         campus: event.campus,
         createdAt: event.createdAt,
-      })),
+        place: index < 10 ? await payoutPlace(ctx, event) : undefined,
+      });
+    }
+
+    return {
+      weekKey,
+      pendingReports,
+      thisWeek,
+      lifetime: student.lifetimeClout ?? 0,
+      hidden: student.leaderboardHidden === true,
+      isDemo: viewer.mode === "demo",
+      payouts,
     };
   },
 });
