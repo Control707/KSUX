@@ -92,8 +92,10 @@ describe("campus-wide search", () => {
   });
 
   it("never reads Incidents, Incident Updates or Alerts (ADR-0009)", () => {
-    const source = readFileSync(new URL("../../convex/search.ts", import.meta.url), "utf8");
-    expect(source).not.toMatch(/["'](incidents|incidentUpdates|alertItems|alertSources)["']/);
+    for (const file of ["search.ts", "saved.ts"]) {
+      const source = readFileSync(new URL(`../../convex/${file}`, import.meta.url), "utf8");
+      expect(source, file).not.toMatch(/["'](incidents|incidentUpdates|alertItems|alertSources)["']/);
+    }
   });
 });
 
@@ -112,21 +114,21 @@ describe("saved items", () => {
     await t.mutation(api.feed.togglePostInteraction, { ...auth, postId, kind: "post_like" });
     await t.mutation(api.marketplace.toggleListingBookmark, { ...auth, listingId });
 
-    const all = await t.query(api.search.listSavedItems, auth);
+    const all = await t.query(api.saved.listSavedItems, auth);
     expect(all.map((item) => item.kind).sort()).toEqual(["listing", "post"]);
     const post = all.find((item) => item.kind === "post")!;
     expect(post).toMatchObject({ available: true, postId, body: "Best study spots on campus", campus: "Kennesaw" });
     expect(all.find((item) => item.kind === "listing")).toMatchObject({ available: true, listingId, title: "Drafting table", campus: "Marietta" });
 
-    expect((await t.query(api.search.listSavedItems, { ...auth, type: "listings" })).map((i) => i.kind)).toEqual(["listing"]);
-    expect((await t.query(api.search.listSavedItems, { ...auth, type: "posts" })).map((i) => i.kind)).toEqual(["post"]);
+    expect((await t.query(api.saved.listSavedItems, { ...auth, type: "listings" })).map((i) => i.kind)).toEqual(["listing"]);
+    expect((await t.query(api.saved.listSavedItems, { ...auth, type: "posts" })).map((i) => i.kind)).toEqual(["post"]);
 
     const listingItem = all.find((item) => item.kind === "listing")!;
-    await t.mutation(api.search.removeSavedItem, { ...auth, savedId: listingItem.savedId });
-    expect((await t.query(api.search.listSavedItems, auth)).map((i) => i.kind)).toEqual(["post"]);
+    await t.mutation(api.saved.removeSavedItem, { ...auth, savedId: listingItem.savedId });
+    expect((await t.query(api.saved.listSavedItems, auth)).map((i) => i.kind)).toEqual(["post"]);
     expect(await t.run((ctx) => ctx.db.get(listingId))).toMatchObject({ bookmarkCount: 0 });
     // Another Student cannot remove someone else's bookmark.
-    await expect(t.mutation(api.search.removeSavedItem, { sessionToken: author.sessionToken, savedId: post.savedId }))
+    await expect(t.mutation(api.saved.removeSavedItem, { sessionToken: author.sessionToken, savedId: post.savedId }))
       .rejects.toThrow();
   });
 
@@ -144,11 +146,12 @@ describe("saved items", () => {
     await t.mutation(api.marketplace.toggleListingBookmark, { ...auth, listingId });
 
     await t.run(async (ctx) => { await ctx.db.patch(listingId, { expiresAt: Date.now() - 1 }); });
-    let items = await t.query(api.search.listSavedItems, auth);
-    expect(items.find((i) => i.kind === "listing")).toMatchObject({ available: false, reason: "ended" });
+    let items = await t.query(api.saved.listSavedItems, auth);
+    expect(items.find((i) => i.kind === "listing")).toMatchObject({ available: false, reason: "unavailable" });
+    expect(JSON.stringify(items)).not.toMatch(/Hidden calculator/);
 
     await t.mutation(api.moderation.toggleBlockStudent, { ...auth, targetStudentId: author.studentId });
-    items = await t.query(api.search.listSavedItems, auth);
+    items = await t.query(api.saved.listSavedItems, auth);
     expect(items).toHaveLength(2);
     for (const item of items) {
       expect(item).toMatchObject({ available: false, reason: "unavailable" });
@@ -157,12 +160,31 @@ describe("saved items", () => {
     await t.mutation(api.moderation.toggleBlockStudent, { ...auth, targetStudentId: author.studentId });
 
     await t.mutation(api.feed.deletePost, { sessionToken: author.sessionToken, postId });
-    items = await t.query(api.search.listSavedItems, { ...auth, type: "posts" });
+    items = await t.query(api.saved.listSavedItems, { ...auth, type: "posts" });
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ available: false, reason: "unavailable" });
     expect(JSON.stringify(items[0])).not.toMatch(/Secret meetup/);
 
-    await t.mutation(api.search.removeSavedItem, { ...auth, savedId: items[0]!.savedId });
-    expect(await t.query(api.search.listSavedItems, { ...auth, type: "posts" })).toEqual([]);
+    await t.mutation(api.saved.removeSavedItem, { ...auth, savedId: items[0]!.savedId });
+    expect(await t.query(api.saved.listSavedItems, { ...auth, type: "posts" })).toEqual([]);
+  });
+
+  it("hides a saved reply when its thread's root Post is Report-hidden, as the thread itself does", async () => {
+    const t = createTestConvex();
+    const author = await createVerifiedTestStudent(t, { handle: "root_owl", displayName: "Root Owl" });
+    const replier = await createVerifiedTestStudent(t, { handle: "reply_owl", displayName: "Reply Owl" });
+    const saver = await createVerifiedTestStudent(t, { handle: "thread_saver", displayName: "Thread Saver" });
+    const auth = { sessionToken: saver.sessionToken };
+    const { postId: rootId } = await t.mutation(api.feed.createPost, { sessionToken: author.sessionToken, body: "Root about parking" });
+    const { postId: replyId } = await t.mutation(api.feed.createPost, {
+      sessionToken: replier.sessionToken, body: "Reply with lot tips", replyToPostId: rootId,
+    });
+    await t.mutation(api.feed.togglePostInteraction, { ...auth, postId: replyId, kind: "post_bookmark" });
+    expect(await t.query(api.saved.listSavedItems, auth)).toMatchObject([{ available: true, rootPostId: rootId }]);
+
+    await t.mutation(api.moderation.submitReport, { ...auth, targetType: "post", targetId: rootId, reason: "harassment" });
+    const [item] = await t.query(api.saved.listSavedItems, auth);
+    expect(item).toMatchObject({ available: false, reason: "unavailable" });
+    expect(JSON.stringify(item)).not.toMatch(/lot tips/);
   });
 });

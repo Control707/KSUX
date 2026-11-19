@@ -7,24 +7,19 @@ import type { Id } from "@convex/_generated/dataModel";
 import { useViewerMutation, useViewerQuery } from "@/lib/viewerClient";
 import { useAnnouncer } from "@/components/a11y/Announcer";
 import { CampusBadge, SegmentedControl } from "@/components/a11y/controls";
+import { priceLabel } from "@/components/marketplace/MarketplaceView";
+import { listingHref, PILL_ACTION as action } from "./shared";
 
 type Filter = "all" | "posts" | "listings";
 
 const card = "flex flex-wrap items-start justify-between gap-[var(--sp-2)] rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] p-[var(--sp-3)]";
-const action = "inline-flex min-h-[var(--target)] items-center rounded-[var(--r-pill)] border border-[var(--line-strong)] px-[var(--sp-3)] text-sm font-bold hover:border-[var(--ink)]";
-
-function priceLabel(item: { pricingMode?: string; priceCents?: number }) {
-  if (item.pricingMode === "free_pickup") return "Free";
-  if (item.pricingMode === "open_to_trade") return "Trade";
-  return `$${((item.priceCents ?? 0) / 100).toFixed(0)} OBO`;
-}
 
 /** Private saved Posts and Listings (#77). Only the viewer ever sees this list. */
 export function SavedView() {
   const { toast } = useAnnouncer();
   const [filter, setFilter] = useState<Filter>("all");
-  const items = useViewerQuery(api.search.listSavedItems, { type: filter });
-  const remove = useViewerMutation(api.search.removeSavedItem);
+  const items = useViewerQuery(api.saved.listSavedItems, { type: filter });
+  const remove = useViewerMutation(api.saved.removeSavedItem);
 
   const onRemove = async (savedId: Id<"savedInteractions">, label: string) => {
     try {
@@ -69,13 +64,12 @@ export function SavedView() {
                   <span className="mt-[var(--sp-1)] line-clamp-3 block">{item.body}</span>
                 </Link>
               );
-            } else if (item.kind === "listing" && "title" in item && item.title) {
+            } else if (item.kind === "listing" && item.available) {
               label = item.title;
               body = (
-                <Link href={`/marketplace?q=${encodeURIComponent(item.title)}`} className="block min-h-[var(--target)] min-w-0 flex-1 [overflow-wrap:anywhere]">
-                  <span className="block text-sm font-bold">Listing · {priceLabel(item)} {item.campus && <CampusBadge campus={item.campus} />}</span>
+                <Link href={listingHref(item)} className="block min-h-[var(--target)] min-w-0 flex-1 [overflow-wrap:anywhere]">
+                  <span className="block text-sm font-bold">Listing · {priceLabel(item)} <CampusBadge campus={item.campus} /></span>
                   <span className="mt-[var(--sp-1)] block font-bold">{item.title}</span>
-                  {!item.available && <span className="block text-sm text-[var(--muted)]">This Listing has ended.</span>}
                 </Link>
               );
             } else {
@@ -83,7 +77,7 @@ export function SavedView() {
               body = (
                 <p className="min-w-0 flex-1 text-[var(--muted)]">
                   <span className="block text-sm font-bold">{kindLabel}</span>
-                  This {kindLabel} is no longer available.
+                  This {kindLabel} is no longer available{item.kind === "listing" ? " (it may have sold or ended)" : ""}.
                 </p>
               );
             }

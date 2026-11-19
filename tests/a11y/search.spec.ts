@@ -46,10 +46,9 @@ test("keyboard users reach Search from the header and open a grouped result", as
 test("Saved lists the Demo persona's bookmarks, filters and removes one", async ({ page }) => {
   await enterDemo(page);
   await page.goto("/saved");
-  const list = page.getByTestId("saved-list");
-  await expect(list.or(page.getByTestId("saved-empty"))).toBeVisible({ timeout: 20_000 });
-  if (!(await list.isVisible())) return;
+  // The Demo fixtures bookmark the TI-84 Listing for maya_cs.
   await page.getByRole("button", { name: "Listings" }).click();
+  await expect(page.getByTestId("saved-list")).toContainText("TI-84", { timeout: 20_000 });
   const items = page.getByTestId("saved-item");
   const before = await items.count();
   await items.first().getByRole("button", { name: /Remove/ }).click();

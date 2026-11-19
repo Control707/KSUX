@@ -7,6 +7,8 @@ import { api } from "@convex/_generated/api";
 import { useViewerQuery } from "@/lib/viewerClient";
 import { CampusBadge, SegmentedControl } from "@/components/a11y/controls";
 import { CampusGeoMap } from "@/components/map/CampusGeoMap";
+import { priceLabel } from "@/components/marketplace/MarketplaceView";
+import { listingHref, PILL_ACTION as action } from "./shared";
 import { loadCampusPlaces, searchPlaces, type Campus, type CampusPlace } from "@/lib/campusPlaces";
 
 type CampusChoice = "All KSU" | Campus;
@@ -14,7 +16,6 @@ const DEBOUNCE_MS = 250;
 const MIN_QUERY = 2;
 
 const link = "inline-flex min-h-[var(--target)] w-full min-w-0 flex-col justify-center rounded-[var(--r-md)] px-[var(--sp-3)] py-[var(--sp-2)] hover:bg-[var(--surface-2)] [overflow-wrap:anywhere]";
-const action = "inline-flex min-h-[var(--target)] items-center rounded-[var(--r-pill)] border border-[var(--line-strong)] px-[var(--sp-3)] text-sm font-bold hover:border-[var(--ink)]";
 
 function useDebounced<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -23,12 +24,6 @@ function useDebounced<T>(value: T, ms: number): T {
     return () => clearTimeout(timer);
   }, [value, ms]);
   return debounced;
-}
-
-function priceLabel(item: { pricingMode: string; priceCents?: number }) {
-  if (item.pricingMode === "free_pickup") return "Free";
-  if (item.pricingMode === "open_to_trade") return "Trade";
-  return `$${((item.priceCents ?? 0) / 100).toFixed(0)} OBO`;
 }
 
 function formatWhen(ms: number) {
@@ -135,7 +130,7 @@ export function SearchView() {
                 <span className="min-w-0 [overflow-wrap:anywhere]">
                   <span className="font-bold">{place.name}</span>{place.code ? ` · ${place.code}` : ""} <CampusBadge campus={place.campus} />
                 </span>
-                <button type="button" className={action} aria-expanded={mapPlace?.id === place.id} aria-controls="search-map"
+                <button type="button" className={action} aria-expanded={mapPlace?.id === place.id}
                   onClick={() => setMapPlace(mapPlace?.id === place.id ? null : place)}>
                   {mapPlace?.id === place.id ? "Hide map" : "Show on map"}<span className="sr-only">: {place.name}</span>
                 </button>
@@ -145,7 +140,7 @@ export function SearchView() {
           {mapPlace && (
             <div id="search-map">
               <CampusGeoMap key={mapPlace.id} campusFilter={mapPlace.campus} destinationPlaceId={mapPlace.id}
-                showParkingLots showShuttleRoutes title={`${mapPlace.name} on the ${mapPlace.campus} campus map`} />
+                showParkingLots showShuttleRoutes title={`${mapPlace.name} on the ${mapPlace.campus} Campus map`} />
             </div>
           )}
           <ResultGroup id="events" title="Events" count={results.events.length}>
@@ -153,8 +148,9 @@ export function SearchView() {
               <li key={ev._id}>
                 <Link href={`/events/${ev._id}`} className={link}>
                   <span className="font-bold">{ev.title}</span>
-                  <span className="text-sm">
-                    {formatWhen(ev.startTime)} · {ev.isVirtual ? "Online" : ev.locationName} · {ev.campusScope === "Both" ? "Both Campuses" : ev.campus}
+                  <span className="flex flex-wrap items-center gap-[var(--sp-1)] text-sm">
+                    {formatWhen(ev.startTime)} · {ev.isVirtual ? "Online" : ev.locationName}
+                    {ev.campusScope === "Both" ? <span>· Both Campuses</span> : <CampusBadge campus={ev.campus} />}
                   </span>
                 </Link>
               </li>
@@ -165,7 +161,7 @@ export function SearchView() {
               <li key={club._id}>
                 <Link href={`/clubs/${encodeURIComponent(club.slug)}`} className={link}>
                   <span className="font-bold">{club.name}</span>
-                  <span className="text-sm">{club.campus} · {club.summary}</span>
+                  <span className="text-sm"><CampusBadge campus={club.campus} /> {club.summary}</span>
                 </Link>
               </li>
             ))}
@@ -175,7 +171,7 @@ export function SearchView() {
               <li key={hub._id}>
                 <Link href={`/courses/${encodeURIComponent(hub.subjectCourse)}`} className={link}>
                   <span className="font-bold">{hub.subjectCourse} · {hub.title}</span>
-                  <span className="text-sm">{hub.campuses.join(" and ")}</span>
+                  <span className="flex flex-wrap gap-[var(--sp-1)] text-sm">{hub.campuses.map((c) => <CampusBadge key={c} campus={c} />)}</span>
                 </Link>
               </li>
             ))}
@@ -183,9 +179,9 @@ export function SearchView() {
           <ResultGroup id="listings" title="Marketplace Listings" count={results.listings.length}>
             {results.listings.map((item) => (
               <li key={item._id}>
-                <Link href={`/marketplace?q=${encodeURIComponent(item.title)}`} className={link}>
+                <Link href={listingHref({ listingId: item._id, title: item.title })} className={link}>
                   <span className="font-bold">{item.title}</span>
-                  <span className="text-sm">{priceLabel(item)} · {item.campus}</span>
+                  <span className="text-sm">{priceLabel(item)} <CampusBadge campus={item.campus} /></span>
                 </Link>
               </li>
             ))}

@@ -39,7 +39,7 @@ const CATEGORIES = [
 type Campus = "Kennesaw" | "Marietta";
 type BrowseCampus = "All KSU" | Campus;
 
-function priceLabel(item: { pricingMode: string; priceCents?: number | null }) {
+export function priceLabel(item: { pricingMode: string; priceCents?: number | null }) {
   if (item.pricingMode === "free_pickup") return "Free Pickup";
   if (item.pricingMode === "open_to_trade") return "Open to Trade";
   return `$${((item.priceCents ?? 0) / 100).toFixed(0)} OBO`;
@@ -449,8 +449,9 @@ export function MarketplaceView() {
             {listings.map((item) => (
               <li
                 key={String(item._id)}
+                id={`listing-${item._id}`}
                 data-testid="marketplace-listing-card"
-                className="flex min-w-0 flex-col overflow-hidden rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)]"
+                className="flex min-w-0 scroll-mt-[var(--chrome-top)] flex-col overflow-hidden rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] target:outline target:outline-[length:var(--focus-w)] target:outline-[var(--focus)]"
               >
                 {item.mediaUrls[0] ? (
                   <img src={item.mediaUrls[0]} alt={`Photo of ${item.title}`} className="aspect-[4/3] w-full object-cover" />
