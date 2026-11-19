@@ -14,10 +14,21 @@ that production is polling, displaying copied Alerts, or delivering push.
 Keep #111 open until the live acceptance criteria are evidenced below.
 
 The available checkout is configured for anonymous local Convex at
-`http://127.0.0.1:3210`. No production Convex target, production credentials,
-maintainer session, or physical-device testers have been confirmed. No
-production environment variables, source sign-offs, or subscriptions were
-changed during preparation.
+`http://127.0.0.1:3210`. Production provisioning issue
+[#27](https://github.com/Control707/KSUX/issues/27) is closed, and GitHub reports a
+successful [Vercel deployment status for main commit `0929fbf`](https://vercel.com/control707s-projects/ksux/85C1YRDSYMhDEaKg9Xrr4aQcQZXW).
+Neither identifies an authenticated Convex target in this checkout. The existing
+Chrome session reaches Vercel's login page for the project; there is no confirmed
+authenticated Convex session or production maintainer session. No production
+environment variables, source sign-offs, or subscriptions were changed during
+preparation.
+
+On 2026-11-19 the requester delegated the rollout-window choice and authorized
+free tooling only. The full 14-day public-launch window was selected; no
+hackathon exception will be used. Chrome desktop is expected to be available.
+Android Chrome and an iPhone Home Screen installation are not currently
+available to the requester. Browser emulation does not establish real-device
+push receipt; those acceptance checks still need devices and testers.
 
 | Release field | Recorded value |
 |---|---|
@@ -25,7 +36,7 @@ changed during preparation.
 | Production application URL | Pending |
 | Convex team / project / production deployment | Pending |
 | Deployed main commit / deployment evidence | Pending |
-| Window | Full 14 days by default; no hackathon exception selected |
+| Window | Full 14 days selected on 2026-11-19; no hackathon exception |
 | Production copy mode / push switch / shadow override | Not inspected |
 | ADR-0007 | Accepted in this branch; merge and deployment pending |
 
@@ -140,10 +151,10 @@ source and timestamps. Verify opt-out stops subsequent Alert pushes.
 
 | Setup | Tester / OS / browser version | Deployment / commit / time (UTC) | Opt-in or install guidance | Receipt / source-named payload / matching detail URL | Opt-out | Result / evidence |
 |---|---|---|---|---|---|---|
-| Chrome desktop | Pending | Pending | Pending | Pending | Pending | Not run |
-| Android Chrome | Pending | Pending | Pending | Pending | Pending | Not run |
-| iPhone Home Screen app, iOS 16.4+ | Pending | Pending | Pending | Pending | Pending | Not run |
-| iPhone Safari tab | Pending | Pending | Home Screen steps pending | Not applicable until installed | Not applicable | Not run |
+| Chrome desktop | Requester expects access; versions pending | Pending | Pending | Pending | Pending | Not run |
+| Android Chrome | Device/tester needed | Pending | Pending | Pending | Pending | Not run |
+| iPhone Home Screen app, iOS 16.4+ | Device/tester needed | Pending | Pending | Pending | Pending | Not run |
+| iPhone Safari tab | Device/tester needed | Pending | Home Screen steps pending | Not applicable until installed | Not applicable | Not run |
 
 A quiet source cannot trigger an Alert push. Wait for a real notice for production
 evidence. If demonstrating receipt with synthetic content, use only an isolated
