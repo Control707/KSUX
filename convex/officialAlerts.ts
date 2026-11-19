@@ -545,3 +545,50 @@ export const restartAlertShadow = viewerMutation({
     return { ok: true };
   },
 });
+
+// ---------------------------------------------------------------------------
+// Judge Demo Mode: an on-demand sample Alert (#111 demo path).
+// ---------------------------------------------------------------------------
+
+const DEMO_TRIGGER_LIMIT = 10;
+
+/**
+ * Add a fresh "Demo · not real" Timely Warning to this Judge Demo session only,
+ * so the banner, the /safety card and the Alert details page can be shown live.
+ * It never touches `ksu` or `prod`, never fetches and never pushes (ADR-0007).
+ */
+export const simulateDemoAlert = viewerMutation({
+  args: {},
+  handler: async (ctx) => {
+    if (ctx.viewer.mode !== "demo" || !ctx.viewer.workspaceKey.startsWith("demo:")) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Sample Alerts are only available in Judge Demo Mode." });
+    }
+    const workspaceKey = ctx.viewer.workspaceKey;
+    const now = Date.now();
+    const sources = await ctx.db.query("alertSources").withIndex("by_purge", (q) => q.eq("workspaceKey", workspaceKey)).take(10);
+    let source = sources.find((s) => s.sourceKey === "demo_ksu_timely_warnings");
+    const purgeAt = sources[0]?.purgeAt ?? now + 24 * 60 * 60_000;
+    if (!source) {
+      const id = await ctx.db.insert("alertSources", {
+        workspaceKey, sourceKey: "demo_ksu_timely_warnings", adapterKind: "html_copy", lastResult: "ok", killSwitch: "off", purgeAt,
+      });
+      source = (await ctx.db.get(id))!;
+    }
+    const existing = await ctx.db.query("alertItems").withIndex("by_source_state", (q) => q.eq("workspaceKey", workspaceKey).eq("sourceId", source._id)).take(50);
+    const triggered = existing.filter((i) => i.itemKey.startsWith("demo-trigger-")).length;
+    if (triggered >= DEMO_TRIGGER_LIMIT) {
+      throw new ConvexError({ code: "RATE_LIMITED", message: "This Demo session already has 10 sample Alerts. Start a new Demo session to reset." });
+    }
+    // A fresh, healthy check so the sample is current, never stale.
+    await ctx.db.patch(source._id, { lastResult: "ok", lastSuccessAt: now, lastAttemptAt: now, killSwitch: "off", quietText: undefined });
+    const alertId = await ctx.db.insert("alertItems", {
+      workspaceKey, demoLabel: "Demo · not real", sourceId: source._id, itemKey: `demo-trigger-${triggered + 1}`,
+      category: "timely_warning", headline: `Demo · not real · Sample Timely Warning ${triggered + 1}`,
+      excerpt: "Exercise only. No real campus incident is described. Real Timely Warnings come only from KSU Police’s page.",
+      firstObservedAt: now, lastSeenAt: now, stateChangedAt: now, state: "issued", contentHash: `demo-trigger-${triggered + 1}`,
+      // Push is recorded as blocked: Demo never sends push.
+      confirmedFetches: 2, pushDecision: "blocked", pushedAt: now, purgeAt,
+    });
+    return { alertId, pushSent: false };
+  },
+});

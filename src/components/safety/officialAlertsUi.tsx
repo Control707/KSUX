@@ -189,7 +189,7 @@ export function OfficialAlertBanner() {
   };
   const verb = top.item.state === "updated" ? "updated" : "posted";
   return (
-    <div role="region" aria-label="Official Alert" data-testid="official-alert-banner"
+    <div role="region" aria-label="Official Alert" data-testid="official-alert-banner" data-alert-id={top.item._id}
       className="flex min-w-0 items-center gap-[var(--sp-2)] border-b border-[var(--line-strong)] bg-[var(--warn-bg)] px-[var(--sp-3)] text-[var(--warn-fg)] [overflow-wrap:anywhere]">
       <Link href="/safety#official-alerts" className="inline-flex min-h-[var(--target)] min-w-0 flex-1 items-center font-bold underline">
         {top.item.demoLabel ? `${top.item.demoLabel}: ` : ""}{top.source.sourceName} {verb} a {CATEGORY_WORDS[top.item.category]}. See Safety.

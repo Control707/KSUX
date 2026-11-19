@@ -363,6 +363,8 @@ Two Convex variables control rollout. Both default off.
 6. Set `KSUX_ALERT_COPY_MODE=display`. Check `/safety` shows each source's quiet line with its check time.
 7. Set `KSUX_ALERT_PUSH=true` only after the copy has been visible without issue. The Notifications switch becomes available.
 
+**Showing an Alert on demand (Judge Demo Mode).** Real Alerts appear only when KSU posts one, so demos use `/safety?demo=1` › **Simulate a new Official Alert (Demo)**. It adds a fresh “Demo · not real” Timely Warning to that Demo session only (up to 10 per session) and shows the app-wide banner, the Safety card and `/safety/alerts/<id>` live. It never touches real data, never fetches and never sends a push. A new Demo session resets it.
+
 **Hackathon fast path (deviation from SPEC-v2 §13).** For a time-boxed event the full 14 days can be shortened. This is a recorded exception; the real 14-day poll is still owed before a public launch.
 
 1. Deploy, then set `KSUX_ALERT_SHADOW_HOURS=1` (or longer) and `KSUX_ALERT_COPY_MODE=shadow`.

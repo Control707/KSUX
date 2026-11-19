@@ -16,6 +16,7 @@ vi.mock("@/lib/viewerClient", () => ({
   useViewerClient: () => ({ auth: viewer.auth }),
   useViewerQuery: () => viewer.gate,
   usePublicViewerQuery: () => viewer.alerts,
+  useViewerMutation: () => async () => ({}),
 }));
 const render = () => renderToStaticMarkup(createElement(SafetyLayout, null, createElement(SafetyPage)));
 beforeEach(() => { viewer.auth = { status: "booting" }; viewer.gate = undefined; viewer.alerts = undefined; });

@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { AlertSourceBlock, NoAlertIsntSafe, useOfficialAlertStatus } from "./officialAlertsUi";
+import { DemoAlertTrigger } from "./DemoAlertTrigger";
 import {
   CAMPUS_CONTACTS,
   KSU_SOURCES,
@@ -80,6 +81,7 @@ export function OfficialAlertsSection({ mode, online }: { mode: EmergencyPanelMo
           </p>
         </div>
       )}
+      {mode === "demo" && online && <DemoAlertTrigger />}
       {online && copied.length > 0 && (
         <div className="space-y-[var(--sp-4)]" data-testid="official-alert-copy">
           {mode === "demo" && (
