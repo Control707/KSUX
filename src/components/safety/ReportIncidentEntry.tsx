@@ -1,33 +1,66 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog } from "@/components/a11y/Dialog";
 import { EmergencyPanel, type EmergencyPanelMode } from "./EmergencyPanel";
 import { OFFLINE_REPORT } from "./safetyContent";
+import { IncidentForm } from "./IncidentForm";
+import { useAnnouncer } from "@/components/a11y/Announcer";
 
-type Step = "panel" | "offline" | "unavailable";
+type Step = "panel" | "offline" | "unavailable" | "form" | "connecting";
 
 /**
  * "Report something you saw" (SPEC-v2 §5). Every start opens the Emergency
- * Panel first. The text-only report flow itself lands with #79; until then,
- * and whenever posting is gated or offline, continuing explains that nothing
- * was sent or saved. Nothing here stores report text anywhere.
+ * Panel first. Gated and offline starts cannot enter the form. The form's
+ * draft lives only in this mounted tab and is discarded on close.
  */
 export function ReportIncidentEntry({
   mode,
   online,
   postingEnabled,
   autoOpen = false,
+  scopeKey = "",
+  signedOut = false,
 }: {
   mode: EmergencyPanelMode;
   online: boolean;
   postingEnabled: boolean | undefined;
   autoOpen?: boolean;
+  scopeKey?: string;
+  signedOut?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("panel");
   const stepHeading = useRef<HTMLHeadingElement>(null);
   const opened = useRef(false);
+  const dirty = useRef(false);
+  const busy = useRef(false);
+  const previousScope = useRef(scopeKey);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const { announce } = useAnnouncer();
+  const onStep = useCallback((value: boolean) => { dirty.current = value; }, []);
+  const onPosted = useCallback(() => { dirty.current = false; }, []);
+  const onBusy = useCallback((value: boolean) => { busy.current = value; }, []);
+  const close = () => {
+    if (busy.current) { announce("Posting. Please wait for the result before closing."); return; }
+    if (dirty.current && !online) { setConfirmDiscard(true); return; }
+    const wasDraft = dirty.current || step !== "form";
+    setOpen(false); dirty.current = false;
+    if (wasDraft) announce("Report discarded. Nothing was posted.");
+  };
+  useEffect(() => {
+    if (previousScope.current !== scopeKey) {
+      previousScope.current = scopeKey;
+      if (step === "form") { setStep("panel"); dirty.current = false; }
+    }
+  }, [scopeKey, step]);
+  useEffect(() => {
+    if (step === "connecting") {
+      if (!online) setStep("offline");
+      else if (signedOut) setStep("unavailable");
+      else if (postingEnabled !== undefined) setStep(postingEnabled ? "form" : "unavailable");
+    }
+  }, [step, online, postingEnabled, signedOut]);
 
   useEffect(() => {
     if (autoOpen && !opened.current) {
@@ -42,12 +75,14 @@ export function ReportIncidentEntry({
   }, [open, step]);
 
   const start = () => {
+    dirty.current = false;
     setStep("panel");
     setOpen(true);
   };
   const next = () => {
     if (!online || (typeof navigator !== "undefined" && !navigator.onLine)) setStep("offline");
-    else setStep("unavailable");
+    else if (signedOut) setStep("unavailable");
+    else setStep(postingEnabled === undefined ? "connecting" : postingEnabled ? "form" : "unavailable");
   };
 
   const button =
@@ -72,12 +107,14 @@ export function ReportIncidentEntry({
 
       <Dialog
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={close}
         title="Report an incident"
         hideTitle
         testId="report-incident-dialog"
-        className="sm:max-w-xl"
+        className="!h-[100dvh] !max-h-[100dvh] !w-screen !shrink-0 !max-w-3xl !rounded-none !p-[min(4vw,var(--sp-5))]"
       >
+        {step === "connecting" && <p role="status">Connecting to check posting availability. Nothing has been sent or saved.</p>}
+        {step === "form" && <IncidentForm key={scopeKey} mode={mode} online={online} onStep={onStep} onPosted={onPosted} onBusy={onBusy} onBackPanel={() => { setStep("panel"); dirty.current = false; }} />}
         {step === "panel" && (
           <EmergencyPanel mode={mode} headingLevel={2} compact onContinue={next} testId="report-emergency-panel" />
         )}
@@ -107,7 +144,7 @@ export function ReportIncidentEntry({
             </h2>
             <p role="status">
               {mode === "demo"
-                ? "Demo · not real. The community report form arrives in a later update. Nothing has been sent or saved."
+                ? "Demo is connecting. Nothing has been sent or saved. Close and try again."
                 : "KSUX can’t take community reports yet. Nothing has been sent or saved."}
             </p>
             <div className="flex flex-wrap gap-[var(--sp-2)]">
@@ -120,6 +157,11 @@ export function ReportIncidentEntry({
             </div>
           </div>
         )}
+      </Dialog>
+      <Dialog open={confirmDiscard} onClose={() => setConfirmDiscard(false)} title="Discard this report?" role="alertdialog">
+        <p>The report will be discarded. Nothing has been posted.</p>
+        <button type="button" className={button} onClick={() => setConfirmDiscard(false)}>Keep writing</button>
+        <button type="button" className={button} onClick={() => { setConfirmDiscard(false); setOpen(false); dirty.current = false; announce("Report discarded. Nothing was posted."); }}>Discard report</button>
       </Dialog>
     </section>
   );

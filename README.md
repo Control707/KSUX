@@ -37,6 +37,13 @@ Preview builds or teammates' development deployments.
 
 ## Quickstart & Verification
 
+The text-only **Incident pilot** at `/safety` has an Emergency Panel before every
+submission, Campus-scoped community list and map, dated Incident Updates and
+Moderation Reports. It runs fully in isolated Judge Demo Mode. Production posting
+still requires the Moderator staffing and operations gate. Community Incidents
+are never verified, never Feed posts and never official Alerts.
+[Pilot behavior and checks](./docs/RUNBOOK.md#text-only-incident-pilot-79)
+
 The **private agenda** at `/agenda` combines upcoming classes, imported deadlines, RSVPed Events and joined Study Sessions in Eastern time. Event-only `.ics` downloads and opt-in, per-type **in-app** reminders are available; reminder settings live at `/profile/notifications#agenda`. [Behavior and verification](./docs/RUNBOOK.md#private-agenda-76)
 
 See [`docs/RUNBOOK.md`](./docs/RUNBOOK.md), [`docs/SPEC.md`](./docs/SPEC.md), [`GLOSSARY.md`](./GLOSSARY.md), and [`docs/adr/`](./docs/adr/).

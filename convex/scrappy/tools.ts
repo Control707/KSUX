@@ -6,7 +6,7 @@ import {
   evaluateParkingLotFullness,
 } from "../lib/parkingMath";
 import { evaluateCampusLine } from "../lib/parkingCampusLine";
-import { freshShuttleEta } from "../lib/shuttleRead";
+import { freshShuttleEta, freshShuttleNotices } from "../lib/shuttleRead";
 import {
   filterVisibleContent,
   loadViewerScope,
@@ -96,7 +96,7 @@ const PUBLIC_SIX_TOOL_SPECS: ScrappyToolSpec[] = [
   {
     name: "getCampusDailyPulse",
     description:
-      "Inspect Parking Lot fullness from Student Parking Reports (noRecentReports when none; plus the dated campus-wide class-enrollment line), Big Owl Bus Shuttle Routes, Study Rooms, and Dining Venues.",
+      "Inspect Parking Lot fullness from Student Parking Reports (noRecentReports when none; plus the dated campus-wide class-enrollment line), Big Owl Bus Shuttle Routes and their Passio Shuttle Notices (cite as \"Shuttle Notice · Passio\", never an alert), Study Rooms, and Dining Venues. Never Incidents, Alerts or Clout.",
     parameters: {
       type: "object",
       properties: {
@@ -138,6 +138,9 @@ const PUBLIC_SIX_TOOL_SPECS: ScrappyToolSpec[] = [
 ];
 
 // 6 public read-only tools for @scrappy Feed mentions (physically omits getMyPersonalContext!)
+/** How Scrappy cites a Passio service notice. Never "alert" (SPEC-v2 §11). */
+export const SHUTTLE_NOTICE_SOURCE = "Shuttle Notice · Passio";
+
 export const FEED_MENTION_TOOLS: readonly ScrappyToolSpec[] =
   Object.freeze(PUBLIC_SIX_TOOL_SPECS);
 
@@ -513,6 +516,17 @@ export const getCampusDailyPulse = internalQuery({
         };
       });
 
+    // Shuttle Notices are Passio service notices, never safety Alerts (SPEC-v2 §11).
+    const scopedRouteIds = new Set(scopedRoutes.map((r) => r.passioRouteId));
+    const shuttleNotices = freshShuttleNotices(shuttleSnap, now, viewer.mode === "demo")
+      .filter((n) => n.passioRouteIds.length === 0 || n.passioRouteIds.some((id) => scopedRouteIds.has(id)))
+      .slice(0, 2)
+      .map((n) => ({
+        source: SHUTTLE_NOTICE_SOURCE,
+        title: fenceUntrustedCampusText(n.title, 120),
+        body: fenceUntrustedCampusText(n.body, 240),
+      }));
+
     const todayET = new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/New_York",
       year: "numeric",
@@ -548,6 +562,7 @@ export const getCampusDailyPulse = internalQuery({
       parkingNoRecentReports,
       parkingCampusLine,
       shuttles,
+      shuttleNotices,
       study,
       dining,
       citations: [
@@ -562,6 +577,13 @@ export const getCampusDailyPulse = internalQuery({
           entityType: "shuttle_route",
           entityId: String(scopedRoutes[0]._id),
           label: `${targetCampus} Shuttle Routes`,
+          href: "/transit",
+          campus: targetCampus,
+        }] : []),
+        ...(shuttleNotices.length ? [{
+          entityType: "shuttle_notice",
+          entityId: `${targetCampus}-shuttle-notices`,
+          label: SHUTTLE_NOTICE_SOURCE,
           href: "/transit",
           campus: targetCampus,
         }] : []),

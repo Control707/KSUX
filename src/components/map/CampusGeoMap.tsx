@@ -61,6 +61,10 @@ export interface CampusGeoMapPanelParts {
 }
 
 export interface CampusGeoMapProps {
+  /** Safety supplies its network-only, category-shaped pins in list order. */
+  incidentItems?: MapListItem[];
+  onSelectIncidentId?: (id: string) => void;
+  renderIncidentCard?: (id: string) => React.ReactNode;
   campusFilter: MapCampus;
   showParkingLots?: boolean;
   showShuttleRoutes?: boolean;
@@ -227,6 +231,9 @@ function headingImage(t: MapTokens) {
 }
 
 const ITEM_LAYERS = [
+  "ksux-items-incident-fresh",
+  "ksux-items-incident-older",
+  "ksux-items-incident-label",
   "ksux-items-lot-solid",
   "ksux-items-lot-pattern",
   "ksux-items-route-solid",
@@ -259,6 +266,9 @@ function hatchImage(color: string, background: string, stripe: number, gap: numb
 }
 
 export function CampusGeoMap({
+  incidentItems,
+  onSelectIncidentId,
+  renderIncidentCard,
   campusFilter,
   showParkingLots = true,
   showShuttleRoutes = false,
@@ -414,15 +424,15 @@ export function CampusGeoMap({
 
   const items = useMemo(
     () =>
-      buildMapItems({
+      (mode === "live" && incidentItems ? incidentItems : buildMapItems({
         campus: campusFilter,
         lots: geoCollections.lots,
         shuttles,
         meetups: geoCollections.meetups,
         lotStatuses: lotStatusList,
         vehicles,
-      }),
-    [campusFilter, geoCollections.lots, shuttles, geoCollections.meetups, lotStatusList, vehicles]
+      })),
+    [campusFilter, geoCollections.lots, shuttles, geoCollections.meetups, lotStatusList, vehicles, incidentItems, mode]
   );
   const itemsRef = useRef(items);
   useEffect(() => {
@@ -493,8 +503,9 @@ export function CampusGeoMap({
       if (item.kind === "stop") onSelectStopId?.(item.key, source);
       if (item.kind === "route") onSelectRouteId?.(item.key, source);
       if (item.kind === "bus") onSelectBusId?.(item.key, source);
+      if (item.kind === "incident") onSelectIncidentId?.(item.key);
     },
-    [onSelectLotSlug, onSelectMeetupSlug, onSelectStopId, onSelectRouteId, onSelectBusId]
+    [onSelectLotSlug, onSelectMeetupSlug, onSelectStopId, onSelectRouteId, onSelectBusId, onSelectIncidentId]
   );
 
   // Controlled "Show on map": centre on the item the screen selected.
@@ -716,6 +727,14 @@ export function CampusGeoMap({
       }
       map.addSource("ksux-items", { type: "geojson", data });
       const isKind = (kind: string) => ["==", ["get", "kind"], kind];
+      for (const stale of [false, true]) {
+        map.addLayer({ id: `ksux-items-incident-${stale ? "older" : "fresh"}`, type: "line", source: "ksux-items",
+          filter: ["all", isKind("incident"), ["==", ["get", "stale"], stale]],
+          paint: { "line-color": t.ink, "line-width": 3, ...(stale ? { "line-dasharray": [2, 2] } : {}) } });
+      }
+      if (!usingOfflineStyle) map.addLayer({ id: "ksux-items-incident-label", type: "symbol", source: "ksux-items", filter: isKind("incident"),
+        layout: { "text-field": ["concat", ["get", "code"], " ", ["get", "name"]], "text-size": labelSize(), "text-font": ["Noto Sans Bold"], "text-allow-overlap": true },
+        paint: { "text-color": t.ink, "text-halo-color": t.surface, "text-halo-width": 2.5 } });
       map.addLayer({
         id: "ksux-items-lot-solid",
         type: "fill",
@@ -1053,6 +1072,7 @@ export function CampusGeoMap({
                 {item.status && <StatusChip status={item.status} />}
                 <span className="sr-only">{selected ? ", shown on map" : ", show on map"}</span>
               </button>
+              {item.kind === "incident" && renderIncidentCard?.(item.key)}
             </li>
           );
         })}

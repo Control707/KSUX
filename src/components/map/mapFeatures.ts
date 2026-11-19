@@ -17,7 +17,7 @@ declare namespace GeoJSON {
 export type { GeoJSON };
 
 export type MapCampus = "Kennesaw" | "Marietta" | "All KSU";
-export type MapItemKind = "lot" | "route" | "stop" | "bus" | "meetup";
+export type MapItemKind = "lot" | "route" | "stop" | "bus" | "meetup" | "incident";
 
 export type BBox = [number, number, number, number];
 
@@ -114,7 +114,7 @@ export interface MapListItem {
   key: string;
 }
 
-const KIND_ORDER: Record<MapItemKind, number> = { lot: 0, route: 1, stop: 2, bus: 3, meetup: 4 };
+const KIND_ORDER: Record<MapItemKind, number> = { lot: 0, route: 1, stop: 2, bus: 3, meetup: 4, incident: 5 };
 
 export const KIND_LABEL: Record<MapItemKind, string> = {
   lot: "Parking Lot",
@@ -122,6 +122,7 @@ export const KIND_LABEL: Record<MapItemKind, string> = {
   stop: "Shuttle stop",
   bus: "Bus",
   meetup: "Meetup Spot",
+  incident: "Incident · not verified",
 };
 
 function walkCoordinates(geometry: GeoJSON.Geometry, visit: (lng: number, lat: number) => void) {

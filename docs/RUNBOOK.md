@@ -168,6 +168,75 @@ Record the checked commit, test run URLs, manual accessibility log, I/O measurem
 
 ## 5. Verification Gate Commands
 
+### Text-only Incident pilot (#79)
+
+Start Judge Demo Mode at `/?demo=1`, then open Safety. Official resources remain
+public; community reading and contribution require a verified session or Demo.
+Every report starts with the Emergency Panel, including `/safety?report=1`.
+The six questions collect an explicit category, Campus and building/area, claimed
+observed time, description, name level and preview. Medical concerns, sexual
+misconduct/dating violence/stalking and suspicion about a person divert to the
+contacts rather than publishing. Photos remain in #89.
+
+The form and server share deterministic text checks, including identifying
+patterns and forbidden authority/safety claims. These conservative patterns are
+not a promise to detect every name or identifying detail; the Moderation Report
+paths remain necessary. Housing choices collapse numbered buildings to a complex
+centroid. `node scripts/build-incident-places.mjs` rebuilds the allow-list after
+refreshing `public/data/campus-buildings.geojson`; never accept caller coordinates.
+The optional near-me sort runs once on the device and sends no coordinates.
+
+`convex/incidents.ts` exposes `create`, `edit`, `addUpdate`, `deleteOwn`,
+`activeIncidents`, `olderIncidents`, `incidentDetail` and `report`. All are scoped
+by the existing viewer workspace. Submission reuses `getIncidentLaunchGate` at
+insert time. Author edits lock after five minutes, Author Updates cap at five,
+and deleting does not reset the rolling 3/hour or 6/day allowance. Age uses the
+posted time, never the observed time or a recent Update. Original text is never
+changed by an author after lock. The Moderator console and Redaction actions are
+#87; Scrappy's deterministic Safety Card is #88.
+
+Active reads share one projection for list and pins, bounded to 50 visible rows
+per Campus, ordered by last activity. A workspace-led activity index ensures an
+updated Incident remains eligible even beyond the first 50 by published time.
+Older reads run only when opened, at most 20 per page, using the activity cursor.
+Both queries filter eligibility by published time, so an Update never renews
+the lifecycle. Each projection includes at most
+50 dated Updates (at most five can be author-written). Direct reads return no
+text/location/author/Updates for Under review, Removed, Deleted, expired or
+foreign-workspace records. Block masks the handle while keeping the Incident.
+P0 never returns Incident media, including held Demo photo fixtures.
+
+Incident reads use uncached HTTP requests when mounted, on focus, after a local
+Incident write, on manual refresh and once per minute while visible. Offline
+unmounts the community view; reconnect starts a fresh empty view and waits for a
+new server response. Failed refreshes hide the preceding result and offer Retry.
+Requests time out after 15 seconds. Writes also use HTTP, so there is no durable
+mutation queue or automatic reconnect submission. A request that loses its
+response may still have reached the server; check the list before retrying.
+Drafts live only in the mounted form. Closing discards them, with confirmation
+if disconnected; changing Student or Demo persona discards the draft too.
+The existing `/safety/**` service-worker bypass and precached `/emergency`
+fallback remain the network boundary. Incident payloads never enter the commuter
+cache, local storage, session storage or IndexedDB.
+
+For #87, Incident Moderation Reports use `targetType: incident`,
+`targetKey: incident:<id>`, priority 0 for identifies-me and 2 otherwise.
+One distinct pending reporter counts once. The 1/2/3 thresholds hide the record
+and quarantine its pending reports in the same mutation. Sensitive reasons share
+the two-reporter band. Three rejected identifies-me claims (`restored` or
+`dismissed`) in the rolling 30-day report window disable the one-tap hide; three
+claims in a rolling day exhaust that day's allowance. Campus Safety requires the
+Emergency Panel before sending. The console must preserve these report outcomes
+when it reviews a decision. Reporting never creates an Alert, Post, Clout award
+or push delivery.
+
+Focused checks: `tests/convex/incidents.test.ts`,
+`tests/unit/incident-boundaries.test.ts`,
+`pnpm test:e2e --project=chromium incidents.spec.ts`, and
+`pnpm test:e2e --project=a11y incidents.spec.ts safety.spec.ts`.
+The existing production staffing/operations switches above remain off until
+their separate launch prerequisites pass; a merged pilot does not enable them.
+
 1. **Static typecheck & lint**:
    ```bash
    pnpm typecheck && pnpm lint
