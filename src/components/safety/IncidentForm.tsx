@@ -9,16 +9,20 @@ import { EmergencyPanel, type EmergencyPanelMode } from "./EmergencyPanel";
 import { incidentError, useIncidentMutation } from "./incidentClient";
 import { useAnnouncer } from "@/components/a11y/Announcer";
 import { useViewerQuery } from "@/lib/viewerClient";
+import { compressImageToExifStrippedWebP } from "@/lib/imageCompression";
+import { DEMO_INCIDENT_PHOTO, DEMO_INCIDENT_PHOTO_BLURRED } from "@convex/lib/incidentPhotos";
 
 export const incidentButton = "min-h-[var(--target)] min-w-[var(--target)] max-w-full rounded-[var(--r-md)] border border-[var(--line-strong)] px-[var(--sp-3)] py-[var(--sp-2)] font-bold [overflow-wrap:anywhere] hover:bg-[var(--surface-2)] disabled:opacity-60";
 export const incidentField = "block min-h-[var(--target)] w-full min-w-0 rounded-[var(--r-sm)] border border-[var(--line-strong)] bg-[var(--surface)] p-[var(--sp-2)] text-[var(--ink)]";
-const questions = ["What happened?", "Where?", "When did you see it?", "What did you see?", "Your name", "Preview"];
+const questions = ["What happened?", "Where?", "When did you see it?", "What did you see?", "Add a photo?", "Your name", "Preview"];
 
 export function IncidentForm({ mode, online, onStep, onPosted, onBusy, onBackPanel }: {
   mode: EmergencyPanelMode; online: boolean; onStep: (dirty: boolean) => void; onPosted: () => void; onBusy: (value: boolean) => void; onBackPanel: () => void;
 }) {
   const create = useIncidentMutation(api.incidents.create);
   const deleteOwn = useIncidentMutation(api.incidents.deleteOwn);
+  const discardDemoPhoto = useIncidentMutation(api.incidents.discardDemoPhoto);
+  const photoAvailability = useViewerQuery(api.incidents.photoAvailability, {});
   const { announce } = useAnnouncer();
   const summary = useViewerQuery(api.shell.shellSummary, {});
   const [step, setStep] = useState(0);
@@ -35,6 +39,10 @@ export function IncidentForm({ mode, online, onStep, onPosted, onBusy, onBackPan
   const [chosenObservedAt, setChosenObservedAt] = useState<number | null>(null);
   const [earlier, setEarlier] = useState("");
   const [text, setText] = useState("");
+  const [photo, setPhoto] = useState<File | "demo" | null>(null);
+  const [blurPhoto, setBlurPhoto] = useState(false);
+  const [discarded, setDiscarded] = useState(false);
+  const uploadedPhoto = useRef<Id<"mediaAssets"> | undefined>(undefined);
   const [nameLevel, setNameLevel] = useState<"hidden" | "show_handle" | "">("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -48,7 +56,7 @@ export function IncidentForm({ mode, online, onStep, onPosted, onBusy, onBackPan
   useEffect(() => {
     onStep(!posted);
     heading.current?.focus();
-    announce(posted ? "Posted to the KSUX community. This did not contact police or KSU." : `Step ${step + 1} of 6. ${questions[step]}`);
+    announce(posted ? "Posted to the KSUX community. This did not contact police or KSU." : `Step ${step + 1} of 7. ${questions[step]}`);
   }, [step, posted, divert, announce, onStep]);
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
   useEffect(() => { onBusy(pending); return () => onBusy(false); }, [pending, onBusy]);
@@ -62,19 +70,30 @@ export function IncidentForm({ mode, online, onStep, onPosted, onBusy, onBackPan
     if (step === 1 && areaDetail.trim()) return incidentTextError(areaDetail, 60);
     if (step === 2 && (!time || !Number.isFinite(observedAt()) || observedAt() > Date.now() || observedAt() < Date.now() - 24 * 3600_000)) return "Choose an observed time within the last day.";
     if (step === 3) return incidentTextError(text);
-    if (step === 4 && !nameLevel) return "Choose how your name appears.";
+    if (step === 5 && !nameLevel) return "Choose how your name appears.";
     return null;
   }
   async function next() {
     const problem = validate();
     if (problem) { setError(problem); return; }
     setError("");
-    if (step < 5) { setStep(step + 1); return; }
+    if (step < 6) { setStep(step + 1); return; }
     if (!online || !navigator.onLine || pending) return;
     setPending(true);
     try {
+      if (photo && photo !== "demo" && !uploadedPhoto.current) {
+        const compressed = await compressImageToExifStrippedWebP(photo);
+        if (!navigator.onLine) throw new Error("Not posted — reconnect to submit");
+        const body = new FormData();
+        body.set("file", compressed.file); body.set("purpose", "incident"); body.set("blur", String(blurPhoto));
+        const response = await fetch("/api/uploadthing", { method: "POST", credentials: "same-origin", cache: "no-store", body });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error ?? "Photo upload failed.");
+        uploadedPhoto.current = data.mediaAssetId;
+      }
       const result = await create({ category: category as IncidentCategory, campus: campus as "Kennesaw" | "Marietta", buildingId,
-        areaDetail: areaDetail || undefined, observedAt: observedAt(), text, nameLevel: nameLevel as "hidden" | "show_handle" });
+        areaDetail: areaDetail || undefined, observedAt: observedAt(), text, nameLevel: nameLevel as "hidden" | "show_handle",
+        photoAssetId: uploadedPhoto.current, demoPhoto: photo === "demo" || undefined, blurPhoto: photo === "demo" ? blurPhoto : undefined });
       setPosted(result.incidentId);
       setText(""); setAreaDetail("");
       onPosted();
@@ -83,6 +102,11 @@ export function IncidentForm({ mode, online, onStep, onPosted, onBusy, onBackPan
   if (posted) return <div className="space-y-[var(--sp-3)]" data-testid="incident-posted">
     <h1 ref={heading} tabIndex={-1} className="font-display text-[length:var(--fs-xl)] font-bold">Posted to the KSUX community</h1>
     <p>This did not contact police or KSU.</p>
+    {photo && <p role="status">{discarded ? "Photo discarded. Your Incident text is unchanged." : "Your photo is held for review. Other Students can’t see it unless a Moderator approves it. It will be discarded after 48 hours if nobody reviews it. No review time is promised."}</p>}
+    {mode === "demo" && photo && !discarded && <button className={incidentButton} disabled={pending || !online} onClick={async () => {
+      setPending(true); try { await discardDemoPhoto({ incidentId: posted }); setDiscarded(true); } catch (e) { setError(incidentError(e)); } finally { setPending(false); }
+    }}>Demo: simulate 48-hour discard</button>}
+    {discarded && <Link className={incidentButton} href="/profile/moderation">Read private photo notice</Link>}
     <Link href={`/safety/${posted}`} className={incidentButton}>See it on Incidents</Link>
     <EmergencyPanel mode={mode} headingLevel={2} compact />
     {error && <p role="alert">{error}</p>}
@@ -103,8 +127,8 @@ export function IncidentForm({ mode, online, onStep, onPosted, onBusy, onBackPan
   </div>;
   return <div className="space-y-[var(--sp-3)]" data-testid="incident-form">
     <button type="button" className={incidentButton} disabled={pending} onClick={() => { setError(""); if (step === 0) onBackPanel(); else setStep(step - 1); }}>Back</button>
-    <p role="status">Step {step + 1} of 6</p>
-    <progress className="w-full" max={6} value={step + 1} aria-label="Incident report progress" />
+    <p role="status">Step {step + 1} of 7</p>
+    <progress className="w-full" max={7} value={step + 1} aria-label="Incident report progress" />
     <h1 ref={heading} tabIndex={-1} className="font-display text-[length:var(--fs-xl)] font-bold outline-none">{questions[step]}</h1>
     {!online && <p role="status" className="font-bold">Not posted — reconnect to submit. This draft stays only in this tab until you close it.</p>}
     {step === 0 && <div className="grid gap-[var(--sp-2)]">
@@ -149,13 +173,26 @@ export function IncidentForm({ mode, online, onStep, onPosted, onBusy, onBackPan
     {step === 3 && <label className="block">Description<textarea aria-label="Description" className={incidentField} rows={5} maxLength={280} value={text} onChange={(e) => setText(e.target.value)} aria-describedby="incident-description-hint" />
       <span id="incident-description-hint">{text.length}/280. Describe what you observed, without names, identifying details or claims about safety.</span></label>}
     {step === 4 && <div className="space-y-[var(--sp-3)]">
+      <p>Optional. A moderator reviews photos before other Students can see them. Location data is removed from the file.</p>
+      <p>Don’t include faces, plates or anything that identifies a person. Photos are discarded after 48 hours if nobody reviews them. No review time is promised.</p>
+      {mode === "demo" ? <><p>Demo · static fixture only. No real photos are uploaded.</p><button type="button" className={incidentButton} aria-pressed={photo === "demo"} onClick={() => setPhoto(photo ? null : "demo")}>Use Demo fixture photo</button></>
+        : photoAvailability?.enabled ? <label className="block">Choose Incident photo<input type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic" className={incidentField} disabled={!online} onChange={(e) => { setPhoto(e.target.files?.[0] ?? null); uploadedPhoto.current = undefined; }} /></label>
+          : <p>Photo uploads are currently unavailable. You can continue without a photo.</p>}
+      {photo && <><p>{photo === "demo" ? "Static fixture selected" : photo.name}</p>
+        <label className="flex min-h-11 items-center gap-3"><input className="h-11 w-11 shrink-0" type="checkbox" checked={blurPhoto} onChange={(e) => { setBlurPhoto(e.target.checked); uploadedPhoto.current = undefined; }} />Blur the whole photo</label>
+        {photo === "demo" && <img src={blurPhoto ? DEMO_INCIDENT_PHOTO_BLURRED : DEMO_INCIDENT_PHOTO} alt="Selected Demo Incident fixture" className="max-h-52 max-w-full" />}
+        <button type="button" className={incidentButton} onClick={() => { setPhoto(null); uploadedPhoto.current = undefined; }}>Remove photo</button></>}
+      <button type="button" className={incidentButton} onClick={() => { setPhoto(null); uploadedPhoto.current = undefined; setStep(5); }}>Skip photo</button>
+    </div>}
+    {step === 5 && <div className="space-y-[var(--sp-3)]">
       <div className="flex flex-wrap gap-[var(--sp-2)]">{([ ["show_handle", "Show my handle"], ["hidden", "Student · name hidden"] ] as const).map(([value, label]) =>
         <button key={value} className={incidentButton} aria-pressed={nameLevel === value} onClick={() => setNameLevel(value)}>{label}</button>)}</div>
       <p>Moderators can see who posted. KSUX may have to share account details if the law requires. This isn’t anonymous to police. For anonymous tips, use KSU LiveSafe outside KSUX.</p>
     </div>}
-    {step === 5 && <article className="space-y-[var(--sp-2)] rounded-[var(--r-md)] border border-[var(--line)] p-[var(--sp-3)]">
+    {step === 6 && <article className="space-y-[var(--sp-2)] rounded-[var(--r-md)] border border-[var(--line)] p-[var(--sp-3)]">
       <p>{category && INCIDENT_CATEGORIES[category].shape} {category && INCIDENT_CATEGORIES[category].label} · {campus}</p>
       <h2 className="text-[length:var(--fs-lg)] font-bold">{place?.name}</h2><p>{areaDetail}</p><p>{text}</p>
+      {photo && <p>Photo held for review · not shown to other Students until approved.{blurPhoto ? " Whole-photo blur requested." : ""}</p>}
       <p>Seen {Number.isFinite(observedAt()) ? new Intl.DateTimeFormat("en-US", { dateStyle: "short", timeStyle: "short", timeZone: "America/New_York" }).format(observedAt()) + " Eastern (claimed)" : "Choose an observed time"}</p>
       <p>Community report · not verified · {nameLevel === "hidden" ? "Student · name hidden" : "@" + (summary?.viewer.student.handle ?? "your handle")}</p>
       {mode === "demo" && <p>Demo · not real</p>}
@@ -163,7 +200,7 @@ export function IncidentForm({ mode, online, onStep, onPosted, onBusy, onBackPan
     </article>}
     {error && <p ref={errorRef} tabIndex={-1} role="alert" className="font-bold outline-none">{error}</p>}
     <div className="sticky bottom-0 flex flex-wrap justify-end gap-[var(--sp-2)] border-t border-[var(--line)] bg-[var(--surface)] py-[var(--sp-3)]">
-      <button type="button" className={incidentButton} disabled={pending || (!online && step === 5)} onClick={() => void next()}>{pending ? "Posting…" : step === 5 ? "Post to the community" : "Next"}</button>
+      <button type="button" className={incidentButton} disabled={pending || (!online && step === 6)} onClick={() => void next()}>{pending ? "Posting…" : step === 6 ? "Post to the community" : "Next"}</button>
     </div>
   </div>;
 }

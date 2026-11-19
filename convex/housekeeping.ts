@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internalAction, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { queueMediaDeletion } from "./lib/mediaCleanup";
+import { discardIncidentPhoto } from "./lib/incidentPhotos";
 import type { Doc, Id, TableNames } from "./_generated/dataModel";
 
 const BATCH_LIMIT = 200;
@@ -84,15 +85,12 @@ export const collectPurgeableMediaKeys = internalMutation({
     }
 
     if (assets.size < BATCH_LIMIT - 2) {
-      // Reserve at most three writes per held photo (discard, detach, claim).
+      // Reserve writes for discard, detach, automatic log, private notice and claim.
       const held = await ctx.db.query("mediaAssets").withIndex("by_review_hold", (q) =>
         q.eq("workspaceKey", "prod").eq("reviewStatus", "held").gt("holdExpiresAt", 0).lte("holdExpiresAt", now))
-        .take(Math.floor((BATCH_LIMIT - assets.size) / 3));
+        .take(Math.floor((BATCH_LIMIT - assets.size) / 6));
       for (const asset of held) {
-        await ctx.db.patch(asset._id, { reviewStatus: "rejected", status: "deleted", url: "" });
-        const incidents = await ctx.db.query("incidents").withIndex("by_photo", (q) =>
-          q.eq("workspaceKey", asset.workspaceKey).eq("photoAssetId", asset._id)).take(1);
-        for (const incident of incidents) await ctx.db.patch(incident._id, { photoAssetId: undefined });
+        await discardIncidentPhoto(ctx, asset, now);
       }
       collect(held);
     }

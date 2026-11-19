@@ -1139,6 +1139,7 @@ export default defineSchema({
   }).index("by_thread_created", ["workspaceKey", "threadId", "createdAt"]),
 
   mediaAssets: defineTable({
+    blurred: v.optional(v.boolean()),
     reviewStatus: v.optional(v.union(v.literal("held"), v.literal("approved"), v.literal("rejected"))),
     holdExpiresAt: v.optional(v.number()),
     workspaceKey: v.string(),
@@ -1174,7 +1175,8 @@ export default defineSchema({
     workspaceKey: v.string(),
     demoSessionId: v.optional(v.id("demoSessions")),
     ownerStudentId: v.id("students"),
-    purpose: v.union(v.literal("avatar"), v.literal("post"), v.literal("listing"), v.literal("chat")),
+    purpose: v.union(v.literal("avatar"), v.literal("post"), v.literal("listing"), v.literal("chat"), v.literal("incident")),
+    blurred: v.optional(v.boolean()),
     byteSize: v.number(),
     width: v.number(),
     height: v.number(),
@@ -1245,7 +1247,7 @@ export default defineSchema({
     .index("by_purge", ["workspaceKey", "purgeAt"]),
 
   moderatorActions: defineTable({
-    workspaceKey: v.string(), actorId: v.id("students"), action: v.string(),
+    workspaceKey: v.string(), actorId: v.optional(v.id("students")), action: v.string(),
     targetType: v.string(), targetKey: v.string(), templateId: v.optional(v.string()),
     reasonId: v.optional(v.string()), contentSnapshot: v.optional(v.string()),
     subjectId: v.optional(v.id("students")), requestId: v.optional(v.string()),

@@ -174,8 +174,10 @@ note on Restore is optional and unchecked; it is accepted only when there were
 false/misleading reports. Official-note links must reference a listed, unexpired
 Official Alert from the institutional partition (or the same isolated Demo), and
 duplicate links must name another currently visible Incident in the workspace.
-Held photos are hidden until **Show photo** and include their remaining hold time;
-approval, blur and rejection remain the photo workflow in #89.
+Held photos are hidden until **Show photo** and include their remaining hold time.
+Approve, Approve with blur and Reject use the same confirmation and private notices;
+see [Incident photos](#incident-photos-89). Photo decisions preserve independent
+Moderation Reports and never restore an Under-review Incident's text.
 
 Each confirmed decision writes one `moderatorActions` row and closes only pending
 reports, preserving earlier outcomes for the identifies-me abuse policy. The new
@@ -225,6 +227,86 @@ coverage is `tests/e2e/moderator-console.spec.ts`; Layer 4 coverage is
 standard `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:e2e` and
 `pnpm build` checks in the isolated local deployment. Real-device manual AT
 verification remains the release-level checklist.
+
+## Incident photos (#89)
+
+The Incident form now has seven questions: the optional **Add a photo?** step
+sits between description and name. It explains the hold, metadata removal,
+whole-photo blur, 48-hour discard and absence of a promised review time. Skip
+continues without a photo. Text publishes immediately; held photos are absent
+from every Student read, including the author's. The posted confirmation explains
+that the photo is held. Draft files stay in memory; an upload begins only on the
+explicit final submit. A failed submission may leave a pending upload, cleaned
+by the existing two-hour orphan-media sweep.
+
+Production uploads require `KSUX_V2_INCIDENT_PHOTOS=true` in **Convex**, as well as
+the existing Incident posting gate (two eligible non-CSA appointed Moderators and
+completed operations checklist). The switch defaults off. Before enabling it,
+verify the console review workflow and private UploadThing ACL support in the
+intended application. Configure UploadThing to accept the `private` ACL override
+([UploadThing ACL documentation](https://docs.uploadthing.com/concepts/regions-acl));
+confirm a newly uploaded Incident object's unsigned URL denies access. Use the
+same private `KSUX_SERVER_SECRET` in Next.js and Convex and an `UPLOADTHING_TOKEN`
+in both services (Next.js uploads/reads; Convex deletes). Do not reuse credentials
+from production in Preview. No switch is enabled by this change. Set the photo
+switch false to stop new uploads/attachments; existing review and cleanup continue.
+
+`/api/uploadthing` verifies still WebP dimensions and the 1 MB limit, re-encodes
+with Sharp to strip EXIF/GPS/XMP, and applies author-requested whole-photo blur
+before uploading with `acl: private`. Incident uploads have no inline/public
+fallback. Only the registry id is returned; the public URL is never retained.
+`incidents.create` checks purpose, ownership, workspace, pending state, hold expiry
+and cleanup claims before attaching exactly one photo. A registered Incident
+photo receives a 48-hour deadline. It cannot be reused on another Incident.
+
+`POST /api/incident-photo` forwards the authenticated session to the
+server-secret-protected `incidents.photoAccess` query. Held bytes require a
+non-CSA, uninvolved Moderator; Students, including the author, cannot obtain them.
+The console does not request bytes until **Show photo**. Approved bytes require a
+visible Incident within its seven-day Student reading window. Storage URLs are
+signed server-side only; the proxy re-encodes and applies whole-image blur to the
+delivered pixels, rechecks access after fetching, and responds `private, no-store`.
+An approved-blur image never delivers its original pixels to Students. The private
+stored source remains subject to the existing Incident media retention/deletion
+rules; it is never included in an action snapshot. The client revokes blob URLs
+on hide, identity change, unmount and disconnect. The service worker passes APIs
+through without caching, and the commuter cache receives no photo data.
+
+Held photos are priority 1, after identifies-me claims. The console shows the
+remaining hold time, hidden media disclosure, and **Approve / Approve with blur /
+Reject** through Cancel-first confirmations. Decisions log once per retry id and
+notify the author privately, never by push. Author-requested blur cannot be
+removed by plain Approve. Reject immediately detaches and revokes the image,
+queues storage deletion and adds the fixed **Photo not approved** note. Independent
+Moderation Reports stay pending; photo decisions never restore quarantined text
+or supersede a text/visibility decision for its Appeal.
+These photo actions open no new Appeal. Removal, Redaction and suspension retain
+their existing Appeal workflow.
+
+At the exact 48-hour deadline, read and decision checks deny held photo access,
+even before the next hourly purge. The purge atomically detaches expired media,
+queues deletion and sends one private notice that nobody reviewed the photo in
+48 hours; the text is unchanged. It logs `photo_discard` as **Automatic discard**
+without attributing it to a Moderator. Remote deletion failures retain the durable
+cleanup record for retry and cannot duplicate the notice. Approved photos do not
+expire with the hold. Author deletion, account deletion and the normal Incident
+purge still revoke and queue deletion of media.
+
+Judge Demo Mode uses only the two static files in `public/fixtures/`, never real
+Incident uploads. The author can select the fixture, choose blur and post normally;
+Alex or Sam can review it. The posted confirmation's **Demo: simulate 48-hour
+discard** uses the same discard helper in that isolated workspace. Its mutation
+rejects production sessions. Demo's ordinary 24-hour session expiry still applies.
+
+Verification: `tests/convex/incident-photos.test.ts` checks hold boundaries,
+ownership, workspace/CSA/conflict guards, approval, preserved blur/quarantine and
+reports, rejection, deletion, expiry and idempotent notices. The upload and proxy
+unit tests check private ACLs, no Demo uploads, metadata removal, delivered blur
+pixels and a deletion race. Playwright covers both approvals, rejection, hold →
+discard, private notices and offline image removal. Layer 4 checks all seven form
+steps plus held-photo disclosure and all three confirmations in both themes at
+phone/desktop sizes, including 320px/200% reflow. Manual device/assistive-technology
+checks remain on the existing release checklist.
 
 ## KSUX v2 launch and Moderation operations
 
@@ -325,7 +407,8 @@ Every report starts with the Emergency Panel, including `/safety?report=1`.
 The six questions collect an explicit category, Campus and building/area, claimed
 observed time, description, name level and preview. Medical concerns, sexual
 misconduct/dating violence/stalking and suspicion about a person divert to the
-contacts rather than publishing. Photos remain in #89.
+contacts rather than publishing. The optional seventh-step photo workflow is
+documented under [Incident photos](#incident-photos-89).
 
 The form and server share deterministic text checks, including identifying
 patterns and forbidden authority/safety claims. These conservative patterns are
@@ -353,7 +436,8 @@ the lifecycle. Each projection includes at most
 50 dated Updates (at most five can be author-written). Direct reads return no
 text/location/author/Updates for Under review, Removed, Deleted, expired or
 foreign-workspace records. Block masks the handle while keeping the Incident.
-P0 never returns Incident media, including held Demo photo fixtures.
+Held media is never returned in Student projections. Only approved photos on
+visible, unexpired Incidents can be requested from the image proxy.
 
 Incident reads use uncached HTTP requests when mounted, on focus, after a local
 Incident write, on manual refresh and once per minute while visible. Offline

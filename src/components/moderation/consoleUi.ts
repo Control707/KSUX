@@ -3,5 +3,5 @@ export const modField = "mt-1 block min-h-11 w-full min-w-0 rounded-[var(--r-sm)
 export const modCard = "min-w-0 space-y-3 rounded-[var(--r-md)] border border-[var(--line)] bg-[var(--surface)] p-4";
 export const modDate = (ms: number) => new Intl.DateTimeFormat("en-US", { dateStyle: "short", timeStyle: "short", timeZone: "America/New_York" }).format(ms) + " ET";
 export const modAge = (ms: number, now = Date.now()) => { const minutes = Math.max(0, Math.floor((now - ms) / 60_000)); return minutes < 60 ? `${minutes} min` : minutes < 1440 ? `${Math.floor(minutes / 60)} hr` : `${Math.floor(minutes / 1440)} d`; };
-export type ModerationAction = "restore" | "dismiss" | "remove" | "redact" | "note" | "suspend";
-export const actionLabels: Record<ModerationAction, string> = { restore: "Restore", dismiss: "Dismiss reports", remove: "Remove", redact: "Redact", note: "Add note", suspend: "Suspend author" };
+export type ModerationAction = "restore" | "dismiss" | "remove" | "redact" | "note" | "suspend" | "photo_approve" | "photo_approve_blur" | "photo_reject";
+export const actionLabels: Record<ModerationAction, string> = { restore: "Restore", dismiss: "Dismiss reports", remove: "Remove", redact: "Redact", note: "Add note", suspend: "Suspend author", photo_approve: "Approve", photo_approve_blur: "Approve with blur", photo_reject: "Reject" };

@@ -17,6 +17,7 @@ import { useOnline } from "./useOnline";
 import { OFFLINE_INCIDENTS } from "./safetyContent";
 import { incidentError, useIncidentMutation, useIncidentRead } from "./incidentClient";
 import { incidentButton, incidentField } from "./IncidentForm";
+import { IncidentPhoto } from "./IncidentPhoto";
 
 type Incident = FunctionReturnType<typeof api.incidents.activeIncidents>[number];
 const date = (ms: number) => new Intl.DateTimeFormat("en-US", { dateStyle: "short", timeStyle: "short", timeZone: "America/New_York" }).format(ms) + " Eastern";
@@ -29,6 +30,7 @@ function IncidentCard({ incident, details = false }: { incident: Incident; detai
     {incident.areaDetail && <p>{incident.areaDetail}</p>}
     <p>Seen {date(incident.observedAt)} (claimed)</p>
     <p className="whitespace-pre-wrap">{incident.text}</p>
+    {incident.photo && <IncidentPhoto incidentId={incident._id} blurred={incident.photo.blurred} />}
     {incident.updates.length > 0 && <ol className="space-y-[var(--sp-2)] border-l-2 border-[var(--line-strong)] pl-[var(--sp-3)]" aria-label="Incident Updates">
       {incident.updates.map((update) => <li key={update._id}><p className="font-bold">{update.kind === "author_update" ? "Author Update" : "Moderator note"} · {date(update.createdAt)}</p><p>{update.text} {update.href && <Link href={update.href}>View linked source</Link>}</p></li>)}
     </ol>}

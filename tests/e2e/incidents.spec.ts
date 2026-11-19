@@ -7,7 +7,7 @@ test.use({ actionTimeout: 15_000 });
 async function start(page: Page) {
   await page.getByTestId("report-incident-btn").click();
   await page.getByTestId("report-emergency-panel").getByTestId("emergency-continue").click();
-  await expect(page.getByTestId("incident-form")).toContainText("Step 1 of 6");
+  await expect(page.getByTestId("incident-form")).toContainText("Step 1 of 7");
 }
 async function fill(page: Page, text: string) {
   const form = page.getByTestId("incident-form");
@@ -38,6 +38,7 @@ test("Incident panel, divert, validation, publish, map/list, update, identifies-
   const form = page.getByTestId("incident-form");
   await form.getByLabel("Description").fill("water leaking beside the entrance");
   await form.getByRole("button", { name: "Next", exact: true }).click();
+  await form.getByRole("button", { name: "Skip photo", exact: true }).click();
   await form.getByRole("button", { name: "Student · name hidden", exact: true }).click();
   await form.getByRole("button", { name: "Next", exact: true }).click();
   await expect(form).toContainText("Community report · not verified");

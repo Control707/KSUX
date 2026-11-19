@@ -43,12 +43,17 @@ Authors receive private in-app decisions at `/profile/moderation`. Maintainers
 manage Student appointments and CSA declarations, with Feed health kept in its
 own section. [Console operations and checks](./docs/RUNBOOK.md#moderator-console-and-appeals-87)
 
-The text-only **Incident pilot** at `/safety` has an Emergency Panel before every
+The **Incident pilot** at `/safety` has an Emergency Panel before every
 submission, Campus-scoped community list and map, dated Incident Updates and
 Moderation Reports. It runs fully in isolated Judge Demo Mode. Production posting
 still requires the Moderator staffing and operations gate. Community Incidents
 are never verified, never Feed posts and never official Alerts.
 [Pilot behavior and checks](./docs/RUNBOOK.md#text-only-incident-pilot-79)
+
+Optional **Incident photos** are held privately for Moderator review, support
+whole-photo blur, and are discarded unreviewed after 48 hours with a private
+author notice. Judge Demo Mode uses static fixtures. Production photo uploads
+have their own launch switch. [Photo workflow and checks](./docs/RUNBOOK.md#incident-photos-89)
 
 The **private agenda** at `/agenda` combines upcoming classes, imported deadlines, RSVPed Events and joined Study Sessions in Eastern time. Event-only `.ics` downloads and opt-in, per-type **in-app** reminders are available; reminder settings live at `/profile/notifications#agenda`. [Behavior and verification](./docs/RUNBOOK.md#private-agenda-76)
 

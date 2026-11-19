@@ -7,6 +7,9 @@ import { getIncidentLaunchGate } from "./lib/v2Launch";
 import { assertPublishSafety } from "./lib/safety";
 import { DAY, HOUR, INCIDENT_NOTES, INCIDENT_PLACES, INCIDENT_REMOVE_REASONS, incidentAge, incidentTextError } from "./lib/incidentPolicy";
 import { queueMediaDeletion } from "./lib/mediaCleanup";
+import { DEMO_INCIDENT_PHOTO, DEMO_INCIDENT_PHOTO_BLURRED, PHOTO_HOLD_MS, discardIncidentPhoto, heldPhoto } from "./lib/incidentPhotos";
+import { requireServerSecret } from "./lib/sessionCredential";
+import { assertReviewable } from "./lib/moderationPolicy";
 
 const category = v.union(v.literal("fire"), v.literal("hazard"), v.literal("crash"), v.literal("theft"), v.literal("damage"), v.literal("outage"), v.literal("area_closed"), v.literal("other"));
 const campus = v.union(v.literal("Kennesaw"), v.literal("Marietta"));
@@ -39,6 +42,9 @@ async function projection(ctx: QueryCtx, viewer: ViewerContext, row: Doc<"incide
   const place = INCIDENT_PLACES.find((p) => p.id === buildingId && p.campus === row.campus);
   const updates = await ctx.db.query("incidentUpdates").withIndex("by_incident", (q) =>
     q.eq("workspaceKey", viewer.workspaceKey).eq("incidentId", row._id)).take(50);
+  const asset = row.photoAssetId ? await ctx.db.get(row.photoAssetId) : null;
+  const approved = asset?.workspaceKey === viewer.workspaceKey && asset.purpose === "incident" && asset.status === "attached" &&
+    asset.deleteClaimedAt === undefined && asset.reviewStatus === "approved";
   return {
     _id: row._id, category: row.category, campus: row.campus, buildingId: row.buildingId,
     buildingName: place?.name ?? "Campus area", latitude: place?.latitude, longitude: place?.longitude,
@@ -50,6 +56,7 @@ async function projection(ctx: QueryCtx, viewer: ViewerContext, row: Doc<"incide
     isAuthor: row.authorId === viewer.actorStudent._id,
     canEdit: row.authorId === viewer.actorStudent._id && Date.now() < row.lockedAt,
     updateCount: row.updateCount,
+    photo: approved ? { blurred: !!asset.blurred } : null,
     updates: updates.filter((u) => u.purgeAt > Date.now()).map((u) => ({
       _id: u._id, kind: u.kind, createdAt: u.createdAt,
       text: u.kind === "author_update" ? u.text : INCIDENT_NOTES[u.templateId ?? ""] ?? "Moderator note",
@@ -59,7 +66,8 @@ async function projection(ctx: QueryCtx, viewer: ViewerContext, row: Doc<"incide
 }
 
 export const create = viewerMutation({
-  args: { category, campus, buildingId: v.string(), areaDetail: v.optional(v.string()), observedAt: v.number(), text: v.string(), nameLevel },
+  args: { category, campus, buildingId: v.string(), areaDetail: v.optional(v.string()), observedAt: v.number(), text: v.string(), nameLevel,
+    photoAssetId: v.optional(v.id("mediaAssets")), demoPhoto: v.optional(v.boolean()), blurPhoto: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
     verified(ctx.viewer);
     const now = Date.now();
@@ -74,15 +82,63 @@ export const create = viewerMutation({
     if (recent.filter((r) => r.publishedAt > now - HOUR).length >= 3 || recent.filter((r) => r.publishedAt > now - DAY).length >= 6)
       fail("RATE_LIMIT", "Limit reached: 3 Incidents per hour and 6 per day.");
     if (!(await getIncidentLaunchGate(ctx.db, ctx.viewer.mode)).postingEnabled) fail("LAUNCH_CLOSED", "Community Incident posting is unavailable.");
+    let photoAssetId = args.photoAssetId;
+    if (args.demoPhoto) {
+      if (ctx.viewer.mode !== "demo" || photoAssetId) fail("PHOTO", "Static photo fixtures are only available in Judge Demo Mode.");
+      photoAssetId = await ctx.db.insert("mediaAssets", { workspaceKey: ctx.viewer.workspaceKey, demoSessionId: ctx.viewer.demoSessionId,
+        ownerStudentId: ctx.viewer.actorStudent._id, purpose: "incident", fileKey: `local-inline:incident-${now}-${Math.random()}`,
+        url: DEMO_INCIDENT_PHOTO, byteSize: 0, width: 640, height: 400, status: "attached", createdAt: now,
+        reviewStatus: "held", holdExpiresAt: now + PHOTO_HOLD_MS, blurred: !!args.blurPhoto });
+    } else if (photoAssetId) {
+      const asset = await ctx.db.get(photoAssetId);
+      if (ctx.viewer.mode === "demo" || process.env.KSUX_V2_INCIDENT_PHOTOS !== "true" || !asset ||
+        asset.workspaceKey !== ctx.viewer.workspaceKey || asset.ownerStudentId !== ctx.viewer.actorStudent._id ||
+        asset.purpose !== "incident" || asset.status !== "pending" || asset.deleteClaimedAt !== undefined ||
+        asset.reviewStatus !== "held" || (asset.holdExpiresAt ?? 0) <= now) fail("PHOTO", "This Incident photo is unavailable.");
+      await ctx.db.patch(photoAssetId, { status: "attached" });
+    }
     const incidentId = await ctx.db.insert("incidents", {
       category: args.category, campus: args.campus, buildingId: args.buildingId, observedAt: args.observedAt, nameLevel: args.nameLevel,
-      text, areaDetail, workspaceKey: ctx.viewer.workspaceKey, authorId: ctx.viewer.actorStudent._id,
+      text, areaDetail, photoAssetId, workspaceKey: ctx.viewer.workspaceKey, authorId: ctx.viewer.actorStudent._id,
       visibility: "visible", publishedAt: now, lockedAt: now + 5 * 60_000, lastActivityAt: now,
       updateCount: 0, purgeAt: now + 30 * DAY, demoLabel: ctx.viewer.mode === "demo" ? "Demo · not real" : undefined,
     });
     return { incidentId };
   },
 });
+
+export const photoAvailability = viewerQuery({ args: {}, handler: async (ctx) => ({
+  enabled: ctx.viewer.mode === "demo" || process.env.KSUX_V2_INCIDENT_PHOTOS === "true" && (await getIncidentLaunchGate(ctx.db, ctx.viewer.mode)).postingEnabled,
+}) });
+
+/** Only the image proxy can obtain a private storage key. A Student, including the
+ * author, cannot read held bytes. Moderator conflicts and CSA guards apply here too. */
+export const photoAccess = viewerQuery({ args: { incidentId: v.id("incidents"), serverSecret: v.string(), review: v.boolean() }, handler: async (ctx, args) => {
+  await requireServerSecret(args.serverSecret);
+  const row = await scoped(ctx, ctx.viewer, args.incidentId);
+  if (!row || !row.photoAssetId || ["removed", "deleted"].includes(row.visibility)) return null;
+  const asset = await ctx.db.get(row.photoAssetId);
+  if (!asset || asset.workspaceKey !== ctx.viewer.workspaceKey || asset.purpose !== "incident" || asset.status !== "attached" || asset.deleteClaimedAt !== undefined) return null;
+  if (args.review) {
+    await assertReviewable(ctx, "incident", row._id);
+    if (!heldPhoto(asset, ctx.viewer.workspaceKey)) return null;
+  } else if (row.visibility !== "visible" || incidentAge(row.publishedAt, Date.now()) === "unavailable" || asset.reviewStatus !== "approved") return null;
+  return ctx.viewer.mode === "demo"
+    ? { fixture: asset.blurred ? DEMO_INCIDENT_PHOTO_BLURRED : DEMO_INCIDENT_PHOTO }
+    : { fileKey: asset.fileKey, blurred: !!asset.blurred };
+} });
+
+/** Isolated evaluation seam; cannot advance a production hold. */
+export const discardDemoPhoto = viewerMutation({ args: { incidentId: v.id("incidents") }, handler: async (ctx, args) => {
+  if (ctx.viewer.mode !== "demo") fail("FORBIDDEN", "Only available in Judge Demo Mode.");
+  const row = await owned(ctx, ctx.viewer, args.incidentId);
+  const asset = row.photoAssetId ? await ctx.db.get(row.photoAssetId) : null;
+  if (heldPhoto(asset, ctx.viewer.workspaceKey)) {
+    const now = Date.now();
+    await ctx.db.patch(asset!._id, { holdExpiresAt: now });
+    await discardIncidentPhoto(ctx, { ...asset!, holdExpiresAt: now }, now);
+  }
+} });
 
 export const activeIncidents = viewerQuery({
   args: { campus },
