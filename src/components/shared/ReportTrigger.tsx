@@ -4,6 +4,8 @@ import React, { useId, useState } from "react";
 import { Flag, ShieldAlert } from "lucide-react";
 import { Dialog } from "@/components/a11y/Dialog";
 import { useAnnouncer } from "@/components/a11y/Announcer";
+import { EmergencyPanel } from "@/components/safety/EmergencyPanel";
+import { useSafetyMode } from "@/components/safety/useSafetyMode";
 
 export type ReportReason =
   | "harassment"
@@ -75,6 +77,7 @@ export function ReportTrigger({
   onSubmitReport,
 }: ReportTriggerProps) {
   const { toast } = useAnnouncer();
+  const safetyMode = useSafetyMode();
   const formId = useId();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<ReportReason>("scam_spam");
@@ -155,7 +158,7 @@ export function ReportTrigger({
               <span aria-hidden="true">✓ </span>
               {REPORT_SENT_MESSAGE}. It is hidden from your view while they review it.
             </p>
-            {reason === "campus_safety" && <KsuPoliceEmergencyCallout />}
+            {reason === "campus_safety" && <CampusSafetyEmergencyPanel mode={safetyMode} />}
             <button
               type="button"
               onClick={() => setOpen(false)}
@@ -200,7 +203,7 @@ export function ReportTrigger({
               })}
             </fieldset>
 
-            {reason === "campus_safety" && <KsuPoliceEmergencyCallout />}
+            {reason === "campus_safety" && <CampusSafetyEmergencyPanel mode={safetyMode} />}
 
             <div>
               <label htmlFor={`${formId}-notes`} className="block text-sm font-bold">
@@ -240,6 +243,23 @@ export function ReportTrigger({
         )}
       </Dialog>
     </>
+  );
+}
+
+export const CAMPUS_SAFETY_REPORT_NOTE =
+  "This reports the post to KSUX volunteer moderators. It does not contact police.";
+
+/**
+ * The Emergency Panel shown whenever a Student picks the Campus Safety reason
+ * (SPEC-v2 §5, #49 §D), before the report is sent and again in the
+ * confirmation. Demo Mode dials and texts nothing.
+ */
+export function CampusSafetyEmergencyPanel({ mode }: { mode: "live" | "demo" }) {
+  return (
+    <div data-testid="ksu-police-callout" className="space-y-[var(--sp-2)]">
+      <p className="text-sm font-bold">{CAMPUS_SAFETY_REPORT_NOTE}</p>
+      <EmergencyPanel mode={mode} headingLevel={3} compact testId="report-emergency-panel" />
+    </div>
   );
 }
 

@@ -70,9 +70,18 @@ export default function AboutPage() {
           Safety
         </h2>
         <p>KSUX isn't 911, isn't monitored around the clock, and community reports aren't verified.</p>
-        <Link href="/safety" className="inline-flex min-h-[var(--target)] items-center font-bold underline">
-          Open Safety
-        </Link>
+        <ul className="flex flex-wrap gap-x-[var(--sp-4)]">
+          <li>
+            <Link href="/safety/about" data-testid="about-ksux-safety-link" className="inline-flex min-h-[var(--target)] items-center font-bold underline">
+              About KSUX Safety
+            </Link>
+          </li>
+          <li>
+            <Link href="/safety" className="inline-flex min-h-[var(--target)] items-center font-bold underline">
+              Open Safety
+            </Link>
+          </li>
+        </ul>
       </section>
 
       <Link href="/profile" className="inline-flex min-h-[var(--target)] items-center font-bold underline">
