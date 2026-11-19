@@ -1,4 +1,4 @@
-const SW_VERSION = "ksux-v3";
+const SW_VERSION = "ksux-v4";
 const SHELL_CACHE = `${SW_VERSION}-shell`;
 const STATIC_CACHE = `${SW_VERSION}-static`;
 const GEOJSON_CACHE = `${SW_VERSION}-geojson`;

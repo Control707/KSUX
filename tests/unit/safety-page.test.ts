@@ -49,3 +49,33 @@ it("shows the Emergency Panel while the session is still booting", () => {
   expect(html).toContain('id="main-content"');
   expect(html).toContain("Skip to main content");
 });
+
+it("orders Official Alerts first, then the intro, the panel, reporting and Incidents", () => {
+  const html = render();
+  const order = ["Official Alerts", "What KSUX Safety is and isn’t", "Is anyone in danger right now?", "Report something you saw", "Community Incidents"]
+    .map((text) => html.indexOf(text));
+  expect(order.every((i) => i >= 0)).toBe(true);
+  expect([...order].sort((a, b) => a - b)).toEqual(order);
+});
+
+it("names the source of every official link and keeps the three kinds of help distinct", () => {
+  const html = render();
+  expect(html).toContain("KSU Police · Timely Warnings");
+  expect(html).toContain("KSU Campus Security &amp; Advisories · Emergency Advisory page");
+  expect(html).toContain("KSU Office of Emergency Management · KSU Alert (Rave) emergency notifications");
+  expect(html).toContain("Not seeing an Alert doesn’t mean campus is safe.");
+  expect(html).toContain("Official · KSU Police");
+  expect(html).toContain("In-app · KSUX volunteers");
+  expect(html).toContain("Kennesaw Campus");
+  expect(html).toContain("Marietta Campus");
+  expect(html).toContain('href="/safety/about"');
+  expect(html).not.toMatch(/all clear|campus is safe now|verified by/i);
+});
+
+it("labels Demo fixtures and shows contact numbers without dialling in Demo", () => {
+  viewer.auth = { status: "offline", scope: { mode: "demo", shortCode: "demo", persona: "maya_cs" } };
+  const html = render();
+  expect(html).toContain("Sample Timely Warning");
+  expect(html).toContain("470-578-6206");
+  expect(html).not.toContain('href="tel:4705786206"');
+});

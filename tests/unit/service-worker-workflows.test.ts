@@ -197,7 +197,7 @@ describe("Offline commuter service worker workflows", () => {
       const page = await worker.dispatchFetch(path, { mode: "navigate" }).response;
       expect(await page?.text()).toBe(`Fresh ${origin}${path}`);
     }
-    const shell = await worker.cacheStorage.open("ksux-v3-shell");
+    const shell = await worker.cacheStorage.open("ksux-v4-shell");
     for (const path of paths) expect(await shell.match(path)).toBeUndefined();
   });
 
