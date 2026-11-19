@@ -183,6 +183,30 @@ export function ParkingView() {
     }
   }, [wantsReportDialog, lots, arrivalLot?.slug]);
 
+  const [sheetEl, setSheetEl] = useState<HTMLElement | null>(null);
+  const [sheetPad, setSheetPad] = useState(0);
+  // On phones the sheet floats over the map: pad camera fits and map controls above it.
+  useEffect(() => {
+    if (!sheetEl) return;
+    const measure = () => {
+      if (getComputedStyle(sheetEl).position !== "fixed") return setSheetPad(0);
+      const rect = sheetEl.getBoundingClientRect();
+      // Keep the zoom controls on the visible map even when the sheet is tall.
+      const canvas = document.querySelector<HTMLElement>("[data-testid=parking-view] [data-testid=campus-map-canvas]");
+      const room = (canvas?.clientHeight ?? window.innerHeight) - 13 * 16; // keep ~13rem for controls
+      setSheetPad(Math.round(Math.max(0, Math.min(rect.height, room))));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(sheetEl);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [sheetEl]);
+  const fitPadding = useMemo(() => ({ bottom: sheetPad }), [sheetPad]);
+
   const changeSnap = useCallback(
     (next: Snap) => {
       setSnap(next);
@@ -248,373 +272,392 @@ export function ParkingView() {
   const cloutEarned = cloutWeek.reduce((sum, row) => sum + row.counted, 0);
   const cloutPending = cloutWeek.reduce((sum, row) => sum + row.held, 0);
 
+  const lotStatuses = useMemo(
+    () =>
+      lots.map((l) => ({
+        slug: l.slug,
+        name: l.name,
+        campus: l.campus,
+        latitude: l.latitude,
+        longitude: l.longitude,
+        effectiveTier: l.effectiveTier,
+        hasSpotOpening: l.spotOpenings.length > 0,
+      })),
+    [lots]
+  );
+
   const snapHeight =
     snap === "peek" ? "max-h-[42dvh]" : snap === "half" ? "max-h-[62dvh]" : "max-h-[78dvh]";
 
   return (
-    <div data-testid="parking-view" className="lg:grid lg:grid-cols-[minmax(0,1fr)_26rem]">
-      {/* Map column: full-bleed on phones, the left pane on desktop. */}
-      <div className="min-w-0 space-y-[var(--sp-2)] p-[var(--sp-2)] pb-[46dvh] lg:pb-[var(--sp-2)] [html[data-large-text]_&]:pb-[var(--sp-2)]">
-        <div className="flex flex-wrap items-end justify-between gap-[var(--sp-2)] px-[var(--sp-1)]">
-          <h1 data-route-heading="" tabIndex={-1} className="font-display text-2xl font-bold text-[var(--ink)]">
-            Parking
-          </h1>
-          <div className="flex min-w-0 flex-col gap-[var(--sp-1)]">
-            <label htmlFor={permitSelectId} className="text-sm font-bold text-[var(--muted)]">
-              Your permit
-            </label>
-            <select
-              id={permitSelectId}
-              data-testid="permit-tier-select"
-              value={permitFilter}
-              onChange={(e) => {
-                const v = e.target.value;
-                setPermitFilter(v);
-                void savePrefs({ permitTier: v });
-                announce(v === "All" ? "Showing every Parking Lot" : `Showing lots for the ${v} permit`);
-              }}
-              className="min-h-[var(--target)] min-w-0 max-w-full rounded-[var(--r-md)] border border-[var(--line-strong)] bg-[var(--surface)] px-[var(--sp-3)] text-body font-bold text-[var(--ink)]"
-            >
-              {PERMIT_TIERS.map((t) => (
-                <option key={t} value={t}>
-                  {t === "All" ? "All permits" : t}
-                </option>
-              ))}
-            </select>
-          </div>
+    <div
+      data-testid="parking-view"
+      className="relative flex min-h-[calc(100dvh-var(--chrome-top)-var(--chrome-bottom))] flex-col lg:min-h-[calc(100dvh-var(--chrome-top))]"
+    >
+      <div className="flex flex-wrap items-end justify-between gap-[var(--sp-2)] px-[var(--sp-3)] py-[var(--sp-2)]">
+        <h1 data-route-heading="" tabIndex={-1} className="font-display text-2xl font-bold text-[var(--ink)]">
+          Parking
+        </h1>
+        <div className="flex min-w-0 flex-col gap-[var(--sp-1)]">
+          <label htmlFor={permitSelectId} className="text-sm font-bold text-[var(--muted)]">
+            Your permit
+          </label>
+          <select
+            id={permitSelectId}
+            data-testid="permit-tier-select"
+            value={permitFilter}
+            onChange={(e) => {
+              const v = e.target.value;
+              setPermitFilter(v);
+              void savePrefs({ permitTier: v });
+              announce(v === "All" ? "Showing every Parking Lot" : `Showing lots for the ${v} permit`);
+            }}
+            className="min-h-[var(--target)] min-w-0 max-w-full rounded-[var(--r-md)] border border-[var(--line-strong)] bg-[var(--surface)] px-[var(--sp-3)] text-body font-bold text-[var(--ink)]"
+          >
+            {PERMIT_TIERS.map((t) => (
+              <option key={t} value={t}>
+                {t === "All" ? "All permits" : t}
+              </option>
+            ))}
+          </select>
         </div>
-        <h2 className="sr-only">Parking map</h2>
+      </div>
+      <h2 className="sr-only">Parking map</h2>
+      <div className="relative flex min-h-0 flex-1 flex-col">
         <CampusGeoMap
           campusFilter={campusFilter}
           showParkingLots
           showPlaceSearch={false}
           title={`${campusFilter} Parking Lots map`}
-          lotStatuses={lots.map((l) => ({
-            slug: l.slug,
-            name: l.name,
-            campus: l.campus,
-            latitude: l.latitude,
-            longitude: l.longitude,
-            effectiveTier: l.effectiveTier,
-            hasSpotOpening: l.spotOpenings.length > 0,
-          }))}
+          lotStatuses={lotStatuses}
           onSelectLotSlug={(slug) => {
             setSelectedLotSlug(slug);
             if (!lastReport) setArrivalSlug(slug);
           }}
-        />
-      </div>
-
-      {/* Bottom sheet on phones (snap buttons), side list on desktop. */}
-      <section
-        aria-labelledby={sheetHeadingId}
-        data-testid="parking-sheet"
-        data-snap={snap}
-        className={`fixed inset-x-[var(--sp-2)] bottom-[var(--chrome-bottom)] z-20 flex flex-col overflow-hidden rounded-t-[var(--r-lg)] border border-[var(--line-strong)] bg-[var(--bg)] shadow-2xl ${snapHeight} lg:static lg:max-h-none lg:rounded-none lg:border-0 lg:border-l lg:border-[var(--line)] lg:shadow-none [html[data-large-text]_&]:static [html[data-large-text]_&]:max-h-none [html[data-large-text]_&]:rounded-none [html[data-large-text]_&]:shadow-none`}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-[var(--sp-2)] border-b border-[var(--line)] px-[var(--sp-3)] py-[var(--sp-1)] lg:hidden [html[data-large-text]_&]:hidden">
-          <span aria-hidden="true" className="h-1 w-10 rounded-full bg-[var(--line-strong)]" />
-          <div data-testid="parking-sheet-snap" className="min-w-0">
-            <SegmentedControl
-              label="Parking sheet size"
-              options={SNAP_OPTIONS}
-              value={snap}
-              onChange={changeSnap}
-              testIdPrefix="parking-sheet-snap"
-            />
-          </div>
-        </div>
-
-        <div className="min-w-0 flex-1 space-y-[var(--sp-3)] overflow-y-auto p-[var(--sp-3)]">
-          <h2 id={sheetHeadingId} className="font-display text-xl font-bold text-[var(--ink)]">
-            Parking for your permit
-          </h2>
-
-          <p
-            role="status"
-            data-testid="parking-status-banner"
-            className={
-              statusBanner
-                ? "rounded-[var(--r-md)] border border-[var(--ok-fg)] bg-[var(--ok-bg)] px-[var(--sp-3)] py-[var(--sp-2)] text-sm font-bold text-[var(--ok-fg)] [overflow-wrap:anywhere]"
-                : "sr-only"
-            }
-          >
-            {statusBanner}
-          </p>
-
-          {/* Arrival strip: one tap publishes for the pinned or first lot. */}
-          {arrivalLot && (
-            <div data-testid="arrival-strip" className={`${cardClass} [overflow-wrap:anywhere]`}>
-              {lastReport ? (
-                <div className="flex flex-wrap items-center justify-between gap-[var(--sp-2)]">
-                  <p data-testid="arrival-strip-reported" className="min-w-0 text-sm font-bold">
-                    <span aria-hidden="true">{FULLNESS[fullnessFromTier(lastReport.tier)].glyph} </span>
-                    Reported {tierWord(lastReport.tier)} at {lastReport.lotCode}
-                  </p>
-                  <button type="button" data-testid="arrival-undo-btn" onClick={() => void undoLast()} className={secondaryButton}>
-                    Undo<span className="sr-only"> Parking Report on {lastReport.lotName}</span>
-                  </button>
+          fill
+          className="relative grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_26rem]"
+          fitPadding={fitPadding}
+          renderPanel={({ list, legend }) => (
+            /* Bottom sheet on phones (snap buttons), side panel on desktop. The synced map list lives inside it. */
+            <section
+              ref={setSheetEl}
+              aria-labelledby={sheetHeadingId}
+              data-testid="parking-sheet"
+              data-snap={snap}
+              className={`fixed inset-x-[var(--sp-2)] bottom-[var(--chrome-bottom)] z-20 flex flex-col overflow-hidden rounded-t-[var(--r-lg)] border border-[var(--line-strong)] bg-[var(--bg)] shadow-2xl ${snapHeight} lg:static lg:inset-auto lg:z-auto lg:max-h-[calc(100dvh-var(--chrome-top)-4.5rem)] lg:rounded-none lg:border-0 lg:border-l lg:border-[var(--line)] lg:shadow-none [html[data-large-text]_&]:static [html[data-large-text]_&]:max-h-none [html[data-large-text]_&]:rounded-none [html[data-large-text]_&]:shadow-none`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-[var(--sp-2)] border-b border-[var(--line)] px-[var(--sp-3)] py-[var(--sp-1)] lg:hidden [html[data-large-text]_&]:hidden">
+                <span aria-hidden="true" className="h-1 w-10 rounded-full bg-[var(--line-strong)]" />
+                <div data-testid="parking-sheet-snap" className="min-w-0">
+                  <SegmentedControl
+                    label="Parking sheet size"
+                    options={SNAP_OPTIONS}
+                    value={snap}
+                    onChange={changeSnap}
+                    testIdPrefix="parking-sheet-snap"
+                  />
                 </div>
-              ) : (
-                <div className="flex flex-wrap items-center gap-[var(--sp-2)]">
-                  <p className="flex min-w-0 flex-wrap items-center gap-[var(--sp-1)] text-sm font-bold">
-                    Just parked at
-                    <button
-                      type="button"
-                      data-testid="arrival-lot-btn"
-                      onClick={() => setLotPickerOpen(true)}
-                      className="inline-flex min-h-[var(--target)] min-w-[var(--target)] items-center justify-center rounded-[var(--r-sm)] border border-[var(--line-strong)] bg-[var(--surface-2)] px-[var(--sp-2)] font-bold underline underline-offset-2"
-                    >
-                      {arrivalLot.lotCode}
-                      <span className="sr-only">, {arrivalLot.name}. Change lot</span>
-                    </button>
-                    ?
-                  </p>
-                  <div role="group" aria-label={`How full is ${arrivalLot.name}?`} className="flex flex-wrap gap-[var(--sp-1)]">
-                    {TIERS.map((tier) => (
-                      <TierButton
-                        key={tier}
-                        tier={tier}
-                        testId={`arrival-tier-${tier}`}
-                        accessibleName={`${tierWord(tier)}: report ${arrivalLot.name} as ${tierWord(tier)}`}
-                        onClick={() => void publishFullness(arrivalLot, tier)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+              </div>
 
-          {/* Best bet: ranks only lots with live Student reports. */}
-          {data && (
-            <div data-testid="parking-best-bet" data-kind={data.bestBet.kind} className={`${cardClass} space-y-[var(--sp-2)] [overflow-wrap:anywhere]`}>
-              <h3 className="text-body font-bold">Best bet for your permit</h3>
-              {data.bestBet.kind === "live" ? (
-                <>
-                  <p className="flex flex-wrap items-center gap-[var(--sp-2)] text-body font-bold">
-                    {data.bestBet.lot.name} ({data.bestBet.lot.lotCode})
-                    <StatusChip status={fullnessFromTier(data.bestBet.lot.effectiveTier)} />
-                  </p>
-                  <p className="text-sm text-[var(--muted)]">{data.bestBet.lot.provenanceLabel}</p>
-                </>
-              ) : (
-                <>
-                  <p className="flex flex-wrap items-center gap-[var(--sp-2)] text-sm">
-                    <StatusChip status="none" />
-                  </p>
-                  <p className="text-sm">
-                    {data.bestBet.shuttleLots.length > 0 ? (
-                      <>
-                        Lots with shuttle service:{" "}
-                        {data.bestBet.shuttleLots.slice(0, 4).map((l) => `${l.name} (${l.lotCode})`).join(", ")}
-                        {data.bestBet.shuttleLots.length > 4 ? `, and ${data.bestBet.shuttleLots.length - 4} more` : ""}.
-                      </>
-                    ) : (
-                      "No lots for this permit have shuttle service."
-                    )}{" "}
-                    Be the first to report.
-                  </p>
-                </>
-              )}
-            </div>
-          )}
+              <div className="min-w-0 flex-1 space-y-[var(--sp-3)] overflow-y-auto p-[var(--sp-3)]">
+                <h2 id={sheetHeadingId} className="font-display text-xl font-bold text-[var(--ink)]">
+                  Parking for your permit
+                </h2>
 
-          {data?.campusLine && (
-            <p data-testid="parking-campus-line" data-state={data.campusLine.state} className="text-sm text-[var(--ink)] [overflow-wrap:anywhere]">
-              <span className="font-bold">{data.campusLine.label}</span>
-              {" · per "}
-              <a href={data.campusLine.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
-                KSU class-enrollment chart<span className="sr-only"> (opens in a new tab)</span>
-              </a>
-              {`, ${data.campusLine.checkedOnLabel}`}
-            </p>
-          )}
-
-          <div className="flex flex-wrap gap-[var(--sp-2)]">
-            <button type="button" data-testid="parking-report-btn" disabled={!lots.length} onClick={() => openDialog("report")} className={primaryButton}>
-              Parking Report
-            </button>
-            <button type="button" data-testid="parking-leaving-btn" disabled={!lots.length} onClick={() => openDialog("leaving")} className={secondaryButton}>
-              <Zap aria-hidden="true" className="h-4 w-4" />
-              I&apos;m leaving ~5 min
-            </button>
-          </div>
-
-          <p data-testid="parking-clout" className="text-sm text-[var(--muted)]">
-            {cloutEarned > 0 || cloutPending > 0
-              ? `Clout this week: ${cloutEarned} earned · ${cloutPending} pending`
-              : "Clout arrives with corroboration."}
-          </p>
-
-          {/* Lot list (the half/full sheet and the desktop side list). */}
-          <h3 className="pt-[var(--sp-2)] text-body font-bold">
-            {lots.length} Parking Lots{permitFilter !== "All" ? ` for ${permitFilter}` : ""}
-          </h3>
-          {!data && <p className="text-sm text-[var(--muted)]">Loading Parking Lots…</p>}
-          <ul className="space-y-[var(--sp-2)]">
-            {displayedLots.map((lot) => {
-              const status = fullnessFromTier(lot.effectiveTier);
-              const none = status === "none";
-              return (
-                <li
-                  key={String(lot._id)}
-                  data-testid={`parking-lot-card-${lot.slug}`}
-                  data-status={status}
-                  className={`${cardClass} space-y-[var(--sp-2)] [overflow-wrap:anywhere] ${none ? "border-dashed border-[var(--line-strong)]" : "border-solid"}`}
+                <p
+                  role="status"
+                  data-testid="parking-status-banner"
+                  className={
+                    statusBanner
+                      ? "rounded-[var(--r-md)] border border-[var(--ok-fg)] bg-[var(--ok-bg)] px-[var(--sp-3)] py-[var(--sp-2)] text-sm font-bold text-[var(--ok-fg)] [overflow-wrap:anywhere]"
+                      : "sr-only"
+                  }
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-[var(--sp-2)]">
-                    <div className="min-w-0 space-y-[var(--sp-1)]">
-                      <h4 className="flex flex-wrap items-center gap-[var(--sp-1)] text-body font-bold">
-                        <Car aria-hidden="true" className="h-4 w-4" />
-                        {lot.name}
-                        <span className="font-normal text-[var(--muted)]">({lot.lotCode})</span>
-                      </h4>
-                      <StatusChip status={status} testId={`parking-lot-status-${lot.slug}`} />
-                    </div>
-                    <button
-                      type="button"
-                      aria-pressed={lot.isPinned}
-                      onClick={async () => {
-                        try {
-                          await savePrefs({ togglePinLotId: lot._id });
-                          announce(lot.isPinned ? `${lot.name} unpinned` : `${lot.name} pinned`);
-                        } catch (err: any) {
-                          toast({ message: errorText(err, "Couldn't change the pin."), tone: "error" });
-                        }
-                      }}
-                      className={`${secondaryButton} px-[var(--sp-3)]`}
-                    >
-                      <Pin aria-hidden="true" className="h-4 w-4" />
-                      {lot.isPinned ? "Pinned" : "Pin"}
-                      <span className="sr-only"> {lot.name}</span>
-                    </button>
-                  </div>
-                  <FillBar status={status} />
-                  <p data-testid={`parking-lot-provenance-${lot.slug}`} className="text-sm text-[var(--muted)]">
-                    {lot.provenanceLabel} · Permits: {lot.permitTiers.join(", ") || "none listed"}
-                  </p>
+                  {statusBanner}
+                </p>
 
-                  {lot.spotOpenings.map((op) => (
-                    <div
-                      key={String(op._id)}
-                      data-testid="active-spot-opening"
-                      className="flex flex-wrap items-center justify-between gap-[var(--sp-2)] rounded-[var(--r-md)] border border-[var(--ok-fg)] bg-[var(--ok-bg)] px-[var(--sp-3)] py-[var(--sp-2)] text-sm font-bold text-[var(--ok-fg)]"
-                    >
-                      <span className="flex min-w-0 items-center gap-[var(--sp-1)]">
-                        <Zap aria-hidden="true" className="h-4 w-4 shrink-0" />
-                        Spot opening in ~5 min{op.deckLevel ? ` on ${op.deckLevel}` : ""} · anonymous
-                      </span>
-                      <span className="flex flex-wrap gap-[var(--sp-1)]">
-                        {!op.isAuthor && (
+                {/* Arrival strip: one tap publishes for the pinned or first lot. */}
+                {arrivalLot && (
+                  <div data-testid="arrival-strip" className={`${cardClass} [overflow-wrap:anywhere]`}>
+                    {lastReport ? (
+                      <div className="flex flex-wrap items-center justify-between gap-[var(--sp-2)]">
+                        <p data-testid="arrival-strip-reported" className="min-w-0 text-sm font-bold">
+                          <span aria-hidden="true">{FULLNESS[fullnessFromTier(lastReport.tier)].glyph} </span>
+                          Reported {tierWord(lastReport.tier)} at {lastReport.lotCode}
+                        </p>
+                        <button type="button" data-testid="arrival-undo-btn" onClick={() => void undoLast()} className={secondaryButton}>
+                          Undo<span className="sr-only"> Parking Report on {lastReport.lotName}</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-[var(--sp-2)]">
+                        <p className="flex min-w-0 flex-wrap items-center gap-[var(--sp-1)] text-sm font-bold">
+                          Just parked at
                           <button
                             type="button"
-                            data-testid="spot-opening-took-btn"
-                            onClick={async () => {
-                              try {
-                                await takeOpening({ reportId: op._id });
-                                setStatusBanner(`Thanks. The Spot Opening on ${lot.name} is marked taken.`);
-                              } catch (err: any) {
-                                toast({ message: errorText(err, "Couldn't mark the spot taken."), tone: "error" });
-                              }
-                            }}
-                            className={secondaryButton}
+                            data-testid="arrival-lot-btn"
+                            onClick={() => setLotPickerOpen(true)}
+                            className="inline-flex min-h-[var(--target)] min-w-[var(--target)] items-center justify-center rounded-[var(--r-sm)] border border-[var(--line-strong)] bg-[var(--surface-2)] px-[var(--sp-2)] font-bold underline underline-offset-2"
                           >
-                            I took this spot
+                            {arrivalLot.lotCode}
+                            <span className="sr-only">, {arrivalLot.name}. Change lot</span>
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          data-testid="spot-opening-gone-btn"
-                          disabled={op.hasVotedGone}
-                          onClick={async () => {
-                            try {
-                              const res = await resolveOpening({ reportId: op._id });
-                              setStatusBanner(
-                                op.isAuthor
-                                  ? `Your Spot Opening on ${lot.name} is cancelled.`
-                                  : res.cleared
-                                    ? `Spot Opening on ${lot.name} removed after 2 Gone votes.`
-                                    : `Gone vote counted (${res.goneVotes} of 2).`
-                              );
-                            } catch (err: any) {
-                              toast({ message: errorText(err, "Couldn't update the Spot Opening."), tone: "error" });
-                            }
-                          }}
-                          className={secondaryButton}
-                        >
-                          {op.isAuthor ? "Cancel my Spot Opening" : `Gone (${op.goneVotes} of 2)`}
-                        </button>
-                      </span>
-                    </div>
-                  ))}
-
-                  {lot.overflowReroute && (
-                    <p
-                      data-testid="overflow-reroute-banner"
-                      className="rounded-[var(--r-md)] border border-[var(--warn-fg)] bg-[var(--warn-bg)] px-[var(--sp-3)] py-[var(--sp-2)] text-sm text-[var(--warn-fg)]"
-                    >
-                      <strong>Try instead:</strong> {lot.overflowReroute.name} is{" "}
-                      <strong>{tierWord(lot.overflowReroute.effectiveTier)}</strong> (Live Student reports)
-                      {lot.overflowReroute.shuttleRouteName
-                        ? ` · ${lot.overflowReroute.shuttleRouteName}${lot.overflowReroute.shuttleEtaMinutes === undefined ? " · ETA unavailable" : ` in ${lot.overflowReroute.shuttleEtaMinutes} min`}`
-                        : ""}
-                    </p>
-                  )}
-
-                  <div className="space-y-[var(--sp-2)] border-t border-[var(--line)] pt-[var(--sp-2)]">
-                    {lot.isDeck && lot.levels.length > 1 && (
-                      <div role="group" aria-label={`${lot.name} deck level (optional)`} className="flex flex-wrap items-center gap-[var(--sp-1)]">
-                        <span aria-hidden="true" className="text-sm font-bold text-[var(--muted)]">Level:</span>
-                        {lot.levels.map((lvl) => {
-                          const active = selectedLevelByLot[String(lot._id)] === lvl;
-                          return (
-                            <button
-                              key={lvl}
-                              type="button"
-                              aria-pressed={active}
-                              onClick={() =>
-                                setSelectedLevelByLot((prev) => ({ ...prev, [String(lot._id)]: active ? "" : lvl }))
-                              }
-                              className={`min-h-[var(--target)] min-w-[var(--target)] rounded-[var(--r-sm)] px-[var(--sp-2)] text-sm font-bold ${
-                                active
-                                  ? "bg-[var(--ink)] text-[var(--bg)]"
-                                  : "border border-[var(--line-strong)] bg-[var(--surface-2)] text-[var(--ink)]"
-                              }`}
-                            >
-                              {lvl}
-                            </button>
-                          );
-                        })}
+                          ?
+                        </p>
+                        <div role="group" aria-label={`How full is ${arrivalLot.name}?`} className="flex flex-wrap gap-[var(--sp-1)]">
+                          {TIERS.map((tier) => (
+                            <TierButton
+                              key={tier}
+                              tier={tier}
+                              testId={`arrival-tier-${tier}`}
+                              accessibleName={`${tierWord(tier)}: report ${arrivalLot.name} as ${tierWord(tier)}`}
+                              onClick={() => void publishFullness(arrivalLot, tier)}
+                            />
+                          ))}
+                        </div>
                       </div>
                     )}
-                    <div role="group" aria-label={`Report ${lot.name} fullness`} className="flex flex-wrap items-center gap-[var(--sp-1)]">
-                      {TIERS.map((tier) => (
-                        <TierButton
-                          key={tier}
-                          tier={tier}
-                          testId={`report-tier-${lot.slug}-${tier}`}
-                          accessibleName={`${tierWord(tier)}: report ${lot.name} as ${tierWord(tier)}`}
-                          onClick={() => void publishFullness(lot, tier)}
-                        />
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      data-testid={`leaving-5min-${lot.slug}`}
-                      onClick={() => void publishLeaving(lot)}
-                      className={secondaryButton}
-                    >
-                      <Zap aria-hidden="true" className="h-4 w-4" />
-                      I&apos;m leaving ~5 min<span className="sr-only"> from {lot.name}</span>
-                    </button>
                   </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      </section>
+                )}
+
+                {/* Best bet: ranks only lots with live Student reports. */}
+                {data && (
+                  <div data-testid="parking-best-bet" data-kind={data.bestBet.kind} className={`${cardClass} space-y-[var(--sp-2)] [overflow-wrap:anywhere]`}>
+                    <h3 className="text-body font-bold">Best bet for your permit</h3>
+                    {data.bestBet.kind === "live" ? (
+                      <>
+                        <p className="flex flex-wrap items-center gap-[var(--sp-2)] text-body font-bold">
+                          {data.bestBet.lot.name} ({data.bestBet.lot.lotCode})
+                          <StatusChip status={fullnessFromTier(data.bestBet.lot.effectiveTier)} />
+                        </p>
+                        <p className="text-sm text-[var(--muted)]">{data.bestBet.lot.provenanceLabel}</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="flex flex-wrap items-center gap-[var(--sp-2)] text-sm">
+                          <StatusChip status="none" />
+                        </p>
+                        <p className="text-sm">
+                          {data.bestBet.shuttleLots.length > 0 ? (
+                            <>
+                              Lots with shuttle service:{" "}
+                              {data.bestBet.shuttleLots.slice(0, 4).map((l) => `${l.name} (${l.lotCode})`).join(", ")}
+                              {data.bestBet.shuttleLots.length > 4 ? `, and ${data.bestBet.shuttleLots.length - 4} more` : ""}.
+                            </>
+                          ) : (
+                            "No lots for this permit have shuttle service."
+                          )}{" "}
+                          Be the first to report.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {data?.campusLine && (
+                  <p data-testid="parking-campus-line" data-state={data.campusLine.state} className="text-sm text-[var(--ink)] [overflow-wrap:anywhere]">
+                    <span className="font-bold">{data.campusLine.label}</span>
+                    {" · per "}
+                    <a href={data.campusLine.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                      KSU class-enrollment chart<span className="sr-only"> (opens in a new tab)</span>
+                    </a>
+                    {`, ${data.campusLine.checkedOnLabel}`}
+                  </p>
+                )}
+
+                <div className="flex flex-wrap gap-[var(--sp-2)]">
+                  <button type="button" data-testid="parking-report-btn" disabled={!lots.length} onClick={() => openDialog("report")} className={primaryButton}>
+                    Parking Report
+                  </button>
+                  <button type="button" data-testid="parking-leaving-btn" disabled={!lots.length} onClick={() => openDialog("leaving")} className={secondaryButton}>
+                    <Zap aria-hidden="true" className="h-4 w-4" />
+                    I&apos;m leaving ~5 min
+                  </button>
+                </div>
+
+                <p data-testid="parking-clout" className="text-sm text-[var(--muted)]">
+                  {cloutEarned > 0 || cloutPending > 0
+                    ? `Clout this week: ${cloutEarned} earned · ${cloutPending} pending`
+                    : "Clout arrives with corroboration."}
+                </p>
+
+                {/* Lot list (the half/full sheet and the desktop side list). */}
+                <h3 className="pt-[var(--sp-2)] text-body font-bold">
+                  {lots.length} Parking Lots{permitFilter !== "All" ? ` for ${permitFilter}` : ""}
+                </h3>
+                {!data && <p className="text-sm text-[var(--muted)]">Loading Parking Lots…</p>}
+                <ul className="space-y-[var(--sp-2)]">
+                  {displayedLots.map((lot) => {
+                    const status = fullnessFromTier(lot.effectiveTier);
+                    const none = status === "none";
+                    return (
+                      <li
+                        key={String(lot._id)}
+                        data-testid={`parking-lot-card-${lot.slug}`}
+                        data-status={status}
+                        className={`${cardClass} space-y-[var(--sp-2)] [overflow-wrap:anywhere] ${none ? "border-dashed border-[var(--line-strong)]" : "border-solid"}`}
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-[var(--sp-2)]">
+                          <div className="min-w-0 space-y-[var(--sp-1)]">
+                            <h4 className="flex flex-wrap items-center gap-[var(--sp-1)] text-body font-bold">
+                              <Car aria-hidden="true" className="h-4 w-4" />
+                              {lot.name}
+                              <span className="font-normal text-[var(--muted)]">({lot.lotCode})</span>
+                            </h4>
+                            <StatusChip status={status} testId={`parking-lot-status-${lot.slug}`} />
+                          </div>
+                          <button
+                            type="button"
+                            aria-pressed={lot.isPinned}
+                            onClick={async () => {
+                              try {
+                                await savePrefs({ togglePinLotId: lot._id });
+                                announce(lot.isPinned ? `${lot.name} unpinned` : `${lot.name} pinned`);
+                              } catch (err: any) {
+                                toast({ message: errorText(err, "Couldn't change the pin."), tone: "error" });
+                              }
+                            }}
+                            className={`${secondaryButton} px-[var(--sp-3)]`}
+                          >
+                            <Pin aria-hidden="true" className="h-4 w-4" />
+                            {lot.isPinned ? "Pinned" : "Pin"}
+                            <span className="sr-only"> {lot.name}</span>
+                          </button>
+                        </div>
+                        <FillBar status={status} />
+                        <p data-testid={`parking-lot-provenance-${lot.slug}`} className="text-sm text-[var(--muted)]">
+                          {lot.provenanceLabel} · Permits: {lot.permitTiers.join(", ") || "none listed"}
+                        </p>
+
+                        {lot.spotOpenings.map((op) => (
+                          <div
+                            key={String(op._id)}
+                            data-testid="active-spot-opening"
+                            className="flex flex-wrap items-center justify-between gap-[var(--sp-2)] rounded-[var(--r-md)] border border-[var(--ok-fg)] bg-[var(--ok-bg)] px-[var(--sp-3)] py-[var(--sp-2)] text-sm font-bold text-[var(--ok-fg)]"
+                          >
+                            <span className="flex min-w-0 items-center gap-[var(--sp-1)]">
+                              <Zap aria-hidden="true" className="h-4 w-4 shrink-0" />
+                              Spot opening in ~5 min{op.deckLevel ? ` on ${op.deckLevel}` : ""} · anonymous
+                            </span>
+                            <span className="flex flex-wrap gap-[var(--sp-1)]">
+                              {!op.isAuthor && (
+                                <button
+                                  type="button"
+                                  data-testid="spot-opening-took-btn"
+                                  onClick={async () => {
+                                    try {
+                                      await takeOpening({ reportId: op._id });
+                                      setStatusBanner(`Thanks. The Spot Opening on ${lot.name} is marked taken.`);
+                                    } catch (err: any) {
+                                      toast({ message: errorText(err, "Couldn't mark the spot taken."), tone: "error" });
+                                    }
+                                  }}
+                                  className={secondaryButton}
+                                >
+                                  I took this spot
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                data-testid="spot-opening-gone-btn"
+                                disabled={op.hasVotedGone}
+                                onClick={async () => {
+                                  try {
+                                    const res = await resolveOpening({ reportId: op._id });
+                                    setStatusBanner(
+                                      op.isAuthor
+                                        ? `Your Spot Opening on ${lot.name} is cancelled.`
+                                        : res.cleared
+                                          ? `Spot Opening on ${lot.name} removed after 2 Gone votes.`
+                                          : `Gone vote counted (${res.goneVotes} of 2).`
+                                    );
+                                  } catch (err: any) {
+                                    toast({ message: errorText(err, "Couldn't update the Spot Opening."), tone: "error" });
+                                  }
+                                }}
+                                className={secondaryButton}
+                              >
+                                {op.isAuthor ? "Cancel my Spot Opening" : `Gone (${op.goneVotes} of 2)`}
+                              </button>
+                            </span>
+                          </div>
+                        ))}
+
+                        {lot.overflowReroute && (
+                          <p
+                            data-testid="overflow-reroute-banner"
+                            className="rounded-[var(--r-md)] border border-[var(--warn-fg)] bg-[var(--warn-bg)] px-[var(--sp-3)] py-[var(--sp-2)] text-sm text-[var(--warn-fg)]"
+                          >
+                            <strong>Try instead:</strong> {lot.overflowReroute.name} is{" "}
+                            <strong>{tierWord(lot.overflowReroute.effectiveTier)}</strong> (Live Student reports)
+                            {lot.overflowReroute.shuttleRouteName
+                              ? ` · ${lot.overflowReroute.shuttleRouteName}${lot.overflowReroute.shuttleEtaMinutes === undefined ? " · ETA unavailable" : ` in ${lot.overflowReroute.shuttleEtaMinutes} min`}`
+                              : ""}
+                          </p>
+                        )}
+
+                        <div className="space-y-[var(--sp-2)] border-t border-[var(--line)] pt-[var(--sp-2)]">
+                          {lot.isDeck && lot.levels.length > 1 && (
+                            <div role="group" aria-label={`${lot.name} deck level (optional)`} className="flex flex-wrap items-center gap-[var(--sp-1)]">
+                              <span aria-hidden="true" className="text-sm font-bold text-[var(--muted)]">Level:</span>
+                              {lot.levels.map((lvl) => {
+                                const active = selectedLevelByLot[String(lot._id)] === lvl;
+                                return (
+                                  <button
+                                    key={lvl}
+                                    type="button"
+                                    aria-pressed={active}
+                                    onClick={() =>
+                                      setSelectedLevelByLot((prev) => ({ ...prev, [String(lot._id)]: active ? "" : lvl }))
+                                    }
+                                    className={`min-h-[var(--target)] min-w-[var(--target)] rounded-[var(--r-sm)] px-[var(--sp-2)] text-sm font-bold ${
+                                      active
+                                        ? "bg-[var(--ink)] text-[var(--bg)]"
+                                        : "border border-[var(--line-strong)] bg-[var(--surface-2)] text-[var(--ink)]"
+                                    }`}
+                                  >
+                                    {lvl}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <div role="group" aria-label={`Report ${lot.name} fullness`} className="flex flex-wrap items-center gap-[var(--sp-1)]">
+                            {TIERS.map((tier) => (
+                              <TierButton
+                                key={tier}
+                                tier={tier}
+                                testId={`report-tier-${lot.slug}-${tier}`}
+                                accessibleName={`${tierWord(tier)}: report ${lot.name} as ${tierWord(tier)}`}
+                                onClick={() => void publishFullness(lot, tier)}
+                              />
+                            ))}
+                          </div>
+                          <button
+                            type="button"
+                            data-testid={`leaving-5min-${lot.slug}`}
+                            onClick={() => void publishLeaving(lot)}
+                            className={secondaryButton}
+                          >
+                            <Zap aria-hidden="true" className="h-4 w-4" />
+                            I&apos;m leaving ~5 min<span className="sr-only"> from {lot.name}</span>
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+
+                {/* The synced map list stays in the sheet at every snap point (list parity, SPEC-v2 §4). */}
+                <div className="space-y-[var(--sp-2)]">
+                  {legend}
+                  {list}
+                </div>
+              </div>
+            </section>
+          )}
+        />
+      </div>
 
       <Dialog
         open={lotPickerOpen}

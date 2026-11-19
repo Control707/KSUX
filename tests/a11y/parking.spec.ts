@@ -19,6 +19,8 @@ test.describe("parking sheet and reporting", () => {
     await expect(page.getByRole("combobox", { name: "Your permit" })).toHaveAttribute("data-testid", "permit-tier-select");
     const sheet = page.getByTestId("parking-sheet");
     await expect(sheet).toHaveAttribute("data-snap", "peek");
+    // The shared map's synced list renders inside the sheet, not beside it (renderPanel).
+    await expect(sheet.getByTestId("campus-map-list")).toHaveCount(1);
     const group = page.getByRole("group", { name: "Parking sheet size" });
     for (const [label, snap, words] of [
       ["Half", "half", "opened to half height"],
