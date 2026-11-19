@@ -56,6 +56,14 @@ test("private agenda imports classes, exports only Events, follows RSVP/attendan
   const toggle = page.getByRole("switch", { name: "Event reminders", exact: true });
   await toggle.click();
   await expect(page.getByTestId("agenda-reminder-toast")).toContainText("Agenda browser gathering");
+  await page.getByTestId("judge-demo-pill").click();
+  await page.getByTestId("persona-switch-alex_owl").click();
+  await expect(page.getByTestId("judge-demo-pill")).toContainText("Alex");
+  await expect(page.getByTestId("agenda-reminder-toast")).toHaveCount(0);
+  await page.getByTestId("judge-demo-pill").click();
+  await page.getByTestId("persona-switch-maya_cs").click();
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("agenda-reminder-toast")).toHaveCount(0);
   await page.reload();
   await expect(toggle).toHaveAttribute("aria-checked", "true");
   await expect(page.getByTestId("agenda-reminder-toast")).toHaveCount(0);
