@@ -158,12 +158,25 @@ describe("Offline commuter service worker workflows", () => {
   it("serves a cached hashed bundle when only its query string differs", async () => {
     const worker = workerHarness();
     worker.network.mockResolvedValueOnce(new Response("bundle"));
-    await worker.dispatchFetch("/_next/static/chunks/main-app.js?v=1").response;
+    await worker.dispatchFetch("/_next/static/chunks/main-app-abcdef.js?v=1").response;
     worker.network.mockRejectedValue(new Error("Offline"));
 
-    const offline = await worker.dispatchFetch("/_next/static/chunks/main-app.js?v=2").response;
+    const offline = await worker.dispatchFetch("/_next/static/chunks/main-app-abcdef.js?v=2").response;
     expect(await offline?.text()).toBe("bundle");
     expect(worker.network).toHaveBeenCalledOnce();
+  });
+
+  it.each(["chunks/main-app.js", "css/app/layout.css"])("revalidates unversioned %s and keeps its latest offline copy", async (asset) => {
+    const worker = workerHarness();
+    worker.network.mockResolvedValueOnce(new Response("previous build"));
+    expect(await (await worker.dispatchFetch(`/_next/static/${asset}?v=1`).response)?.text()).toBe("previous build");
+
+    worker.network.mockResolvedValueOnce(new Response("current build"));
+    expect(await (await worker.dispatchFetch(`/_next/static/${asset}?v=2`).response)?.text()).toBe("current build");
+
+    worker.network.mockRejectedValueOnce(new Error("Offline"));
+    expect(await (await worker.dispatchFetch(`/_next/static/${asset}?v=3`).response)?.text()).toBe("current build");
+    expect(worker.network).toHaveBeenCalledTimes(3);
   });
 
   it("leaves write requests, live APIs and external map tiles to the browser", () => {

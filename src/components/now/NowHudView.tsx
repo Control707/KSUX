@@ -136,45 +136,35 @@ export function NowHudView() {
     if (scope && hud) saveCommuterSnapshot(scope, hud);
   }, [auth, hud]);
 
-  if (!hud) {
-    return (
-      <div className="space-y-[var(--sp-3)] p-[var(--sp-4)]">
-        <h1 data-route-heading="" tabIndex={-1} className="font-display text-[length:var(--fs-2xl)] font-bold">
-          Now
-        </h1>
-        <p role="status" className={`${card} ${muted}`}>
-          Loading parking, buses and your classes…
-        </p>
-      </div>
-    );
-  }
-
-  const campusFilter: string = hud.campusFilter ?? "Kennesaw";
+  const campusFilter: string = hud?.campusFilter ?? "Kennesaw";
   const scope = scopeName(campusFilter);
-  const enrolledCourses = hud.schedule?.enrolledCourses ?? [];
-  const privateClasses = hud.schedule?.privateClasses ?? [];
+  const enrolledCourses = hud?.schedule?.enrolledCourses ?? [];
+  const privateClasses = hud?.schedule?.privateClasses ?? [];
   const standaloneClasses = privateClasses.filter((entry) =>
     !entry.sectionId || !enrolledCourses.some((course) => course.sectionId === entry.sectionId));
-  const personalDeadlines = hud.schedule?.personalDeadlines ?? [];
-  const parkingCards = (hud.parkingCards ?? []) as unknown as ParkingCard[];
-  const shuttleCards = hud.shuttleCards ?? [];
-  const studySummary = hud.studySummary;
-  const diningCards = hud.diningCards ?? [];
-  const eventCards = hud.eventCards ?? [];
+  const personalDeadlines = hud?.schedule?.personalDeadlines ?? [];
+  const parkingCards = (hud?.parkingCards ?? []) as unknown as ParkingCard[];
+  const shuttleCards = hud?.shuttleCards ?? [];
+  const studySummary = hud?.studySummary;
+  const diningCards = hud?.diningCards ?? [];
+  const eventCards = hud?.eventCards ?? [];
   const brief = buildBrief(parkingCards.slice(0, 2), shuttleCards);
   const briefTime = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
   return (
     <div data-testid="now-bento-hud" className="space-y-[var(--sp-4)] p-[var(--sp-4)]">
-      <InstallHomeScreenCard />
-
       <div className="min-w-0">
-        <p className="text-sm font-bold text-[var(--muted)]">{scope}{campusFilter === "All KSU" ? " · pick one with the Campus switcher" : " Campus"}</p>
+        <p className="text-sm font-bold text-[var(--muted)]">{hud ? `${scope}${campusFilter === "All KSU" ? " · pick one with the Campus switcher" : " Campus"}` : "\u00a0"}</p>
         <h1 data-route-heading="" tabIndex={-1} className="font-display text-[length:var(--fs-2xl)] font-bold leading-tight text-[var(--ink)] [overflow-wrap:anywhere]">
-          {campusFilter === "All KSU" ? "Now at Kennesaw and Marietta" : `Now on ${campusFilter}`}
+          {!hud ? "Now" : campusFilter === "All KSU" ? "Now at Kennesaw and Marietta" : `Now on ${campusFilter}`}
         </h1>
       </div>
 
+      <InstallHomeScreenCard />
+
+      {!hud ? (
+        <p role="status" className={`${card} ${muted}`}>Loading parking, buses and your classes…</p>
+      ) : <>
       <section aria-labelledby="now-brief-h" data-testid="now-scrappy-brief" className={`${card} space-y-[var(--sp-2)] border-l-4 border-l-[var(--accent)]`}>
         <h2 id="now-brief-h" className="sr-only">Scrappy&apos;s brief</h2>
         <p className="font-display text-[length:var(--fs-xl)] font-bold leading-snug text-[var(--ink)] [overflow-wrap:anywhere]">
@@ -508,6 +498,7 @@ export function NowHudView() {
           </ul>
         </section>
       </div>
+      </>}
     </div>
   );
 }

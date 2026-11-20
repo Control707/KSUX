@@ -201,6 +201,8 @@
 }
 
 html {
+  /* Loading/short pages must not change the available text width. */
+  scrollbar-gutter: stable;
   scroll-padding-top: var(--chrome-top);
   scroll-padding-bottom: var(--chrome-bottom);
 }
