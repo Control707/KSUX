@@ -30,7 +30,7 @@ describe("Seam 1 — Peer-to-Peer Marketplace Listings, Isolated Deal Chats & Me
       displayName: "Rival Buyer",
       homeCampus: "Kennesaw",
     });
-    const _roommate = await createVerifiedTestStudent(t, {
+    await createVerifiedTestStudent(t, {
       handle: "roommate_helper",
       displayName: "Roommate Helper",
     });

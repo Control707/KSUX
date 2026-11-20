@@ -27,8 +27,6 @@ export const DEMO_PERSONA_HANDLES = [
   "sam_cpe",
 ] as const;
 
-export type DemoPersonaHandle = (typeof DEMO_PERSONA_HANDLES)[number];
-
 export async function sha256Hex(input: string): Promise<string> {
   const bytes = new TextEncoder().encode(input);
   const digest = await crypto.subtle.digest("SHA-256", bytes);

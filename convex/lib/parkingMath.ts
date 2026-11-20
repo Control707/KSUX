@@ -12,6 +12,13 @@ export const FULLNESS_TIER_LABELS: Record<0 | 1 | 2 | 3, string> = {
 export const NO_RECENT_REPORTS_LABEL = "No recent reports";
 
 const DAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const easternDayAndHourFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  weekday: "short",
+  hour: "numeric",
+  minute: "numeric",
+  hour12: false,
+});
 
 export function getEasternDayAndHour(nowMs: number): {
   dayOfWeek: number;
@@ -21,13 +28,7 @@ export function getEasternDayAndHour(nowMs: number): {
   hourLabel: string;
 } {
   // Format in America/New_York
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    weekday: "short",
-    hour: "numeric",
-    minute: "numeric",
-    hour12: false,
-  }).formatToParts(new Date(nowMs));
+  const parts = easternDayAndHourFormatter.formatToParts(nowMs);
 
   const wk = parts.find((p) => p.type === "weekday")?.value ?? "Mon";
   const hrRaw = Number(parts.find((p) => p.type === "hour")?.value ?? "12");

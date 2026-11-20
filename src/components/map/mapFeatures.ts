@@ -156,14 +156,19 @@ export function bboxOf(geometry: GeoJSON.Geometry): BBox {
 }
 
 export function unionBBox(boxes: BBox[]): BBox | null {
-  const valid = boxes.filter((b) => b.every(Number.isFinite));
-  if (valid.length === 0) return null;
-  return [
-    Math.min(...valid.map((b) => b[0])),
-    Math.min(...valid.map((b) => b[1])),
-    Math.max(...valid.map((b) => b[2])),
-    Math.max(...valid.map((b) => b[3])),
-  ];
+  let bounds: BBox | null = null;
+  for (const box of boxes) {
+    if (!box.every(Number.isFinite)) continue;
+    if (!bounds) {
+      bounds = [...box];
+      continue;
+    }
+    bounds[0] = Math.min(bounds[0], box[0]);
+    bounds[1] = Math.min(bounds[1], box[1]);
+    bounds[2] = Math.max(bounds[2], box[2]);
+    bounds[3] = Math.max(bounds[3], box[3]);
+  }
+  return bounds;
 }
 
 const centerOf = (b: BBox): [number, number] => [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2];

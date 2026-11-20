@@ -9,11 +9,8 @@ interface LocalDateTime {
   second: number;
 }
 
-export function zonedDateParts(
-  instant: number,
-  timeZone = EASTERN_TIME_ZONE
-): LocalDateTime {
-  const fields = new Intl.DateTimeFormat("en-US", {
+function dateTimeFormatter(timeZone: string) {
+  return new Intl.DateTimeFormat("en-US", {
     timeZone,
     calendar: "iso8601",
     numberingSystem: "latn",
@@ -24,7 +21,19 @@ export function zonedDateParts(
     minute: "2-digit",
     second: "2-digit",
     hourCycle: "h23",
-  }).formatToParts(instant);
+  });
+}
+
+// Campus reads and calendar timestamp resolution repeatedly use this fixed zone.
+// Keep custom zones uncached so imported calendar TZIDs cannot grow a global cache.
+const easternFormatter = dateTimeFormatter(EASTERN_TIME_ZONE);
+
+export function zonedDateParts(
+  instant: number,
+  timeZone = EASTERN_TIME_ZONE
+): LocalDateTime {
+  const formatter = timeZone === EASTERN_TIME_ZONE ? easternFormatter : dateTimeFormatter(timeZone);
+  const fields = formatter.formatToParts(instant);
 
   const field = (kind: Intl.DateTimeFormatPartTypes) =>
     Number(fields.find((part) => part.type === kind)?.value);
