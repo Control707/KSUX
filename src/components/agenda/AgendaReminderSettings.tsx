@@ -25,7 +25,7 @@ export function AgendaReminderSettings() {
   }, [ready]);
   return <section id="agenda" aria-labelledby="agenda-reminders-heading" className={`${ui.card} space-y-[var(--sp-3)] scroll-mt-[var(--chrome-top)]`}>
     <h2 ref={heading} tabIndex={-1} id="agenda-reminders-heading" className={ui.h2}>Agenda reminders</h2>
-    <p>Off by default. Choose an in-app reminder for each type, up to 15 minutes before it starts or is due. KSUX must be open, visible and online; it checks once a minute and when you return. No OS push or background delivery.</p>
+    <p>Off by default. Choose an in-app reminder for each type, up to 15 minutes before it starts or is due. OwlSide must be open, visible and online; it checks once a minute and when you return. No OS push or background delivery.</p>
     {!settings ? <p role="status">Loading reminder settings…</p> : <div className="space-y-[var(--sp-2)]">
       {(Object.keys(agendaLabels) as Array<keyof typeof agendaLabels>).map((kind) => <button
         key={kind} type="button" role="switch" aria-checked={settings[kind]} disabled={busy}

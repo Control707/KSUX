@@ -25,8 +25,8 @@ import {
   type CommuterScope,
 } from "./commuterCache";
 
-const DEMO_CODE_SESSION_KEY = "ksux_demo_short_code";
-const DEMO_PERSONA_SESSION_KEY = "ksux_demo_persona";
+const DEMO_CODE_SESSION_KEY = "owlside_demo_short_code";
+const DEMO_PERSONA_SESSION_KEY = "owlside_demo_persona";
 export type ActiveAuthState =
   | { status: "booting" }
   | { status: "unauthenticated" }
@@ -459,8 +459,8 @@ function ViewerClientInner({ children }: { children: React.ReactNode }) {
 
       const headers: Record<string, string> = {};
       if (auth.status === "demo") {
-        headers["x-ksux-demo-session"] = auth.demoShortCode;
-        headers["x-ksux-demo-persona"] = auth.demoPersonaHandle;
+        headers["x-owlside-demo-session"] = auth.demoShortCode;
+        headers["x-owlside-demo-persona"] = auth.demoPersonaHandle;
       }
 
       const resp = await fetch("/api/uploadthing", {

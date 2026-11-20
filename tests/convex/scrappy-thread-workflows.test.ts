@@ -143,8 +143,8 @@ describe("Scrappy conversation and grounding workflows", () => {
 
   it("grounds verified-student Feed mentions in live campus data without an external provider", async () => {
     useLocalScrappy();
-    vi.stubEnv("KSUX_SKIP_SCRAPPY_SCHEDULER", "true");
-    vi.stubEnv("KSUX_SKIP_PUSH_SCHEDULER", "true");
+    vi.stubEnv("OWLSIDE_SKIP_SCRAPPY_SCHEDULER", "true");
+    vi.stubEnv("OWLSIDE_SKIP_PUSH_SCHEDULER", "true");
     const t = createTestConvex();
     await t.mutation(internal.seed.bootstrapKsu, {});
     const { sessionToken } = await createVerifiedTestStudent(t, {

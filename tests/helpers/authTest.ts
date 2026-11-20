@@ -3,7 +3,7 @@ import { api } from "../../convex/_generated/api";
 import type { createTestConvex } from "./convexTestEnv";
 
 type TestConvex = ReturnType<typeof createTestConvex>;
-export const TEST_SERVER_SECRET = "ksux-test-server-secret-for-unit-tests";
+export const TEST_SERVER_SECRET = "owlside-test-server-secret-for-unit-tests";
 
 async function atTime<T>(now: number | undefined, run: () => Promise<T>) {
   if (now === undefined) return run();

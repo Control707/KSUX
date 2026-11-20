@@ -65,9 +65,9 @@ function foldLine(line: string) {
 
 /** A download snapshot of RSVPed Events only: no class, deadline or attendance data. */
 export function exportEventsCalendar(items: AgendaItem[], now: number) {
-  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//KSUX//Private Event Agenda//EN", "CALSCALE:GREGORIAN"];
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//OwlSide//Private Event Agenda//EN", "CALSCALE:GREGORIAN"];
   for (const item of items.filter((item) => item.kind === "event")) {
-    lines.push("BEGIN:VEVENT", "UID:" + icsText(item.key) + "@ksux", "DTSTAMP:" + icsTime(now),
+    lines.push("BEGIN:VEVENT", "UID:" + icsText(item.key) + "@owlside", "DTSTAMP:" + icsTime(now),
       "DTSTART:" + icsTime(item.startsAt), "DTEND:" + icsTime(item.endsAt ?? item.startsAt),
       "SUMMARY:" + icsText(item.title), "LOCATION:" + icsText(item.location ?? ""),
       "DESCRIPTION:" + icsText(item.source), "STATUS:" + (item.cancelled ? "CANCELLED" : "CONFIRMED"), "END:VEVENT");

@@ -91,7 +91,7 @@ export const create = viewerMutation({
         reviewStatus: "held", holdExpiresAt: now + PHOTO_HOLD_MS, blurred: !!args.blurPhoto });
     } else if (photoAssetId) {
       const asset = await ctx.db.get(photoAssetId);
-      if (ctx.viewer.mode === "demo" || process.env.KSUX_V2_INCIDENT_PHOTOS !== "true" || !asset ||
+      if (ctx.viewer.mode === "demo" || process.env.OWLSIDE_V2_INCIDENT_PHOTOS !== "true" || !asset ||
         asset.workspaceKey !== ctx.viewer.workspaceKey || asset.ownerStudentId !== ctx.viewer.actorStudent._id ||
         asset.purpose !== "incident" || asset.status !== "pending" || asset.deleteClaimedAt !== undefined ||
         asset.reviewStatus !== "held" || (asset.holdExpiresAt ?? 0) <= now) fail("PHOTO", "This Incident photo is unavailable.");
@@ -108,7 +108,7 @@ export const create = viewerMutation({
 });
 
 export const photoAvailability = viewerQuery({ args: {}, handler: async (ctx) => ({
-  enabled: ctx.viewer.mode === "demo" || process.env.KSUX_V2_INCIDENT_PHOTOS === "true" && (await getIncidentLaunchGate(ctx.db, ctx.viewer.mode)).postingEnabled,
+  enabled: ctx.viewer.mode === "demo" || process.env.OWLSIDE_V2_INCIDENT_PHOTOS === "true" && (await getIncidentLaunchGate(ctx.db, ctx.viewer.mode)).postingEnabled,
 }) });
 
 /** Only the image proxy can obtain a private storage key. A Student, including the

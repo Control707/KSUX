@@ -71,13 +71,13 @@ export function OfficialPageLink({ source, label }: { source: Pick<AlertSource, 
   );
 }
 
-/** The time lines every Alert carries: official issued time only when stated, plus KSUX's own observation and check times. */
+/** The time lines every Alert carries: official issued time only when stated, plus OwlSide's own observation and check times. */
 export function AlertTimes({ item, source }: { item: AlertItem; source: AlertSource }) {
   return (
     <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-[var(--sp-2)] text-[length:var(--fs-sm)]">
       <dt className="font-bold">Issued (official)</dt>
       <dd>{item.officialIssuedText ? `“${item.officialIssuedText}” (as stated by ${source.sourceName})` : "Unknown: the source doesn’t state a time"}</dd>
-      <dt className="font-bold">First seen by KSUX</dt>
+      <dt className="font-bold">First seen by OwlSide</dt>
       <dd><time dateTime={new Date(item.firstObservedAt).toISOString()}>{formatTime(item.firstObservedAt)}</time></dd>
       {item.state === "updated" && <><dt className="font-bold">Change seen</dt><dd>{formatTime(item.stateChangedAt)}</dd></>}
       {source.lastSuccessAt !== undefined && <><dt className="font-bold">Last checked OK</dt><dd>{formatTime(source.lastSuccessAt)}</dd></>}
@@ -101,7 +101,7 @@ export function AlertItemCard({ item, source, linkToDetails = true }: { item: Al
       <div className={`space-y-[var(--sp-2)] p-[var(--sp-3)] ${active ? "bg-[var(--alert-soft)]" : ""}`}>
         <h3 id={`alert-${item._id}`} className="font-display text-[length:var(--fs-xl)] font-bold leading-tight">{item.headline}</h3>
         {item.state === "no_longer_listed" && item.noLongerListedAt !== null ? (
-          <p>No longer listed on {source.sourceName}’s {source.pageTitle} as of {formatTime(item.noLongerListedAt)}. KSUX can’t say whether it’s over.</p>
+          <p>No longer listed on {source.sourceName}’s {source.pageTitle} as of {formatTime(item.noLongerListedAt)}. OwlSide can’t say whether it’s over.</p>
         ) : (
           <blockquote className={`border-l-4 pl-[var(--sp-3)] ${active ? "border-[var(--alert-bg)]" : "border-[var(--line-strong)]"}`}>
             <p className="text-[length:var(--fs-lg)]">“{item.excerpt}”</p>
@@ -135,14 +135,14 @@ export function AlertSourceBlock({ source, serverNow }: { source: AlertSourceWit
       )}
       {display === "stale" && (
         <p className="font-bold" data-testid="alert-stale">
-          KSUX’s copy is out of date: last checked OK {source.lastSuccessAt !== undefined ? formatTime(source.lastSuccessAt) : "never"}. It may not show current notices. Open KSU’s page.
+          OwlSide’s copy is out of date: last checked OK {source.lastSuccessAt !== undefined ? formatTime(source.lastSuccessAt) : "never"}. It may not show current notices. Open KSU’s page.
         </p>
       )}
       {display === "unavailable" && (
-        <p data-testid="alert-unavailable">KSUX couldn’t read this page yet. Open KSU’s page for current notices.</p>
+        <p data-testid="alert-unavailable">OwlSide couldn’t read this page yet. Open KSU’s page for current notices.</p>
       )}
       {display === "links_only" && source.reason !== "not_enabled" && (
-        <p data-testid="alert-switched-off">KSUX has switched off its copy of this page for now. Open KSU’s page for current notices.</p>
+        <p data-testid="alert-switched-off">OwlSide has switched off its copy of this page for now. Open KSU’s page for current notices.</p>
       )}
       {(display === "ok" || display === "stale") && source.items.map((item) => <AlertItemCard key={item._id} item={item} source={source} />)}
       {display === "ok" && source.items.length === 0 && (
@@ -157,7 +157,7 @@ export function NoAlertIsntSafe() {
   return <p className="font-bold" data-testid="no-alert-isnt-safe">{NO_ALERT_ISNT_SAFE}</p>;
 }
 
-const DISMISS_KEY = "ksux.dismissedAlertBanners";
+const DISMISS_KEY = "owlside.dismissedAlertBanners";
 
 function readDismissed(): string[] {
   try { return JSON.parse(window.localStorage.getItem(DISMISS_KEY) ?? "[]"); } catch { return []; }
@@ -200,7 +200,7 @@ export function OfficialAlertBanner() {
       className="flex min-w-0 flex-wrap items-center gap-[var(--sp-2)] border-b-4 border-[var(--ink)] bg-[var(--alert-bg)] px-[var(--sp-3)] py-[var(--sp-1)] text-[var(--alert-fg)] shadow-lg [overflow-wrap:anywhere]">
       <span aria-hidden="true" className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--alert-fg)] text-[var(--alert-bg)]">
         <TriangleAlert className="h-5 w-5" />
-        <span className="ksux-alert-pulse absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-[var(--alert-bg)] bg-[var(--accent)]" />
+        <span className="owlside-alert-pulse absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-[var(--alert-bg)] bg-[var(--accent)]" />
       </span>
       <Link href="/safety#official-alerts" className="inline-flex min-h-[var(--target)] min-w-0 flex-[1_1_10rem] items-center gap-[var(--sp-1)] font-bold">
         <span className="min-w-0">

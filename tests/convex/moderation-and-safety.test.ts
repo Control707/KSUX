@@ -9,11 +9,11 @@ import {
 
 describe("Seam 1 — Publish Safety Guardrails, Mutual Block, 1-Tap Report & Moderation Queue (#16)", () => {
   beforeEach(() => {
-    process.env.KSUX_SERVER_SECRET = TEST_SERVER_SECRET;
-    process.env.KSUX_SKIP_OTP_SCHEDULER = "true";
-    process.env.KSUX_SKIP_STORAGE_SCHEDULER = "true";
-    process.env.KSUX_ALLOW_DEV_OTP_LOG = "true";
-    process.env.KSUX_MAINTAINER_EMAILS = "maintainer@kennesaw.edu";
+    process.env.OWLSIDE_SERVER_SECRET = TEST_SERVER_SECRET;
+    process.env.OWLSIDE_SKIP_OTP_SCHEDULER = "true";
+    process.env.OWLSIDE_SKIP_STORAGE_SCHEDULER = "true";
+    process.env.OWLSIDE_ALLOW_DEV_OTP_LOG = "true";
+    process.env.OWLSIDE_MAINTAINER_EMAILS = "maintainer@kennesaw.edu";
   });
 
   it("rejects slurs, phone/SSN/street-address doxxing, and prohibited Marketplace items before persistence", async () => {

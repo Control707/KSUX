@@ -14,7 +14,7 @@ function ioSample(days: number, leaderboardBytes: number, measuredAt = new Date(
   const bytes = Object.fromEntries(v2IoShapes.map(({ key }) => [key, key === "leaderboard" ? leaderboardBytes : 0]));
   return JSON.stringify({ days, measuredAt: measuredAt.toISOString(), bytes });
 }
-const openGate = () => vi.stubEnv("KSUX_V2_DB_IO_SAMPLE", ioSample(14, 1_000_000));
+const openGate = () => vi.stubEnv("OWLSIDE_V2_DB_IO_SAMPLE", ioSample(14, 1_000_000));
 
 /** Writes a Student's weekly total the way the ledger does (row + board counter). */
 async function seedTotal(t: T, studentId: Id<"students">, campus: "Kennesaw" | "Marietta", countedTotal: number, opts: { weekKey?: string; hidden?: boolean } = {}) {
@@ -32,8 +32,8 @@ async function seedTotal(t: T, studentId: Id<"students">, campus: "Kennesaw" | "
 }
 
 beforeEach(() => {
-  process.env.KSUX_SKIP_PUSH_SCHEDULER = "true";
-  process.env.KSUX_SKIP_STORAGE_SCHEDULER = "true";
+  process.env.OWLSIDE_SKIP_PUSH_SCHEDULER = "true";
+  process.env.OWLSIDE_SKIP_STORAGE_SCHEDULER = "true";
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -167,7 +167,7 @@ describe("Leaderboard board (SPEC-v2 §12)", () => {
 
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(sunday);
-    vi.stubEnv("KSUX_V2_DB_IO_SAMPLE", ioSample(14, 1_000, new Date(sunday)));
+    vi.stubEnv("OWLSIDE_V2_DB_IO_SAMPLE", ioSample(14, 1_000, new Date(sunday)));
     await seedTotal(t, me.studentId, "Kennesaw", 15, { weekKey: "2026-11-16" });
     expect(await t.query(api.leaderboard.getLeaderboard, { sessionToken: me.sessionToken }))
       .toMatchObject({ weekKey: "2026-11-16", me: { state: "ranked", rank: 1, total: 15 } });
@@ -197,7 +197,7 @@ describe("Clout anomaly view", () => {
     const maintainer = await createVerifiedTestStudent(t, { handle: "anom_lead", displayName: "Lead" });
     const student = await createVerifiedTestStudent(t, { handle: "anom_s", displayName: "S" });
     const gamer = await createVerifiedTestStudent(t, { handle: "anom_gamer", displayName: "G" });
-    vi.stubEnv("KSUX_MAINTAINER_EMAILS", maintainer.canonicalEmail);
+    vi.stubEnv("OWLSIDE_MAINTAINER_EMAILS", maintainer.canonicalEmail);
     await seedTotal(t, student.studentId, "Kennesaw", 10);
     await seedTotal(t, gamer.studentId, "Marietta", 40, { hidden: true });
     await t.run(async ({ db }) => {

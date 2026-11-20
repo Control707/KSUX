@@ -34,7 +34,7 @@ async function assertHandleAvailableInWorkspace(
   if (existingStudent && existingStudent._id !== currentStudentId) {
     throw new ConvexError({
       code: "HANDLE_TAKEN",
-      message: `@${handleLower} is already taken on KSUX.`,
+      message: `@${handleLower} is already taken on OwlSide.`,
     });
   }
 

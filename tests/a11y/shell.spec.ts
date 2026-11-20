@@ -135,7 +135,7 @@ test.describe("shell keyboard and announcements", () => {
     await enterDemo(page);
     await page.getByTestId("center-quick-sheet-btn").click();
     const animation = await page.getByRole("dialog").evaluate((el) => getComputedStyle(el).animationName);
-    expect(animation).toBe("ksux-fade-in");
+    expect(animation).toBe("owlside-fade-in");
   });
 
   test("no horizontal overflow at 320 px or 200% text on Phase 0 routes", async ({ page }) => {

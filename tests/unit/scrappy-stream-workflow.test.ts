@@ -36,7 +36,7 @@ const answer = {
 };
 
 function request(body: unknown, headers?: Record<string, string>) {
-  return new Request("https://ksux.example/api/scrappy/stream", {
+  return new Request("https://owlside.example/api/scrappy/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
@@ -57,7 +57,7 @@ describe("Ask Scrappy HTTP workflow", () => {
   beforeEach(() => {
     mocks.action.mockReset().mockResolvedValue(answer);
     mocks.cookies.mockReset().mockResolvedValue({
-      get: (name: string) => name === "ksux_session" ? { value: " student-session " } : undefined,
+      get: (name: string) => name === "owlside_session" ? { value: " student-session " } : undefined,
     });
   });
 
@@ -112,8 +112,8 @@ describe("Ask Scrappy HTTP workflow", () => {
 
   it("uses normalized demo credentials instead of the cookie in a demo tab", async () => {
     const response = await POST(request({ prompt: "Where can I park?" }, {
-      "x-ksux-demo-session": " Demo123 ",
-      "x-ksux-demo-persona": " ALEX_OWL ",
+      "x-owlside-demo-session": " Demo123 ",
+      "x-owlside-demo-persona": " ALEX_OWL ",
     }));
     await response.text();
 

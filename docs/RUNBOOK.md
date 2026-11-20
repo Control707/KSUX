@@ -1,13 +1,21 @@
-# KSUX — Day 0 Provisioning, Seed & Deployment Runbook
+# OwlSide — Day 0 Provisioning, Seed & Deployment Runbook
 
-> Companion operations runbook to [`docs/SPEC.md`](./SPEC.md) for running KSUX locally and deploying to `$0` free-tier production.
+> Companion operations runbook to [`docs/SPEC.md`](./SPEC.md) for running OwlSide locally and deploying to `$0` free-tier production.
+
+## OwlSide rebrand deployment
+
+- Use **OwlSide** for the display name, `owlside` for the package and browser namespace, and `OWLSIDE_*` for environment variables and constants.
+- Before deploying, rename existing `KSUX_*` environment settings to `OWLSIDE_*`, preserving their values, in local environment files, Vercel and Convex. This includes the shared `OWLSIDE_SERVER_SECRET` (same value in Next.js and Convex), maintainer emails, Alert settings and v2 launch gates. Deploy the frontend and backend together so renamed headers and configuration agree. The code reads only the new names; use `.env.example` as the configuration reference.
+- Browser cookies, session/local storage, UI events, CSS and map identifiers use the new namespace. Students must sign in again, Demo tabs must reopen their workspace, and commuters must reconnect to save a fresh offline schedule. Dismissed notices appear again. Server records are unchanged.
+- The service worker removes pre-rebrand and stale OwlSide caches when it activates. Existing installations should accept the app update while online before checking offline behavior.
+- GitHub links and the Git remote continue to use the existing `Control707/KSUX` repository locator. Live service URLs and hosting project IDs remain unchanged; this code change does not rename remote resources or move the checkout.
 
 ## Private agenda (#76)
 
 - `/agenda`, linked from the desktop You rail and Quick Sheet, shows the next 14 Eastern calendar days across both Campuses. It reads the owning Student's private schedule, enrollments, RSVP records (Going and Interested), and joined Study Sessions, including archived Session Chats. It never accepts a Student/workspace selector. Campus location preferences do not filter it. Cancelled Events and Study Sessions remain labelled until their scheduled window passes; removed RSVPs and departed attendance disappear. Hidden, blocked, cross-workspace and Course Hub-ineligible content is excluded.
 - Imported class meetings override their matched Banner meetings. Repeated imports and legacy/private copies of a deadline are deduplicated. Class recurrence follows the existing calendar-term convention (Jan–Apr / May–Jul / Aug–Dec), preserving Eastern wall time over DST. No registrar end dates, holidays or class cancellations are inferred. Owl Express and D2L handoffs are provided for authoritative records and coursework. Imported calendar bytes and subscription URLs are never stored.
 - All reads are bounded: latest 20 private terms, 100 enrollments, 200 RSVP records and 200 Study Session chat memberships; reaching a limit shows a notice. Attendance and session visibility are rechecked against the original session; chat membership is only the indexed discovery path. No new cron or materialized agenda copy is needed.
-- **Export Events (.ics)** downloads only the RSVPed Events shown in that 14-day view. Stable per-Event UIDs, UTC timestamps, escaped/folded UTF-8 text and `STATUS:CANCELLED` are included. Classes, deadlines, Study Sessions, student identities and reminder alarms are omitted. This is a snapshot, not a calendar subscription: export again after changes. Removing an RSVP omits the Event on the next export; KSUX cannot remove an earlier import from an external calendar.
+- **Export Events (.ics)** downloads only the RSVPed Events shown in that 14-day view. Stable per-Event UIDs, UTC timestamps, escaped/folded UTF-8 text and `STATUS:CANCELLED` are included. Classes, deadlines, Study Sessions, student identities and reminder alarms are omitted. This is a snapshot, not a calendar subscription: export again after changes. Removing an RSVP omits the Event on the next export; OwlSide cannot remove an earlier import from an external calendar.
 - `/profile/notifications#agenda` holds four independent switches (Class, Deadline, Event, Study Session), all off by default. Reminders are **in-app only**, respecting ADR-0005/0007. An enabled type is checked once a minute while the shell is visible and online and when the tab returns online/visible. It can appear in the 15 minutes before the start/deadline; missed starts are never replayed. There is no background scheduling or OS push permission request. Turning a switch on inside that window permits the upcoming reminder immediately.
 - Each claim rereads current sources and settings in a Convex mutation. Cancelling, removing an RSVP or leaving attendance suppresses pending delivery. The deduplication key is the stable item/occurrence key plus its start/deadline instant: title/location changes do not redeliver; time changes may generate a new reminder; moving back to an already claimed time does not repeat it. Claims serialize across tabs/devices, giving at-most-once claim semantics. Closing/navigating after a successful claim can lose the visible toast; an already displayed toast cannot be retracted. Pending receipt keys expire at their occurrence's start time and are pruned on the next enabled check, with a 1,000-key cap that defers excess claims rather than evicting live keys. Settings/receipts are private, removed on Student cleanup, and purged with expired/reset Demo workspaces by the existing hourly batch job.
 - Verify with `pnpm test -- tests/convex/private-agenda.test.ts`, `pnpm test:e2e --project=chromium tests/e2e/private-agenda.spec.ts`, and `pnpm test:e2e --project=a11y tests/a11y/agenda.spec.ts`. The new route/settings use shared accessible primitives, target sizes, rem text and live announcements. The existing release-level manual AT matrix still applies.
@@ -34,9 +42,9 @@ this planning document. The remaining sections describe the planned bootstrap.
 All accounts below require **zero credit cards** and **zero custom domains**:
 
 1. **Vercel Hobby** (`vercel.com`): Sign in with personal GitHub (`Control707`); link personal repository `Control707/KSUX`.
-2. **Convex Free (S16)** (`dashboard.convex.dev`): Create one Convex project (`ksux`); generate a **Production Deploy Key** for Vercel CI (`CONVEX_DEPLOY_KEY`).
+2. **Convex Free (S16)** (`dashboard.convex.dev`): Create one Convex project (`owlside`); generate a **Production Deploy Key** for Vercel CI (`CONVEX_DEPLOY_KEY`).
 3. **UploadThing Free ("2GB App")** (`uploadthing.com`): Create an app and copy `UPLOADTHING_TOKEN`.
-4. **Gmail 2FA App Password** (Google Account Security → 2-Step Verification → App Passwords): Create a `16`-character App Password for `KSUX` (`500 emails / 24h` SMTP limit; optional second Gmail account for fallback).
+4. **Gmail 2FA App Password** (Google Account Security → 2-Step Verification → App Passwords): Create a `16`-character App Password for `OwlSide` (`500 emails / 24h` SMTP limit; optional second Gmail account for fallback).
 5. **Groq Cloud Free** (`console.groq.com`): Enable **Zero Data Retention (ZDR)** in org settings and create `GROQ_API_KEY`.
 6. **Google Gemini Developer API Free** (`aistudio.google.com`): Create `GEMINI_API_KEY` (unpaid tier; `Scrappy` strips `.edu` emails & internal IDs before failover).
 7. **Cloudflare Workers AI Free** (`dash.cloudflare.com`): Copy Account ID (`CLOUDFLARE_ACCOUNT_ID`) and create a Workers AI token (`CLOUDFLARE_API_TOKEN`, `10,000 Neurons/day`).
@@ -55,7 +63,7 @@ All accounts below require **zero credit cards** and **zero custom domains**:
 | :--- | :---: | :--- |
 | `NEXT_PUBLIC_CONVEX_URL` | **Yes** | Convex deployment `.convex.cloud` URL (auto-populated locally by `npx convex dev`). |
 | `NEXT_PUBLIC_CONVEX_SITE_URL` | **Yes** | Convex HTTP Actions `.convex.site` URL. |
-| `KSUX_SERVER_SECRET` | **Yes** | Same private value as the Convex deployment. Used for OTP, browser credentials, uploads, and Scrappy streaming. |
+| `OWLSIDE_SERVER_SECRET` | **Yes** | Same private value as the Convex deployment. Used for OTP, browser credentials, uploads, and Scrappy streaming. |
 | `UPLOADTHING_TOKEN` | **Yes** | Shared with UploadThing `/api/uploadthing` Next.js Route Handler. |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Optional | Omit to hide OS Web Push subscription prompt while keeping Tier-0 in-app toasts active. |
 | `CONVEX_DEPLOY_KEY` | Prod CI only | Set in Vercel Project Env so `npx convex deploy --cmd 'pnpm build'` deploys schema + functions atomically. |
@@ -64,19 +72,19 @@ All accounts below require **zero credit cards** and **zero custom domains**:
 
 | Variable | Required? | Local-Dev / Missing-Key Fallback |
 | :--- | :---: | :--- |
-| `KSUX_SERVER_SECRET` | **Yes** | Use the same randomly generated 32-byte secret in Convex and the Next.js server. Keep it out of browser bundles. |
-| `GMAIL_SMTP_USER` / `GMAIL_SMTP_APP_PASSWORD` | Prod **Yes** | If unset and `KSUX_ALLOW_DEV_OTP_LOG=true`, 6-digit OTPs print to Convex dev logs (`rejected` in production). |
+| `OWLSIDE_SERVER_SECRET` | **Yes** | Use the same randomly generated 32-byte secret in Convex and the Next.js server. Keep it out of browser bundles. |
+| `GMAIL_SMTP_USER` / `GMAIL_SMTP_APP_PASSWORD` | Prod **Yes** | If unset and `OWLSIDE_ALLOW_DEV_OTP_LOG=true`, 6-digit OTPs print to Convex dev logs (`rejected` in production). |
 | `GMAIL_SMTP_FALLBACK_USER` / `_APP_PASSWORD` | Optional | Secondary `500/day` Gmail relay used only if primary hits daily quota. |
-| `KSUX_ALLOW_DEV_OTP_LOG` | Dev only | Set `"true"` in local Convex dev; must remain unset/`"false"` in production. |
+| `OWLSIDE_ALLOW_DEV_OTP_LOG` | Dev only | Set `"true"` in local Convex dev; must remain unset/`"false"` in production. |
 | `GROQ_API_KEY` | **Yes** | Primary `Scrappy` tier (`openai/gpt-oss-120b` & `openai/gpt-oss-20b`). |
 | `GEMINI_API_KEY` | Recommended | Skips Tier-2 overflow if unset (`Scrappy` degrades to Groq → Cloudflare). |
 | `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` | Recommended | Skips Tier-3 fallback and vector embeddings if unset (`Scrappy` falls back to Convex full-text search + structured tools). |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | Optional | Set the same public key in both Next.js and Convex. Convex requires the key pair to dispatch. Example subject: `mailto:your-handle@students.kennesaw.edu`. |
 | `UPLOADTHING_TOKEN` | **Yes** | Required inside `"use node"` `UTApi.deleteFiles(...)` cleanup actions. |
-| `KSUX_MAINTAINER_EMAILS` | Recommended | Comma-separated canonical `.edu` emails granted `"prod"` `Moderation Queue` access. |
-| `KSUX_ALERT_COPY_MODE` | Optional | `off` (default, links-only), `shadow` or `display`. See Official Alerts copy below. |
-| `KSUX_ALERT_PUSH` | Optional | `true` allows opt-in Alert push once the copy is displayed and signed off. |
-| `KSUX_ALERT_SHADOW_HOURS` | Hackathon only | Shortens the required shadow window, in hours (minimum 1). Unset means the full 14 days. |
+| `OWLSIDE_MAINTAINER_EMAILS` | Recommended | Comma-separated canonical `.edu` emails granted `"prod"` `Moderation Queue` access. |
+| `OWLSIDE_ALERT_COPY_MODE` | Optional | `off` (default, links-only), `shadow` or `display`. See Official Alerts copy below. |
+| `OWLSIDE_ALERT_PUSH` | Optional | `true` allows opt-in Alert push once the copy is displayed and signed off. |
+| `OWLSIDE_ALERT_SHADOW_HOURS` | Hackathon only | Shortens the required shadow window, in hours (minimum 1). Unset means the full 14 days. |
 
 ---
 
@@ -90,7 +98,7 @@ All accounts below require **zero credit cards** and **zero custom domains**:
    ```bash
    npx convex dev --once
    ```
-3. **Configure the local server secret.** Set `KSUX_SERVER_SECRET` in `.env.local` and set the same key in local Convex with `npx convex env set KSUX_SERVER_SECRET`. The Playwright wrapper configures its own secret when it starts the anonymous backend.
+3. **Configure the local server secret.** Set `OWLSIDE_SERVER_SECRET` in `.env.local` and set the same key in local Convex with `npx convex env set OWLSIDE_SERVER_SECRET`. The Playwright wrapper configures its own secret when it starts the anonymous backend.
 4. **Hydrate the local catalog.** The default seed installs campus reference data and the verified Banner subset. It omits generated Club and Event catalogs, example syllabi and dining menus, shuttle positions, and room availability.
    ```bash
    npx convex run seed:bootstrapKsu
@@ -99,7 +107,7 @@ All accounts below require **zero credit cards** and **zero custom domains**:
    ```bash
    npx convex run seed:bootstrapKsu '{"includeFixtures":true}'
    ```
-   `pnpm seed:fixtures` regenerates the checked-in synthetic data and approximate GeoJSON locally. See [campus data provenance](../KSUX.md#campus-data-provenance).
+   `pnpm seed:fixtures` regenerates the checked-in synthetic data and approximate GeoJSON locally. See [campus data provenance](../OwlSide.md#campus-data-provenance).
 5. **Backfill selective 768-dim vectors (optional when Cloudflare credentials are configured)**:
    ```bash
    npx convex run seed:backfillEmbeddings
@@ -117,8 +125,8 @@ All accounts below require **zero credit cards** and **zero custom domains**:
 1. Set all Convex production env vars:
    ```bash
    npx convex env set --prod GROQ_API_KEY "..."
-   # Repeat for KSUX_SERVER_SECRET, GMAIL_SMTP_*, GEMINI_API_KEY, CLOUDFLARE_*,
-   # VAPID_*, NEXT_PUBLIC_VAPID_PUBLIC_KEY, UPLOADTHING_TOKEN, KSUX_MAINTAINER_EMAILS
+   # Repeat for OWLSIDE_SERVER_SECRET, GMAIL_SMTP_*, GEMINI_API_KEY, CLOUDFLARE_*,
+   # VAPID_*, NEXT_PUBLIC_VAPID_PUBLIC_KEY, UPLOADTHING_TOKEN, OWLSIDE_MAINTAINER_EMAILS
    ```
 2. Configure Vercel Build Command to deploy Convex schema/functions atomically before Next.js builds:
    ```text
@@ -239,14 +247,14 @@ that the photo is held. Draft files stay in memory; an upload begins only on the
 explicit final submit. A failed submission may leave a pending upload, cleaned
 by the existing two-hour orphan-media sweep.
 
-Production uploads require `KSUX_V2_INCIDENT_PHOTOS=true` in **Convex** (Incident
+Production uploads require `OWLSIDE_V2_INCIDENT_PHOTOS=true` in **Convex** (Incident
 posting itself is always open since the 2026-11 launch decision). The switch
 defaults off; unlike the removed capacity gates, it guards photo privacy. Before enabling it,
 verify the console review workflow and private UploadThing ACL support in the
 intended application. Configure UploadThing to accept the `private` ACL override
 ([UploadThing ACL documentation](https://docs.uploadthing.com/concepts/regions-acl));
 confirm a newly uploaded Incident object's unsigned URL denies access. Use the
-same private `KSUX_SERVER_SECRET` in Next.js and Convex and an `UPLOADTHING_TOKEN`
+same private `OWLSIDE_SERVER_SECRET` in Next.js and Convex and an `UPLOADTHING_TOKEN`
 in both services (Next.js uploads/reads; Convex deletes). Do not reuse credentials
 from production in Preview. No switch is enabled by this change. Set the photo
 switch false to stop new uploads/attachments; existing review and cleanup continue.
@@ -308,7 +316,7 @@ steps plus held-photo disclosure and all three confirmations in both themes at
 phone/desktop sizes, including 320px/200% reflow. Manual device/assistive-technology
 checks remain on the existing release checklist.
 
-## KSUX v2 launch and Moderation operations
+## OwlSide v2 launch and Moderation operations
 
 ### Incident posting switch
 
@@ -317,20 +325,20 @@ checks remain on the existing release checklist.
 - [ ] Publish that volunteer Moderators offer no response-time commitment. Keep emergency contacts and official Alert links available independently of community posting.
 - [ ] Practice handling an identifies-me report, a request to remove identifying content, redaction, record retention, and an Appeal in Judge Demo Mode. Suppress public identifying material through the documented queue, preserve the agreed audit record, and use the template-only notes.
 - [ ] On a legal request, notify the designated maintainer privately. Record receipt and escalation in the authorized operations record. Preserve the material already in scope and refer disclosure or retention instructions to the authorized decision-maker.
-- [ ] Record the Moderation operations checklist sign-off. Set the Convex production variable `KSUX_V2_MODERATOR_OPS_COMPLETE=true` only after sign-off. Keep `KSUX_V2_INCIDENT_POSTING` unset or false until launch.
-- [ ] Set `KSUX_V2_INCIDENT_POSTING=true` to request release. The server still requires two eligible appointments and completed operations. Turning off either flag or revoking enough appointments closes the production gate. Incident writes must reuse `getIncidentLaunchGate` immediately before insert. Demo stays enabled.
+- [ ] Record the Moderation operations checklist sign-off. Set the Convex production variable `OWLSIDE_V2_MODERATOR_OPS_COMPLETE=true` only after sign-off. Keep `OWLSIDE_V2_INCIDENT_POSTING` unset or false until launch.
+- [ ] Set `OWLSIDE_V2_INCIDENT_POSTING=true` to request release. The server still requires two eligible appointments and completed operations. Turning off either flag or revoking enough appointments closes the production gate. Incident writes must reuse `getIncidentLaunchGate` immediately before insert. Demo stays enabled.
 
 ### Database I/O measurement
 
 From Convex's [function execution usage events](https://docs.convex.dev/platform-apis/track-usage), sum the measured database read and write bytes for the §14 functions during a representative pilot window. Use function-specific measurements from the same window. Include ordinary executions and subscription reruns. Separate other v2 activity and use zero only for a measured zero or a feature that was disabled during the sample. Do not substitute returned JSON bytes for Convex database I/O.
 
-Set the Convex variable `KSUX_V2_DB_IO_SAMPLE` to JSON with `days` (elapsed days), `measuredAt` (UTC end timestamp), and `bytes` (observed totals). Example shape using zero as a placeholder for each value:
+Set the Convex variable `OWLSIDE_V2_DB_IO_SAMPLE` to JSON with `days` (elapsed days), `measuredAt` (UTC end timestamp), and `bytes` (observed totals). Example shape using zero as a placeholder for each value:
 
 ```json
 {"days":7,"measuredAt":"2026-11-18T00:00:00Z","bytes":{"alertSourceStatus":0,"activeIncidents":0,"olderIncidents":0,"incidentDetail":0,"leaderboard":0,"other":0}}
 ```
 
-Maintain this weekly during the pilot. The maintainer panel projects each measured total over 30 days, flags 50% and 70% of 1 GB, and marks samples older than seven days stale. Compare with the full team budget separately. Launch decision (2026-11): all v2 features ship open. The Leaderboard and community Incident posting no longer wait on this sample, the Moderator roster or the `KSUX_V2_*` switches. The sample is advisory: the panel still reports the 50% and 70% bands, but nothing closes automatically. If usage grows past 70%, close the Leaderboard first (re-enable the check in `getLeaderboardGate`, `convex/lib/v2Launch.ts`), then lengthen Incident list refresh intervals. The maintainer panel on `/moderation` shows the gate's current state and the Clout anomaly view (top weekly gainers, most-reversed accounts over seven days). Demo always shows its seeded boards.
+Maintain this weekly during the pilot. The maintainer panel projects each measured total over 30 days, flags 50% and 70% of 1 GB, and marks samples older than seven days stale. Compare with the full team budget separately. Launch decision (2026-11): all v2 features ship open. The Leaderboard and community Incident posting no longer wait on this sample, the Moderator roster or the `OWLSIDE_V2_*` switches. The sample is advisory: the panel still reports the 50% and 70% bands, but nothing closes automatically. If usage grows past 70%, close the Leaderboard first (re-enable the check in `getLeaderboardGate`, `convex/lib/v2Launch.ts`), then lengthen Incident list refresh intervals. The maintainer panel on `/moderation` shows the gate's current state and the Clout anomaly view (top weekly gainers, most-reversed accounts over seven days). Demo always shows its seeded boards.
 
 ### Official Alerts copy and Alert push (#80, ADR-0007)
 
@@ -340,44 +348,44 @@ per-source shadow observations, sign-offs and real-device outcomes in the
 [Official Alert release record](./releases/official-alert-rollout-111.md).
 An automated test pass or an accepted ADR does not complete that rollout.
 
-KSUX reads exactly two public KSU pages and nothing else:
+OwlSide reads exactly two public KSU pages and nothing else:
 
 | Source shown to Students | Page | Category |
 |---|---|---|
 | KSU Police | [Timely Warnings](https://campus.kennesaw.edu/offices-services/public-safety-police/notifications/index.php) | Timely Warning |
 | KSU Campus Security & Advisories | [Emergency Advisory page](https://www.kennesaw.edu/emergency/) | Emergency advisory |
 
-**KSU's official notification channels**, named in `/safety`, `/safety/alerts/<id>` and `/profile/notifications#alerts`, are **KSU Alert (Rave)** (texts, calls and email from the KSU Office of Emergency Management; Students keep a cell number in OwlExpress), the two pages above, and **911**. KSUX push is supplementary: web push has no critical alerts, iPhone push needs the Home Screen app on iOS 16.4+, and a sent push may never arrive.
+**KSU's official notification channels**, named in `/safety`, `/safety/alerts/<id>` and `/profile/notifications#alerts`, are **KSU Alert (Rave)** (texts, calls and email from the KSU Office of Emergency Management; Students keep a cell number in OwlExpress), the two pages above, and **911**. OwlSide push is supplementary: web push has no critical alerts, iPhone push needs the Home Screen app on iOS 16.4+, and a sent push may never arrive.
 
 Two Convex variables control rollout. Both default off.
 
-| `KSUX_ALERT_COPY_MODE` | Effect |
+| `OWLSIDE_ALERT_COPY_MODE` | Effect |
 |---|---|
 | unset / `off` | P0 links-only. The 5-minute cron returns at once and fetches nothing. |
 | `shadow` | Polls both pages every 5 minutes in production and records results, items and shadow evidence. Students still see links only. No push. |
 | `display` | Shows the copy for a source **only after its 14-day shadow poll is signed off**. Otherwise that source stays links-only. |
 
-`KSUX_ALERT_PUSH=true` additionally allows Alert push, and only in `display` with a signed-off source.
+`OWLSIDE_ALERT_PUSH=true` additionally allows Alert push, and only in `display` with a signed-off source.
 
 **Rollout:**
 
 1. Merge ADR-0007 (mark it accepted) and deploy. Run `seed:bootstrapKsu` if the two `ksu` source rows are missing.
-2. Set `KSUX_ALERT_COPY_MODE=shadow`. The first fetch stamps `shadowStartedAt` on each source.
+2. Set `OWLSIDE_ALERT_COPY_MODE=shadow`. The first fetch stamps `shadowStartedAt` on each source.
 3. Watch **Moderation › Official Alert copy** (maintainers only) daily for 14 days. Each real page change increments the change count; any `unrecognized` result increments the unrecognized count and trips the automatic kill switch.
 4. When a parse is wrong, or any result is `unrecognized`, fix the parser: save the real page under `tests/fixtures/official-alerts/`, add an expectation in `tests/adapters/official-alert-adapter.test.ts`, ship it, then **Restart shadow poll**. The 14 days begin again.
 5. After 14 days with zero unrecognized results and every recorded change parsed correctly, select **Sign off the 14-day shadow poll** for each source. The server refuses an early sign-off. Record the date, the change count and the fixtures added in the release record.
-6. Set `KSUX_ALERT_COPY_MODE=display`. Check `/safety` shows each source's quiet line with its check time.
-7. Set `KSUX_ALERT_PUSH=true` only after the copy has been visible without issue. The Notifications switch becomes available.
+6. Set `OWLSIDE_ALERT_COPY_MODE=display`. Check `/safety` shows each source's quiet line with its check time.
+7. Set `OWLSIDE_ALERT_PUSH=true` only after the copy has been visible without issue. The Notifications switch becomes available.
 
 **Showing an Alert on demand (Judge Demo Mode).** Real Alerts appear only when KSU posts one, so demos use `/safety?demo=1` › **Simulate a new Official Alert (Demo)**. It adds a fresh “Demo · not real” Timely Warning to that Demo session only (up to 10 per session) and shows the app-wide banner, the Safety card and `/safety/alerts/<id>` live. It never touches real data, never fetches and never sends a push. A new Demo session resets it.
 
 **Hackathon fast path (deviation from SPEC-v2 §13).** For a time-boxed event the full 14 days can be shortened. This is a recorded exception; the real 14-day poll is still owed before a public launch.
 
-1. Deploy, then set `KSUX_ALERT_SHADOW_HOURS=1` (or longer) and `KSUX_ALERT_COPY_MODE=shadow`.
+1. Deploy, then set `OWLSIDE_ALERT_SHADOW_HOURS=1` (or longer) and `OWLSIDE_ALERT_COPY_MODE=shadow`.
 2. Wait at least one hour (12 polls). The source must have at least one successful check and zero unrecognized results; the server refuses an earlier sign-off.
 3. In Moderation › Official Alert copy, sign off each source. The panel shows the shortened window, and each sign-off records the window that applied.
-4. Set `KSUX_ALERT_COPY_MODE=display` and `KSUX_ALERT_PUSH=true`. Every other push rule is unchanged: seen twice, 3 a day, blocked when stale or switched off.
-5. Before public launch, unset `KSUX_ALERT_SHADOW_HOURS`, select **Restart shadow poll** for each source (this clears the short sign-off and returns the source to links-only), and run the full 14 days.
+4. Set `OWLSIDE_ALERT_COPY_MODE=display` and `OWLSIDE_ALERT_PUSH=true`. Every other push rule is unchanged: seen twice, 3 a day, blocked when stale or switched off.
+5. Before public launch, unset `OWLSIDE_ALERT_SHADOW_HOURS`, select **Restart shadow poll** for each source (this clears the short sign-off and returns the source to links-only), and run the full 14 days.
 
 A real Alert push fires only when KSU actually posts a notice. To show push to judges without waiting for a real notice, use a test device subscribed to a staging deployment, never a fabricated notice in production.
 
@@ -390,7 +398,7 @@ A real Alert push fires only when KSU actually posts a notice. To show push to j
 - The cap is **3 Alert pushes per Eastern day** for everyone, derived from today's pushed items; later items record `capped`. Fan-out sends 100 opted-in devices per scheduled step and stops if the source turns stale or is switched off between batches.
 - Judge Demo Mode reads fixtures for all 7 states, never fetches, and never pushes.
 
-**Kill switch in an incident:** open Moderation › Official Alert copy and select **Switch copy off** for the source, or set `KSUX_ALERT_COPY_MODE=off` to stop polling and display entirely. Students keep the KSU links, KSU Alert (Rave) and 911. Opt-in settings are kept and resume when the copy returns.
+**Kill switch in an incident:** open Moderation › Official Alert copy and select **Switch copy off** for the source, or set `OWLSIDE_ALERT_COPY_MODE=off` to stop polling and display entirely. Students keep the KSU links, KSU Alert (Rave) and 911. Opt-in settings are kept and resume when the copy returns.
 
 Verify with `pnpm test -- tests/adapters/official-alert-adapter.test.ts tests/convex/official-alerts.test.ts tests/unit/safety-page.test.ts tests/unit/push-device.test.ts` and `pnpm test:e2e --project=a11y tests/a11y/safety.spec.ts`. Manually check a real Alert push on Chrome desktop, Android Chrome and an iPhone Home Screen install (iOS 16.4+), and that an iPhone Safari tab shows the Home Screen steps.
 

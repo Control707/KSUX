@@ -7,7 +7,7 @@ import { enterDemo } from "../a11y/helpers";
 test("Moderator redacts, adds a template note, removes; author Appeals and a second persona reverses", async ({ page, context }) => {
   test.setTimeout(180_000);
   await enterDemo(page, "/moderation");
-  const code = await page.evaluate(() => sessionStorage.getItem("ksux_demo_short_code")!);
+  const code = await page.evaluate(() => sessionStorage.getItem("owlside_demo_short_code")!);
   const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL ?? "http://127.0.0.1:3210");
   await expect(page.getByRole("note")).toContainText("involve you");
   await page.getByTestId("judge-demo-pill").click();
@@ -69,7 +69,7 @@ test("Moderator redacts, adds a template note, removes; author Appeals and a sec
 
 test("Demo maintainer suspension keeps the author’s notices and Appeal reachable", async ({ page, context }) => {
   await enterDemo(page, "/moderation");
-  const code = await page.evaluate(() => sessionStorage.getItem("ksux_demo_short_code")!);
+  const code = await page.evaluate(() => sessionStorage.getItem("owlside_demo_short_code")!);
   const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL ?? "http://127.0.0.1:3210");
   const { postId } = await client.mutation(api.feed.createPost, { demoShortCode: code, demoPersonaHandle: "alex_owl", body: "a sample post for the suspension exercise" });
   await client.mutation(api.moderation.submitReport, { demoShortCode: code, demoPersonaHandle: "sam_cpe", targetType: "post", targetId: postId, reason: "harassment" });

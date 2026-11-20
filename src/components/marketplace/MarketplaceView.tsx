@@ -196,7 +196,7 @@ export function MarketplaceView() {
             </h1>
             <p className="text-sm text-[var(--muted)] [overflow-wrap:anywhere]">
               Student-to-student Listings across KSU. Every buyer gets their own Deal Chat. Meet at a public KSU Meetup
-              Spot and pay in person; KSUX never holds money.
+              Spot and pay in person; OwlSide never holds money.
             </p>
           </div>
           <div className="flex flex-wrap gap-[var(--sp-2)]">

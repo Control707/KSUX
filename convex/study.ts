@@ -322,7 +322,7 @@ export const triggerStudySwrRefresh = viewerMutation({
   handler: async (ctx, args) => {
     const now = workflowTime(args.nowOverride);
     const result = await acquireLibCalLease(ctx, now);
-    if (result.acquired && process.env.KSUX_SKIP_LIBCAL_SCHEDULER !== "true") {
+    if (result.acquired && process.env.OWLSIDE_SKIP_LIBCAL_SCHEDULER !== "true") {
       await ctx.scheduler.runAfter(
         0, internal.sync.libcalSync.runSequentialLibCalRefresh,
         { scheduledLeaseUntil: result.leaseUntil }

@@ -87,8 +87,8 @@ export function incidentPostingIsReady(requested: boolean, opsChecklistDone: boo
 export async function getIncidentLaunchGate(db: QueryCtx["db"], mode: "student" | "demo") {
   if (mode === "demo") return { postingEnabled: true };
   const moderatorCount = await appointedModerators(db);
-  const opsChecklistDone = process.env.KSUX_V2_MODERATOR_OPS_COMPLETE === "true";
-  const requested = process.env.KSUX_V2_INCIDENT_POSTING === "true";
+  const opsChecklistDone = process.env.OWLSIDE_V2_MODERATOR_OPS_COMPLETE === "true";
+  const requested = process.env.OWLSIDE_V2_INCIDENT_POSTING === "true";
   return { postingEnabled: true, moderatorCount, opsChecklistDone, requested };
 }
 

@@ -49,7 +49,7 @@ export function assertPublishSafety(
       throw new ConvexError({
         code: "SAFETY_REJECTED",
         message:
-          "This content violates KSUX community safety standards (harassment or hate speech).",
+          "This content violates OwlSide community safety standards (harassment or hate speech).",
       });
     }
   }
@@ -62,7 +62,7 @@ export function assertPublishSafety(
     throw new ConvexError({
       code: "SAFETY_REJECTED",
       message:
-        "Sharing private phone numbers, SSNs, or personal street addresses (doxxing) is blocked on KSUX.",
+        "Sharing private phone numbers, SSNs, or personal street addresses (doxxing) is blocked on OwlSide.",
     });
   }
 
@@ -71,7 +71,7 @@ export function assertPublishSafety(
       if (item.pattern.test(text)) {
         throw new ConvexError({
           code: "PROHIBITED_LISTING",
-          message: `Prohibited Marketplace Listing: ${item.label} cannot be listed on KSUX.`,
+          message: `Prohibited Marketplace Listing: ${item.label} cannot be listed on OwlSide.`,
         });
       }
     }

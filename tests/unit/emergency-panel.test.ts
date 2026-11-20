@@ -16,13 +16,13 @@ describe("Emergency Panel", () => {
   it("offers 911, KSU Police by phone and by text, with honest copy and no auto-dial", () => {
     const html = render("live");
     expect(html).toContain("Is anyone in danger right now?");
-    expect(html).toContain("KSUX can’t send help and doesn’t contact police.");
+    expect(html).toContain("OwlSide can’t send help and doesn’t contact police.");
     const order = ["tel:911", "tel:4705786666", "sms:7703563866"].map((href) => html.indexOf(`href="${href}"`));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).toContain("answered 24/7");
     expect(html).toContain("deaf, hard of hearing");
-    expect(html).toContain("outside KSUX");
+    expect(html).toContain("outside OwlSide");
     expect(html).not.toMatch(/<audio|autoplay|window\.location/i);
     expect(html).not.toMatch(/Sent to police|Help is on the way|monitoring/i);
   });

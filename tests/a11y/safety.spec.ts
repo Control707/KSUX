@@ -91,9 +91,9 @@ test("the intro card dismisses and stays dismissed", async ({ page }) => {
 test("Demo shows every Official Alert state with its source and check time, and no push", async ({ page }) => {
   await page.goto("/safety?demo=1");
   const copy = page.getByTestId("official-alert-copy");
-  await expect(copy).toContainText("KSUX makes no real fetch and sends no push in Demo");
+  await expect(copy).toContainText("OwlSide makes no real fetch and sends no push in Demo");
   await expect(copy.locator('[data-display="ok"]').first()).toBeVisible();
-  await expect(copy.getByTestId("alert-stale")).toContainText("KSUX’s copy is out of date");
+  await expect(copy.getByTestId("alert-stale")).toContainText("OwlSide’s copy is out of date");
   await expect(copy.getByTestId("alert-quiet").first()).toContainText("Checked");
   await expect(copy.getByTestId("alert-unavailable")).toBeVisible();
   for (const state of ["Issued", "Updated", "All clear (quoted from the source)", "No longer listed"]) {

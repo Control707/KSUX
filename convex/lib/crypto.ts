@@ -136,7 +136,7 @@ export function validateHandleRules(
   if (!options.allowDemoPersonas && RESERVED_HANDLES.has(handleLower)) {
     return {
       ok: false,
-      error: `@${handleLower} is reserved on KSUX.`,
+      error: `@${handleLower} is reserved on OwlSide.`,
     };
   }
   return { ok: true, handle, handleLower };

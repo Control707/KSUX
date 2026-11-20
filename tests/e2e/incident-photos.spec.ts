@@ -32,7 +32,7 @@ async function postPhoto(page: Page, blur = false) {
   await expect(page.getByTestId("incident-posted")).toContainText("Your photo is held for review");
   const href = await page.getByRole("link", { name: "See it on Incidents" }).getAttribute("href");
   const incidentId = href!.split("/").pop()!;
-  const auth = await page.evaluate(() => ({ demoShortCode: sessionStorage.getItem("ksux_demo_short_code")!, demoPersonaHandle: sessionStorage.getItem("ksux_demo_persona")! }));
+  const auth = await page.evaluate(() => ({ demoShortCode: sessionStorage.getItem("owlside_demo_short_code")!, demoPersonaHandle: sessionStorage.getItem("owlside_demo_persona")! }));
   return { incidentId, auth };
 }
 

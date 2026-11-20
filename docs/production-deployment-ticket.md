@@ -1,6 +1,6 @@
 ## Parent
 
-[Spec: KSUX — Unified Kennesaw State Campus Social Network & Daily-Life Companion PWA](https://github.com/Control707/KSUX/issues/13)
+[Spec: OwlSide — Unified Kennesaw State Campus Social Network & Daily-Life Companion PWA](https://github.com/Control707/KSUX/issues/13)
 
 ## What to do
 
@@ -18,7 +18,7 @@ Requires account ownership, dashboard authorization, credential creation, produc
 - [ ] Confirm current free-plan eligibility, quotas, and model availability in provider dashboards. Do not enroll in paid services without separate approval. Record any provider/model mismatch as a blocker rather than claiming deployment is complete.
 - [ ] Create/configure Convex production deploy key and matching cloud/site URLs; UploadThing SDK token; Gmail sending account with 2FA and app password; Groq key with verified privacy settings; canonical KSU moderator email allowlist.
 - [ ] Record explicit enable/defer decisions for optional Gemini, Cloudflare Workers AI, secondary Gmail sender, and VAPID Web Push. Preserve/import an existing VAPID pair instead of accidentally rotating it.
-- [ ] Apply backend-only credentials to Convex and frontend/deploy settings to Vercel Production only. UploadThing needs the same token in both. Push needs its public key in both and private key only in Convex. Set KSUX_ALLOW_DEV_OTP_LOG=false. No secrets in NEXT_PUBLIC_* variables.
+- [ ] Apply backend-only credentials to Convex and frontend/deploy settings to Vercel Production only. UploadThing needs the same token in both. Push needs its public key in both and private key only in Convex. Set OWLSIDE_ALLOW_DEV_OTP_LOG=false. No secrets in NEXT_PUBLIC_* variables.
 - [ ] Keep production keys out of Preview/Development and untrusted pull requests. Establish separate preview/development backends before enabling previews. Do not create unused GitHub Actions secrets.
 - [ ] Set the Convex-before-Next build command, verify the main-branch Git connection, and deploy the reviewed main branch through Vercel. Record the public deployment URL, commit SHA, Ready state, and successful Convex build evidence (no secret values).
 - [ ] Back up an existing populated production database before the separately confirmed seed:bootstrapKsu run. Verify catalog provenance and freshness: seeded/synthetic data is not proof that upstream ingestion is live. The current seed:backfillEmbeddings implementation is a stub; do not claim vector backfill ran.

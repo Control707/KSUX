@@ -56,7 +56,7 @@ for (const theme of THEMES) {
       await openWelcome(page);
       const label = `/ welcome ${theme} ${viewportName}`;
       await expect(page.locator("h1")).toHaveCount(1);
-      await expect(page.getByRole("heading", { level: 1, name: "KSUX" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "OwlSide" })).toBeVisible();
       await expectNoSeriousAxe(page, { label });
       await expectTargetSizes(page, "body", label);
       await expectMinTextSize(page, "body", label);

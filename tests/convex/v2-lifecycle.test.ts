@@ -73,7 +73,7 @@ it("self-delete scrubs Incident text, Updates and Clout while retaining anonymou
 it("suspension removes Incidents and reverses Clout without erasing the ledger", async () => {
   const t = createTestConvex();
   const maintainer = await createVerifiedTestStudent(t, { handle: "v2_owner", displayName: "Owner" });
-  vi.stubEnv("KSUX_MAINTAINER_EMAILS", maintainer.canonicalEmail);
+  vi.stubEnv("OWLSIDE_MAINTAINER_EMAILS", maintainer.canonicalEmail);
   const student = await createVerifiedTestStudent(t, { handle: "suspend_v2", displayName: "Suspend v2" });
   const ids = await seedPrivateArtifacts(t, student.studentId, Date.now());
   await t.mutation(api.moderation.reviewModerationTarget, { sessionToken: maintainer.sessionToken,
@@ -93,7 +93,7 @@ it("continues privacy cleanup past a batch and reverses each payout once without
   const maintainer = await createVerifiedTestStudent(t, { handle: "batch_owner", displayName: "Owner" });
   const student = await createVerifiedTestStudent(t, { handle: "batch_student", displayName: "Batch" });
   const partner = await createVerifiedTestStudent(t, { handle: "batch_partner", displayName: "Partner" });
-  vi.stubEnv("KSUX_MAINTAINER_EMAILS", maintainer.canonicalEmail);
+  vi.stubEnv("OWLSIDE_MAINTAINER_EMAILS", maintainer.canonicalEmail);
   const ids = await seedPrivateArtifacts(t, student.studentId, Date.now());
   const partnerIds = await seedPrivateArtifacts(t, partner.studentId, Date.now());
   await t.run(async ({ db }) => {

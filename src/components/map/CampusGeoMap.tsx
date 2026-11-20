@@ -157,11 +157,11 @@ type MapTokens = ReturnType<typeof readTokens>;
 // Zero-external-tile offline style (renders precached campus GeoJSON offline).
 export const EMBEDDED_ZERO_TILE_STYLE = {
   version: 8 as const,
-  name: "KSUX Offline Campus Deck Style",
+  name: "OwlSide Offline Campus Deck Style",
   sources: {},
   layers: [
     {
-      id: "ksux-offline-bg",
+      id: "owlside-offline-bg",
       type: "background" as const,
       paint: { "background-color": "#EFE8D8" },
     },
@@ -231,17 +231,17 @@ function headingImage(t: MapTokens) {
 }
 
 const ITEM_LAYERS = [
-  "ksux-items-incident-fresh",
-  "ksux-items-incident-older",
-  "ksux-items-incident-label",
-  "ksux-items-lot-solid",
-  "ksux-items-lot-pattern",
-  "ksux-items-route-solid",
-  "ksux-items-route-dashed",
-  "ksux-items-route-dotted",
-  "ksux-items-stop",
-  "ksux-items-bus",
-  "ksux-items-meetup",
+  "owlside-items-incident-fresh",
+  "owlside-items-incident-older",
+  "owlside-items-incident-label",
+  "owlside-items-lot-solid",
+  "owlside-items-lot-pattern",
+  "owlside-items-route-solid",
+  "owlside-items-route-dashed",
+  "owlside-items-route-dotted",
+  "owlside-items-stop",
+  "owlside-items-bus",
+  "owlside-items-meetup",
 ];
 
 function hatchImage(color: string, background: string, stripe: number, gap: number) {
@@ -701,8 +701,8 @@ export function CampusGeoMap({
     try {
       const t = readTokens();
       for (const [name, color, bg, stripe, gap] of [
-        ["ksux-hatch-filling", t.filling, t.fillingBg, 2, 5],
-        ["ksux-hatch-nearly", t.nearly, t.nearlyBg, 3, 3],
+        ["owlside-hatch-filling", t.filling, t.fillingBg, 2, 5],
+        ["owlside-hatch-nearly", t.nearly, t.nearlyBg, 3, 3],
       ] as const) {
         if (!map.hasImage(name)) {
           const image = hatchImage(color, bg, stripe, gap);
@@ -710,9 +710,9 @@ export function CampusGeoMap({
         }
       }
       for (const [name, make] of [
-        ["ksux-bus-live", () => busImage(false, t)],
-        ["ksux-bus-stale", () => busImage(true, t)],
-        ["ksux-bus-heading", () => headingImage(t)],
+        ["owlside-bus-live", () => busImage(false, t)],
+        ["owlside-bus-stale", () => busImage(true, t)],
+        ["owlside-bus-heading", () => headingImage(t)],
       ] as const) {
         if (!map.hasImage(name)) {
           const image = make();
@@ -720,25 +720,25 @@ export function CampusGeoMap({
         }
       }
       const data = itemsToFeatureCollection(items, selectedId ?? null, { dark: prefersDark, surface: t.surface, muted: t.muted });
-      const source = map.getSource("ksux-items");
+      const source = map.getSource("owlside-items");
       if (source) {
         source.setData(data);
         return;
       }
-      map.addSource("ksux-items", { type: "geojson", data });
+      map.addSource("owlside-items", { type: "geojson", data });
       const isKind = (kind: string) => ["==", ["get", "kind"], kind];
       for (const stale of [false, true]) {
-        map.addLayer({ id: `ksux-items-incident-${stale ? "older" : "fresh"}`, type: "line", source: "ksux-items",
+        map.addLayer({ id: `owlside-items-incident-${stale ? "older" : "fresh"}`, type: "line", source: "owlside-items",
           filter: ["all", isKind("incident"), ["==", ["get", "stale"], stale]],
           paint: { "line-color": t.ink, "line-width": 3, ...(stale ? { "line-dasharray": [2, 2] } : {}) } });
       }
-      if (!usingOfflineStyle) map.addLayer({ id: "ksux-items-incident-label", type: "symbol", source: "ksux-items", filter: isKind("incident"),
+      if (!usingOfflineStyle) map.addLayer({ id: "owlside-items-incident-label", type: "symbol", source: "owlside-items", filter: isKind("incident"),
         layout: { "text-field": ["concat", ["get", "code"], " ", ["get", "name"]], "text-size": labelSize(), "text-font": ["Noto Sans Bold"], "text-allow-overlap": true },
         paint: { "text-color": t.ink, "text-halo-color": t.surface, "text-halo-width": 2.5 } });
       map.addLayer({
-        id: "ksux-items-lot-solid",
+        id: "owlside-items-lot-solid",
         type: "fill",
-        source: "ksux-items",
+        source: "owlside-items",
         filter: ["all", isKind("lot"), ["in", ["get", "status"], ["literal", ["open", "full", "none"]]]],
         paint: {
           "fill-color": ["match", ["get", "status"], "open", t.open, "full", t.full, t.noneBg],
@@ -746,20 +746,20 @@ export function CampusGeoMap({
         },
       });
       map.addLayer({
-        id: "ksux-items-lot-pattern",
+        id: "owlside-items-lot-pattern",
         type: "fill",
-        source: "ksux-items",
+        source: "owlside-items",
         filter: ["all", isKind("lot"), ["in", ["get", "status"], ["literal", ["filling", "nearly"]]]],
         paint: {
-          "fill-pattern": ["match", ["get", "status"], "nearly", "ksux-hatch-nearly", "ksux-hatch-filling"],
+          "fill-pattern": ["match", ["get", "status"], "nearly", "owlside-hatch-nearly", "owlside-hatch-filling"],
           "fill-opacity": 0.9,
         },
       });
       // Solid edge = live crowd data; dashed edge = no recent reports.
       map.addLayer({
-        id: "ksux-items-lot-edge-live",
+        id: "owlside-items-lot-edge-live",
         type: "line",
-        source: "ksux-items",
+        source: "owlside-items",
         filter: ["all", isKind("lot"), ["!=", ["get", "status"], "none"]],
         paint: {
           "line-color": ["match", ["get", "status"], "open", t.open, "filling", t.filling, "nearly", t.nearly, t.full],
@@ -767,17 +767,17 @@ export function CampusGeoMap({
         },
       });
       map.addLayer({
-        id: "ksux-items-lot-edge-none",
+        id: "owlside-items-lot-edge-none",
         type: "line",
-        source: "ksux-items",
+        source: "owlside-items",
         filter: ["all", isKind("lot"), ["==", ["get", "status"], "none"]],
         paint: { "line-color": t.muted, "line-width": 2, "line-dasharray": [2, 2] },
       });
       // Every route line has a casing so it holds 3:1 against both base maps.
       map.addLayer({
-        id: "ksux-items-route-casing",
+        id: "owlside-items-route-casing",
         type: "line",
-        source: "ksux-items",
+        source: "owlside-items",
         filter: isKind("route"),
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
@@ -792,9 +792,9 @@ export function CampusGeoMap({
         ["dotted", [0.6, 1.1]],
       ] as const) {
         map.addLayer({
-          id: `ksux-items-route-${pattern}`,
+          id: `owlside-items-route-${pattern}`,
           type: "line",
-          source: "ksux-items",
+          source: "owlside-items",
           filter: ["all", isKind("route"), ["==", ["get", "pattern"], pattern]],
           layout: { "line-cap": pattern === "dotted" ? "round" : "butt", "line-join": "round" },
           paint: {
@@ -805,9 +805,9 @@ export function CampusGeoMap({
         });
       }
       map.addLayer({
-        id: "ksux-items-stop",
+        id: "owlside-items-stop",
         type: "circle",
-        source: "ksux-items",
+        source: "owlside-items",
         filter: isKind("stop"),
         paint: {
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 4, 16, 7],
@@ -817,20 +817,20 @@ export function CampusGeoMap({
         },
       });
       map.addLayer({
-        id: "ksux-items-meetup",
+        id: "owlside-items-meetup",
         type: "circle",
-        source: "ksux-items",
+        source: "owlside-items",
         filter: isKind("meetup"),
         paint: { "circle-radius": 7, "circle-color": t.accent, "circle-stroke-width": 2, "circle-stroke-color": t.ink },
       });
       // Buses: heading wedge (live with a heading only), ringed glyph, code label.
       map.addLayer({
-        id: "ksux-items-bus-heading",
+        id: "owlside-items-bus-heading",
         type: "symbol",
-        source: "ksux-items",
+        source: "owlside-items",
         filter: ["all", isKind("bus"), ["==", ["get", "hasHeading"], true]],
         layout: {
-          "icon-image": "ksux-bus-heading",
+          "icon-image": "owlside-bus-heading",
           "icon-rotate": ["get", "heading"],
           "icon-rotation-alignment": "map",
           "icon-allow-overlap": true,
@@ -838,12 +838,12 @@ export function CampusGeoMap({
         },
       });
       map.addLayer({
-        id: "ksux-items-bus",
+        id: "owlside-items-bus",
         type: "symbol",
-        source: "ksux-items",
+        source: "owlside-items",
         filter: isKind("bus"),
         layout: {
-          "icon-image": ["case", ["get", "stale"], "ksux-bus-stale", "ksux-bus-live"],
+          "icon-image": ["case", ["get", "stale"], "owlside-bus-stale", "owlside-bus-live"],
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           ...(usingOfflineStyle
@@ -863,25 +863,25 @@ export function CampusGeoMap({
       });
       // Selection is a focus-blue outline, never a status colour.
       map.addLayer({
-        id: "ksux-items-selected-line",
+        id: "owlside-items-selected-line",
         type: "line",
-        source: "ksux-items",
+        source: "owlside-items",
         filter: ["all", ["==", ["get", "selected"], true], ["!=", ["geometry-type"], "Point"]],
         paint: { "line-color": t.focus, "line-width": 4 },
       });
       map.addLayer({
-        id: "ksux-items-selected-point",
+        id: "owlside-items-selected-point",
         type: "circle",
-        source: "ksux-items",
+        source: "owlside-items",
         filter: ["all", ["==", ["get", "selected"], true], ["==", ["geometry-type"], "Point"]],
         paint: { "circle-radius": 13, "circle-color": "rgba(0,0,0,0)", "circle-stroke-width": 4, "circle-stroke-color": t.focus },
       });
       if (!usingOfflineStyle) {
         // Route codes along each line at zoom ≥13.6 (code text before colour).
         map.addLayer({
-          id: "ksux-items-route-labels",
+          id: "owlside-items-route-labels",
           type: "symbol",
-          source: "ksux-items",
+          source: "owlside-items",
           filter: isKind("route"),
           minzoom: 13.6,
           layout: {
@@ -896,9 +896,9 @@ export function CampusGeoMap({
         });
         // Text labels carry the status word, so nothing is colour-only.
         map.addLayer({
-          id: "ksux-items-labels",
+          id: "owlside-items-labels",
           type: "symbol",
-          source: "ksux-items",
+          source: "owlside-items",
           filter: isKind("lot"),
           minzoom: 13.6,
           layout: {

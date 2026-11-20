@@ -11,12 +11,12 @@ function listSentence(items: readonly string[]) {
   return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
-/** About KSUX: the public accessibility statement (SPEC-v2 §15). */
+/** About OwlSide: the public accessibility statement (SPEC-v2 §15). */
 export default function AboutPage() {
   const s = ACCESSIBILITY_STATEMENT;
   return (
     <div data-testid="about-view" className="mx-auto max-w-3xl space-y-[var(--sp-4)] p-[var(--sp-4)] [overflow-wrap:anywhere]">
-      <h1 className="font-display text-2xl font-bold">About KSUX</h1>
+      <h1 className="font-display text-2xl font-bold">About OwlSide</h1>
 
       <section
         aria-labelledby="a11y-statement-heading"
@@ -27,7 +27,7 @@ export default function AboutPage() {
           Accessibility
         </h2>
         <p>
-          KSUX is built to {s.standard}.{" "}
+          OwlSide is built to {s.standard}.{" "}
           {s.lastTested ? (
             <>
               Last tested <time dateTime={s.lastTested}>{formatTestedDate(s.lastTested)}</time> with{" "}
@@ -69,11 +69,11 @@ export default function AboutPage() {
         <h2 id="about-safety-heading" className="font-display text-xl font-bold">
           Safety
         </h2>
-        <p>KSUX isn't 911, isn't monitored around the clock, and community reports aren't verified.</p>
+        <p>OwlSide isn't 911, isn't monitored around the clock, and community reports aren't verified.</p>
         <ul className="flex flex-wrap gap-x-[var(--sp-4)]">
           <li>
-            <Link href="/safety/about" data-testid="about-ksux-safety-link" className="inline-flex min-h-[var(--target)] items-center font-bold underline">
-              About KSUX Safety
+            <Link href="/safety/about" data-testid="about-owlside-safety-link" className="inline-flex min-h-[var(--target)] items-center font-bold underline">
+              About OwlSide Safety
             </Link>
           </li>
           <li>

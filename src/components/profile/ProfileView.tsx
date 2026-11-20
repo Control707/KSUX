@@ -322,7 +322,7 @@ export function ProfileView() {
               <Link href="/profile/about" data-testid="profile-about-link" className={rowLink}>
                 <span className="flex min-w-0 items-center gap-[var(--sp-2)]">
                   <Info aria-hidden="true" className="h-4 w-4 shrink-0" />
-                  <span className="font-bold">About KSUX and accessibility</span>
+                  <span className="font-bold">About OwlSide and accessibility</span>
                 </span>
                 <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0" />
               </Link>
@@ -382,7 +382,7 @@ export function ProfileView() {
       {profile.isSelf && auth.status === "student" && (
         <section aria-labelledby="profile-delete-heading" className={`${card} border-[var(--bad-fg)]`}>
           <h2 id="profile-delete-heading" className="font-display text-xl font-bold text-[var(--bad-fg)]">
-            Delete my KSUX profile
+            Delete my OwlSide profile
           </h2>
           <p className="mt-[var(--sp-1)] text-sm">
             Revokes sessions and push, purges media, scrubs your .edu email, and reserves @{student.handle} for 30 days.
@@ -459,7 +459,7 @@ export function ProfileView() {
         open={confirmDelete}
         onClose={() => setConfirmDelete(false)}
         role="alertdialog"
-        title="Delete your KSUX profile?"
+        title="Delete your OwlSide profile?"
         description={`This can't be undone. @${student.handle} stays reserved for 30 days.`}
         testId="profile-delete-dialog"
       >

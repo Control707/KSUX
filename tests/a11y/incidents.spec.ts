@@ -23,7 +23,7 @@ for (const theme of THEMES) for (const [size, viewport] of Object.entries(VIEWPO
     await expect(page.getByRole("heading", { name: "Community Incident", exact: true })).toBeVisible();
     await expect(page.getByTestId("incident-card")).toBeVisible();
     await expectNoSeriousAxe(page, { label: `Incident detail ${theme} ${size}` });
-    await page.getByRole("button", { name: "Report to KSUX moderators", exact: true }).click();
+    await page.getByRole("button", { name: "Report to OwlSide moderators", exact: true }).click();
     await page.getByRole("dialog").getByLabel("Reason", { exact: true }).selectOption("campus_safety");
     await expect(page.getByRole("dialog", { name: "Campus Safety Moderation Report", exact: true })).toBeVisible();
     await page.getByRole("dialog").evaluate(async (el) => { await Promise.all(el.getAnimations({ subtree: true }).map((animation) => animation.finished)); });
@@ -64,7 +64,7 @@ for (const theme of THEMES) for (const [size, viewport] of Object.entries(VIEWPO
     await page.screenshot({ path: `test-results/incidents-${theme}-${size}.png` });
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("report-incident-btn")).toBeFocused();
-    const auth = await page.evaluate(() => ({ demoShortCode: sessionStorage.getItem("ksux_demo_short_code")!, demoPersonaHandle: "maya_cs" }));
+    const auth = await page.evaluate(() => ({ demoShortCode: sessionStorage.getItem("owlside_demo_short_code")!, demoPersonaHandle: "maya_cs" }));
     const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL ?? "http://127.0.0.1:3210");
     const { incidentId } = await client.mutation(api.incidents.create, { ...auth, category: "hazard", campus: "Marietta", buildingId: "bldg-osm-225446898",
       observedAt: Date.now(), text: "temporary entrance obstruction", nameLevel: "hidden" });

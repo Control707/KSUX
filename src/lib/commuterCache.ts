@@ -1,7 +1,7 @@
 import type { api } from "@convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 
-export const COMMUTER_CACHE_STORAGE_KEY = "ksux_commuter_cache";
+export const COMMUTER_CACHE_STORAGE_KEY = "owlside_commuter_cache";
 
 export type CommuterScope =
   | { mode: "student"; studentId: string; expiresAt: number }

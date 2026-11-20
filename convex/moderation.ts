@@ -696,10 +696,10 @@ export const getV2LaunchOps = viewerQuery({
   args: {},
   handler: async (ctx) => {
     const email = ctx.viewer.actorStudent.canonicalEmail;
-    if (ctx.viewer.mode !== "student" || !email || !parseMaintainerEmails(process.env.KSUX_MAINTAINER_EMAILS).has(email)) return null;
+    if (ctx.viewer.mode !== "student" || !email || !parseMaintainerEmails(process.env.OWLSIDE_MAINTAINER_EMAILS).has(email)) return null;
     return {
       gate: await getIncidentLaunchGate(ctx.db, "student"),
-      io: projectMonthlyV2Io(process.env.KSUX_V2_DB_IO_SAMPLE),
+      io: projectMonthlyV2Io(process.env.OWLSIDE_V2_DB_IO_SAMPLE),
       leaderboard: getLeaderboardGate("student"),
     };
   },

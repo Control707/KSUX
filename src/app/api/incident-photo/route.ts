@@ -10,7 +10,7 @@ const headers = { "Cache-Control": "private, no-store, max-age=0", "X-Content-Ty
 
 export async function POST(request: Request) {
   const auth = await extractForwardedAuthEnvelope(request);
-  const serverSecret = process.env.KSUX_SERVER_SECRET;
+  const serverSecret = process.env.OWLSIDE_SERVER_SECRET;
   if (!serverSecret || !auth.sessionToken && !auth.demoShortCode) return new Response("Unavailable", { status: 403, headers });
   try {
     const { incidentId, review = false } = await request.json();

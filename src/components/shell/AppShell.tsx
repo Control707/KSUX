@@ -70,14 +70,14 @@ export function AppShell({
 
   useEffect(() => {
     lastSeenToastAtRef.current = Date.now();
-    document.title = "KSUX";
+    document.title = "OwlSide";
   }, [viewerKey]);
 
   // Tab title and an announced toast for a new unread message.
   useEffect(() => {
     if (typeof document === "undefined" || !summary) return;
     const count = summary.unread.numericUnreadCount;
-    document.title = count > 0 ? `(${count}) KSUX` : "KSUX";
+    document.title = count > 0 ? `(${count}) OwlSide` : "OwlSide";
     const ev = summary.unread.latestUnreadEvent;
     if (ev && ev.lastMessageAt > lastSeenToastAtRef.current && pathname !== `/chats/${ev.chatId}`) {
       lastSeenToastAtRef.current = ev.lastMessageAt;
@@ -96,7 +96,7 @@ export function AppShell({
       <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] text-[var(--ink)]">
         <p role="status" className="flex items-center gap-[var(--sp-3)] text-[length:var(--fs-body)] font-bold">
           <span aria-hidden="true">🦉</span>
-          Loading KSUX…
+          Loading OwlSide…
         </p>
       </div>
     );
@@ -153,7 +153,7 @@ export function AppShell({
                 <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-[var(--r-sm)] bg-[var(--accent)] text-base">
                   🦉
                 </span>
-                KSUX<span className="sr-only">, home</span>
+                OwlSide<span className="sr-only">, home</span>
               </Link>
             )}
 

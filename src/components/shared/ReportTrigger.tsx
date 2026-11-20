@@ -63,11 +63,11 @@ const REPORT_REASONS: Array<{
   },
 ];
 
-export const REPORT_MENU_LABEL = "Report to KSUX moderators";
-export const REPORT_SENT_MESSAGE = "Sent to KSUX moderators";
+export const REPORT_MENU_LABEL = "Report to OwlSide moderators";
+export const REPORT_SENT_MESSAGE = "Sent to OwlSide moderators";
 
 /**
- * "Report to KSUX moderators" trigger and form dialog (SPEC-v2 §2). The props
+ * "Report to OwlSide moderators" trigger and form dialog (SPEC-v2 §2). The props
  * API is shared by every screen that lets a Student report content.
  */
 export function ReportTrigger({
@@ -139,14 +139,14 @@ export function ReportTrigger({
       >
         <Flag aria-hidden="true" className="h-4 w-4" />
         <span>Report</span>
-        <span className="sr-only"> to KSUX moderators</span>
+        <span className="sr-only"> to OwlSide moderators</span>
       </button>
 
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
         title={REPORT_MENU_LABEL}
-        description={`Reporting ${subject}. KSUX is a Student-run community app; moderators are Students and staff volunteers, not KSU police.`}
+        description={`Reporting ${subject}. OwlSide is a Student-run community app; moderators are Students and staff volunteers, not KSU police.`}
         testId="report-dialog"
       >
         {submitted ? (
@@ -247,7 +247,7 @@ export function ReportTrigger({
 }
 
 export const CAMPUS_SAFETY_REPORT_NOTE =
-  "This reports the post to KSUX volunteer moderators. It does not contact police.";
+  "This reports the post to OwlSide volunteer moderators. It does not contact police.";
 
 /**
  * The Emergency Panel shown whenever a Student picks the Campus Safety reason
@@ -271,7 +271,7 @@ export function KsuPoliceEmergencyCallout() {
     >
       <p className="flex items-start gap-[var(--sp-2)] text-sm font-bold">
         <ShieldAlert aria-hidden="true" className="mt-[0.1rem] h-4 w-4 shrink-0" />
-        <span>Emergency? KSUX reports do not reach police or EMS.</span>
+        <span>Emergency? OwlSide reports do not reach police or EMS.</span>
       </p>
       <p className="mt-[var(--sp-1)] text-sm leading-snug [overflow-wrap:anywhere]">
         Call <strong>911</strong>, or contact the KSU Department of Public Safety at{" "}

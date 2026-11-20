@@ -13,9 +13,9 @@ describe("Scrappy Safety Card gate runs before quota and before any LLM call (#8
   let fetchSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    process.env.KSUX_SKIP_SCRAPPY_SCHEDULER = "true";
-    process.env.KSUX_SKIP_PUSH_SCHEDULER = "true";
-    process.env.KSUX_SKIP_STORAGE_SCHEDULER = "true";
+    process.env.OWLSIDE_SKIP_SCRAPPY_SCHEDULER = "true";
+    process.env.OWLSIDE_SKIP_PUSH_SCHEDULER = "true";
+    process.env.OWLSIDE_SKIP_STORAGE_SCHEDULER = "true";
     // Keys are set so a missed gate would try a provider; fetch records any LLM call.
     vi.stubEnv("GROQ_API_KEY", "test-groq");
     vi.stubEnv("GEMINI_API_KEY", "test-gemini");

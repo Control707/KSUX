@@ -28,7 +28,7 @@ export function DemoAlertTrigger() {
         try {
           const result = await simulate({});
           setAlertId(result.alertId);
-          const text = "Sample Alert added to this Demo session. The banner appears across KSUX. No push was sent.";
+          const text = "Sample Alert added to this Demo session. The banner appears across OwlSide. No push was sent.";
           setMessage(text);
           announce(text);
         } catch (problem) {

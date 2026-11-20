@@ -52,7 +52,7 @@ export function WelcomeGate({
               tabIndex={-1}
               className="font-display text-3xl font-bold leading-tight"
             >
-              KSUX
+              OwlSide
             </h1>
             <p className="text-sm text-[var(--muted)]">
               A Student-run campus app for Kennesaw and Marietta

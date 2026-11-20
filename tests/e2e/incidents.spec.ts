@@ -26,11 +26,11 @@ async function fill(page: Page, text: string) {
 test("Incident panel, divert, validation, publish, map/list, update, identifies-me quarantine and offline refusal", async ({ page, context }) => {
   test.setTimeout(180_000);
   await enterDemo(page);
-  const auth = await page.evaluate(() => ({ demoShortCode: sessionStorage.getItem("ksux_demo_short_code")!, demoPersonaHandle: sessionStorage.getItem("ksux_demo_persona")! }));
+  const auth = await page.evaluate(() => ({ demoShortCode: sessionStorage.getItem("owlside_demo_short_code")!, demoPersonaHandle: sessionStorage.getItem("owlside_demo_persona")! }));
   await page.goto("/safety");
   await start(page);
   await page.getByRole("button", { name: "Medical emergency", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "KSUX doesn’t post these publicly" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "OwlSide doesn’t post these publicly" })).toBeVisible();
   await expect(page.locator('a[href^="tel:"],a[href^="sms:"]')).toHaveCount(0);
   await page.getByRole("button", { name: "Choose something else" }).click();
   await fill(page, "all clear");
@@ -66,7 +66,7 @@ test("Incident panel, divert, validation, publish, map/list, update, identifies-
   await other.goto(`/safety/${incidentId}?demo=${auth.demoShortCode}&persona=alex_owl`);
   await expect(other.getByTestId("incident-card")).toBeVisible();
   await other.getByRole("button", { name: "This post identifies me", exact: true }).click();
-  await other.getByRole("dialog").getByRole("button", { name: "Send to KSUX moderators", exact: true }).click();
+  await other.getByRole("dialog").getByRole("button", { name: "Send to OwlSide moderators", exact: true }).click();
   await expect(other.getByTestId("incident-tombstone")).toHaveText("Under review");
   await page.goto(incidentUrl);
   await expect(page.getByTestId("incident-tombstone")).toHaveText("Under review");
@@ -89,7 +89,7 @@ test("Incident panel, divert, validation, publish, map/list, update, identifies-
 
 test("offline detail reconnect replaces deleted content and never persists Incident data", async ({ page, context }) => {
   await enterDemo(page);
-  const auth = await page.evaluate(() => ({ demoShortCode: sessionStorage.getItem("ksux_demo_short_code")!, demoPersonaHandle: sessionStorage.getItem("ksux_demo_persona")! }));
+  const auth = await page.evaluate(() => ({ demoShortCode: sessionStorage.getItem("owlside_demo_short_code")!, demoPersonaHandle: sessionStorage.getItem("owlside_demo_persona")! }));
   const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL ?? "http://127.0.0.1:3210");
   const { incidentId } = await client.mutation(api.incidents.create, { ...auth, category: "hazard", campus: "Marietta", buildingId: "bldg-osm-225446898",
     observedAt: Date.now(), text: "temporary entrance obstruction", nameLevel: "hidden" });
@@ -118,7 +118,7 @@ test("offline detail reconnect replaces deleted content and never persists Incid
 for (const state of ["removed", "redacted"] as const) {
   test(`reconnect paints only the fresh ${state} response and handles a failed refresh`, async ({ page, context }) => {
     await enterDemo(page);
-    const auth = await page.evaluate(() => ({ demoShortCode: sessionStorage.getItem("ksux_demo_short_code")!, demoPersonaHandle: "maya_cs" }));
+    const auth = await page.evaluate(() => ({ demoShortCode: sessionStorage.getItem("owlside_demo_short_code")!, demoPersonaHandle: "maya_cs" }));
     const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL ?? "http://127.0.0.1:3210");
     const { incidentId } = await client.mutation(api.incidents.create, { ...auth, category: "hazard", campus: "Marietta", buildingId: "bldg-osm-225446898",
       observedAt: Date.now(), text: "temporary entrance obstruction", nameLevel: "hidden" });
@@ -151,7 +151,7 @@ for (const state of ["removed", "redacted"] as const) {
     await expect(page.getByTestId("incident-card")).toHaveCount(0);
     fail = false;
     await page.getByRole("button", { name: "Retry connection / Refresh Incident", exact: true }).click();
-    if (state === "removed") await expect(page.getByTestId("incident-tombstone")).toHaveText("Removed by KSUX moderators");
+    if (state === "removed") await expect(page.getByTestId("incident-tombstone")).toHaveText("Removed by OwlSide moderators");
     else await expect(page.getByTestId("incident-card")).toContainText("Identifying details removed");
     expect(await page.evaluate(() => (window as unknown as { staleFlash: boolean }).staleFlash)).toBe(false);
   });

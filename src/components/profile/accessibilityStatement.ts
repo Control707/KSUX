@@ -1,7 +1,7 @@
 /**
  * Public accessibility statement shown on /profile/about (SPEC-v2 §15,
  * docs/accessibility/statement.md). Fill these in from the latest entry in
- * docs/accessibility/results-log.md. Never describe KSUX as "compliant",
+ * docs/accessibility/results-log.md. Never describe OwlSide as "compliant",
  * "certified" or "accessible to everyone".
  */
 export interface AccessibilityStatement {

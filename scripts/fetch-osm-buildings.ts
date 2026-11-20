@@ -99,7 +99,7 @@ async function overpass(query: string): Promise<any> {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
           Accept: "application/json",
-          "User-Agent": "KSUX-seed/1.0 (github.com/Control707/KSUX)",
+          "User-Agent": "OwlSide-seed/1.0 (github.com/Control707/KSUX)",
         },
         body: `data=${encodeURIComponent(query)}`,
         signal: AbortSignal.timeout(90_000),

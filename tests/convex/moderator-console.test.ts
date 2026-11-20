@@ -130,7 +130,7 @@ it("maintainers appoint/revoke only verified Students, and CSA guards cover read
   const owner = await createVerifiedTestStudent(t, { handle: "console_owner", displayName: "Owner" });
   const moderator = await createVerifiedTestStudent(t, { handle: "console_mod", displayName: "Moderator" });
   const faculty = await createVerifiedTestStudent(t, { handle: "faculty", displayName: "Faculty", email: "faculty@kennesaw.edu", emailDomainBadge: "faculty_staff" });
-  vi.stubEnv("KSUX_MAINTAINER_EMAILS", owner.canonicalEmail);
+  vi.stubEnv("OWLSIDE_MAINTAINER_EMAILS", owner.canonicalEmail);
   const appoint = { sessionToken: owner.sessionToken, handle: moderator.canonicalEmail.split("@")[0]!, csaStatement: "I am a campus security authority at KSU.", csaStatus: "csa" };
   await expect(t.mutation(api.moderatorConsole.appoint, { ...appoint, handle: faculty.canonicalEmail.split("@")[0] })).rejects.toThrow(/verified/);
   await expect(t.mutation(api.moderatorConsole.appoint, { ...appoint, csaStatement: "yes" })).rejects.toThrow(/plain-text/);
@@ -175,16 +175,16 @@ it("suspend is maintainer-only, blocks ordinary actions and preserves the author
   await expect(t.mutation(api.moderatorConsole.act, { ...auth, demoPersonaHandle: "maya_cs", targetType: item.targetType, targetId: item.targetId, action: "suspend", requestId: "suspend" })).rejects.toThrow(/involves you/);
   const owner = await createVerifiedTestStudent(t, { handle: "suspender", displayName: "Owner" });
   const student = await createVerifiedTestStudent(t, { handle: "suspended_author", displayName: "Author" });
-  vi.stubEnv("KSUX_MAINTAINER_EMAILS", owner.canonicalEmail);
+  vi.stubEnv("OWLSIDE_MAINTAINER_EMAILS", owner.canonicalEmail);
   await t.mutation(api.moderation.reviewModerationTarget, { sessionToken: owner.sessionToken, targetType: "student", targetId: student.studentId, decision: "suspend_student" });
   await expect(t.mutation(api.feed.createPost, { sessionToken: student.sessionToken, body: "not allowed" })).rejects.toThrow(/no longer active/);
   const notices = await t.query(api.moderatorConsole.myNotices, { sessionToken: student.sessionToken });
   expect(notices[0]?.canAppeal).toBe(true);
   const appealId = await t.mutation(api.moderatorConsole.submitAppeal, { sessionToken: student.sessionToken, decisionActionId: notices[0]!.actionId, text: "Please review my suspension." });
   expect(appealId).toBeTruthy();
-  vi.stubEnv("KSUX_SERVER_SECRET", TEST_SERVER_SECRET);
-  vi.stubEnv("KSUX_SKIP_OTP_SCHEDULER", "true");
-  vi.stubEnv("KSUX_ALLOW_DEV_OTP_LOG", "true");
+  vi.stubEnv("OWLSIDE_SERVER_SECRET", TEST_SERVER_SECRET);
+  vi.stubEnv("OWLSIDE_SKIP_OTP_SCHEDULER", "true");
+  vi.stubEnv("OWLSIDE_ALLOW_DEV_OTP_LOG", "true");
   const otp = await requestTestOtp(t, { email: student.canonicalEmail });
   const login = await verifyTestOtp(t, { email: student.canonicalEmail, code: otp.devCodePreview! });
   if (!login.ok) throw new Error("Expected restricted login");
@@ -192,7 +192,7 @@ it("suspend is maintainer-only, blocks ordinary actions and preserves the author
   expect((await t.query(api.shell.shellSummary, { sessionToken: login.sessionToken })).viewer.suspended).toBe(true);
   await expect(t.query(api.feed.listFeedRingsAndTrends, { sessionToken: login.sessionToken })).rejects.toThrow(/no longer active/);
   const secondOwner = await createVerifiedTestStudent(t, { handle: "second_owner", displayName: "Second Owner" });
-  vi.stubEnv("KSUX_MAINTAINER_EMAILS", `${owner.canonicalEmail},${secondOwner.canonicalEmail}`);
+  vi.stubEnv("OWLSIDE_MAINTAINER_EMAILS", `${owner.canonicalEmail},${secondOwner.canonicalEmail}`);
   await t.mutation(api.moderatorConsole.decideAppeal, { sessionToken: secondOwner.sessionToken, appealId, reverse: true });
   expect((await t.query(api.shell.shellSummary, { sessionToken: login.sessionToken })).viewer.suspended).toBe(false);
 });
@@ -243,7 +243,7 @@ it("a suspension Appeal retains the reporter conflict from the Post that prompte
   const owner = await createVerifiedTestStudent(t, { handle: "case_owner", displayName: "Owner" });
   const reporter = await createVerifiedTestStudent(t, { handle: "case_reporter", displayName: "Reporter" });
   const reviewer = await createVerifiedTestStudent(t, { handle: "case_reviewer", displayName: "Reviewer" });
-  vi.stubEnv("KSUX_MAINTAINER_EMAILS", [owner, reporter, reviewer].map((s) => s.canonicalEmail).join(","));
+  vi.stubEnv("OWLSIDE_MAINTAINER_EMAILS", [owner, reporter, reviewer].map((s) => s.canonicalEmail).join(","));
   const { postId } = await t.mutation(api.feed.createPost, { sessionToken: author.sessionToken, body: "a moderation example" });
   await t.mutation(api.moderation.submitReport, { sessionToken: reporter.sessionToken, targetType: "post", targetId: postId, reason: "harassment" });
   await t.mutation(api.moderatorConsole.act, { sessionToken: owner.sessionToken, targetType: "post", targetId: postId, action: "suspend", requestId: "case-suspension" });

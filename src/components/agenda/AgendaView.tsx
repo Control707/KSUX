@@ -38,7 +38,7 @@ export function AgendaView() {
       const url = URL.createObjectURL(new Blob([calendar], { type: "text/calendar;charset=utf-8" }));
       const link = document.createElement("a");
       link.href = url;
-      link.download = "ksux-events.ics";
+      link.download = "owlside-events.ics";
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (problem) { setError(errorMessage(problem, "Could not export Events.")); }

@@ -23,12 +23,12 @@ const definitions = source.slice(0, source.lastIndexOf(entry));
 const stages = [...source.matchAll(/^stage "/gm)].length;
 assert.equal(stages, 12);
 assert.match(source, /TOTAL_STAGES=12/);
-assert.doesNotMatch(source.slice(source.indexOf('# KSUX-specific helpers')), /\bset_secret\s/);
+assert.doesNotMatch(source.slice(source.indexOf('# OwlSide-specific helpers')), /\bset_secret\s/);
 
-const directory = mkdtempSync(join(tmpdir(), 'ksux-wizard-test-'));
+const directory = mkdtempSync(join(tmpdir(), 'owlside-wizard-test-'));
 // Verify the absolute cleanup target belongs to this test before deleting it.
 assert.equal(resolve(directory), directory);
-assert.ok(directory.startsWith(join(tmpdir(), 'ksux-wizard-test-')));
+assert.ok(directory.startsWith(join(tmpdir(), 'owlside-wizard-test-')));
 function check(name, body) {
   const result = spawnSync('/bin/bash', ['-c', `${definitions}\nENV_FILE="$TEST_DIRECTORY/${name}.env"\n${body}`], {
     env: { ...process.env, TEST_DIRECTORY: directory }, encoding: 'utf8',

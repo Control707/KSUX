@@ -21,7 +21,7 @@ export function useIncidentMutation<M extends FunctionReference<"mutation", "pub
     if (!navigator.onLine) throw new Error("Not posted — reconnect to submit");
     if (!authArgs) throw new Error("Sign in to contribute an Incident.");
     const result = await client().mutation(makeFunctionReference<"mutation">(functionName) as M, { ...args, ...authArgs } as FunctionArgs<M>);
-    window.dispatchEvent(new Event("ksux-incidents-changed"));
+    window.dispatchEvent(new Event("owlside-incidents-changed"));
     return result;
   }, [functionName, authArgs]);
 }
@@ -48,9 +48,9 @@ export function useIncidentRead<Q extends FunctionReference<"query", "public">>(
     void refresh();
     const tick = setInterval(() => { if (document.visibilityState === "visible") void refresh(); }, 60_000);
     const changed = () => { void refresh(); };
-    window.addEventListener("ksux-incidents-changed", changed);
+    window.addEventListener("owlside-incidents-changed", changed);
     window.addEventListener("focus", changed);
-    return () => { ++generation.current; clearInterval(tick); window.removeEventListener("ksux-incidents-changed", changed); window.removeEventListener("focus", changed); };
+    return () => { ++generation.current; clearInterval(tick); window.removeEventListener("owlside-incidents-changed", changed); window.removeEventListener("focus", changed); };
   }, [refresh]);
   return { data: state.key === key ? state.data : undefined, error: state.key === key ? state.error : undefined, refresh };
 }

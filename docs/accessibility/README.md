@@ -1,6 +1,6 @@
 # Accessibility
 
-KSUX v2 is built to **WCAG 2.2 Level AA** on every screen, sheet and dialog, with the hard rules in [SPEC-v2 §15](../SPEC-v2.md#15-accessibility-commitment): 44 px targets, rem-only text no smaller than 13 px, reduced motion honoured, and a synced list for every map. Policy and the verification gate come from [#54](https://github.com/Control707/KSUX/issues/54).
+OwlSide v2 is built to **WCAG 2.2 Level AA** on every screen, sheet and dialog, with the hard rules in [SPEC-v2 §15](../SPEC-v2.md#15-accessibility-commitment): 44 px targets, rem-only text no smaller than 13 px, reduced motion honoured, and a synced list for every map. Policy and the verification gate come from [#54](https://github.com/Control707/KSUX/issues/54).
 
 | File | Contents |
 |---|---|

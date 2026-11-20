@@ -23,7 +23,7 @@ Its deployed browser client connects to
 needs dashboard confirmation. After the requester signed into Vercel, their
 account received a 404 for `control707s-projects/ksux`. After signing into Convex,
 the requester could see only their personal team, which has no projects; its
-team switcher listed no team containing KSUX. Access to the existing deployment
+team switcher listed no team containing OwlSide. Access to the existing deployment
 and a production maintainer session are still needed. The existing project's
 owner must provide access, or use an account that already has it. Creating a new
 project would not enable polling on the public app's backend. No production
@@ -101,9 +101,9 @@ If rows are missing, run the runbook's `seed:bootstrapKsu` without Demo fixtures
 For the full public-launch window:
 
 ```sh
-npx convex env set KSUX_ALERT_PUSH false --prod
-npx convex env remove KSUX_ALERT_SHADOW_HOURS --prod
-npx convex env set KSUX_ALERT_COPY_MODE shadow --prod
+npx convex env set OWLSIDE_ALERT_PUSH false --prod
+npx convex env remove OWLSIDE_ALERT_SHADOW_HOURS --prod
+npx convex env set OWLSIDE_ALERT_COPY_MODE shadow --prod
 ```
 
 In **Moderation › Feed health › Official Alert copy**, restart each source if it
@@ -128,7 +128,7 @@ regression test, ship the correction and restart the affected shadow poll.
 | Pending | — | — | — | — | — |
 
 **Hackathon exception:** only if explicitly selected, set
-`KSUX_ALERT_SHADOW_HOURS=1` before starting a fresh run and record the owner,
+`OWLSIDE_ALERT_SHADOW_HOURS=1` before starting a fresh run and record the owner,
 reason, required window and start time here as a deviation from SPEC-v2 §13.
 Wait at least one clean hour, review the recorded checks and page changes, and
 sign off each source through the maintainer panel. Before public launch, disable
@@ -141,12 +141,12 @@ clear a stored shortened sign-off.
 - [ ] Both sources have completed the selected clean window; every recorded
   change has been checked and zero unrecognized results remain in that run.
 - [ ] Record each source's maintainer sign-off time and window above, then set
-  `KSUX_ALERT_COPY_MODE=display` in the confirmed production deployment.
+  `OWLSIDE_ALERT_COPY_MODE=display` in the confirmed production deployment.
 - [ ] Record `/safety` URL, check time and outcome for each source. A quiet page
   shows its exact quiet line and check time; an actual notice shows its source
   and timestamps instead. Verify links-only, unavailable/stale fallback and the
   “Not seeing an Alert doesn’t mean campus is safe” copy.
-- [ ] After the displayed copy has been checked, enable `KSUX_ALERT_PUSH=true`
+- [ ] After the displayed copy has been checked, enable `OWLSIDE_ALERT_PUSH=true`
   in production. Confirm the existing VAPID public key matches frontend/backend
   and that the backend private key is configured, without recording key values
   or rotating an existing pair.
@@ -178,8 +178,8 @@ Never commit credentials, push endpoints, OTPs or credential-bearing screenshots
 
 ## Stop, rollback and completion
 
-To stop polling and display, set `KSUX_ALERT_COPY_MODE=off` in the confirmed
-production deployment. To stop push separately, set `KSUX_ALERT_PUSH=false`.
+To stop polling and display, set `OWLSIDE_ALERT_COPY_MODE=off` in the confirmed
+production deployment. To stop push separately, set `OWLSIDE_ALERT_PUSH=false`.
 The maintainer's per-source **Switch copy off** also stops that source's fetching
 and preserves official links. Record the time, reason and observed fallback.
 After a parser correction, restart the affected shadow poll before sign-off.

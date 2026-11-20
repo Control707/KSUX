@@ -1,4 +1,4 @@
-# KSUX v2: Implementation Specification
+# OwlSide v2: Implementation Specification
 
 > Addendum to [`SPEC.md`](./SPEC.md), resolved across Wayfinder [Map #35](https://github.com/Control707/KSUX/issues/35) (decision tickets #36–#68), [`GLOSSARY.md`](../GLOSSARY.md), [ADR-0007](./adr/0007-official-alert-source-adapter-and-opt-in-alert-push.md) and ADR-0008…0011 ([PR #63](https://github.com/Control707/KSUX/pull/63)).
 >
@@ -8,7 +8,7 @@
 
 ## Problem Statement
 
-KSUX v1 works, but much of it can't be used by Students who rely on screen readers, larger text, keyboards or colour-blind-safe status. The baseline audit found:
+OwlSide v1 works, but much of it can't be used by Students who rely on screen readers, larger text, keyboards or colour-blind-safe status. The baseline audit found:
 - text fixed at 9–11 px that doesn't resize;
 - most targets under 44 px;
 - unnamed buttons and selects;
@@ -19,7 +19,7 @@ KSUX v1 works, but much of it can't be used by Students who rely on screen reade
 
 A single global Campus switcher also silently hides Posts, Listings and Clubs from the other Campus, even though Students study and trade across both.
 
-Students also have nowhere in KSUX to see what's happening on campus that affects getting around safely, or to see official KSU safety notices next to their daily logistics. Every existing tool that does this either acts like 911 or dispatch (which KSUX can't be), monetises fear, or names and hunts people.
+Students also have nowhere in OwlSide to see what's happening on campus that affects getting around safely, or to see official KSU safety notices next to their daily logistics. Every existing tool that does this either acts like 911 or dispatch (which OwlSide can't be), monetises fear, or names and hunts people.
 
 Finally, parking fullness depends entirely on Students choosing to report, because KSU publishes no live occupancy. There is little reason to report, and nothing stops spam.
 
@@ -29,7 +29,7 @@ v2 adds four things while staying $0, PWA-only and free of KSU IT approvals:
 
 1. **An accessible overhaul of every screen** in the Direction C ("Campus Brief") visual language, built to WCAG 2.2 AA. A CI accessibility job and a scripted manual assistive-technology pass gate releases. Campus becomes a location setting: it applies only on screens about a physical place.
 2. **Incidents**: Students can post an unverified, building-level community account of something they saw, behind a full-screen Emergency Panel that comes first every time. Volunteer Moderators review Incidents through a dedicated console with an action log and one Appeal per decision. Incidents never appear in the Feed, never become Alerts and never earn Clout.
-3. **Official Alerts**: at P0, links to KSU's own safety resources. At P1, a bounded, attributed copy of two public KSU Police pages, with honest stale and quiet states and opt-in, source-named push. KSUX never claims to be 911, dispatch, official or monitored around the clock.
+3. **Official Alerts**: at P0, links to KSU's own safety resources. At P1, a bounded, attributed copy of two public KSU Police pages, with honest stale and quiet states and opt-in, source-named push. OwlSide never claims to be 911, dispatch, official or monitored around the clock.
 4. **Clout**: small, capped points for *corroborated* logistics (Parking Reports, Line Checks, Study Room vibes, confirmed Spot Openings, completed handoffs), shown privately on Profile and on a weekly per-Campus Leaderboard. Clout is purely cosmetic and is never earned from or shown on safety content.
 
 ---
@@ -38,11 +38,11 @@ v2 adds four things while staying $0, PWA-only and free of KSU IT approvals:
 
 ### Shell, Campus and accessibility
 
-1. As a Student, I want every screen to use one consistent visual language with readable type, so that KSUX feels like one app instead of fifteen.
+1. As a Student, I want every screen to use one consistent visual language with readable type, so that OwlSide feels like one app instead of fifteen.
 2. As a low-vision Student, I want all text to grow with my browser text size up to 200% without clipping or sideways scrolling, so that I can read every screen.
 3. As a Student using a screen reader, I want every button, select and icon to have a name, so that I know what each control does.
 4. As a Student using a screen reader, I want each screen to have one heading that receives focus when I navigate, so that I know where I am.
-5. As a keyboard-only Student, I want a skip link and a visible focus ring on every control, so that I can move through KSUX without a mouse.
+5. As a keyboard-only Student, I want a skip link and a visible focus ring on every control, so that I can move through OwlSide without a mouse.
 6. As a Student with a motor impairment, I want every control to be at least 44 px, so that I can hit it reliably.
 7. As a Student who gets motion sick, I want reduced motion respected everywhere, including maps that jump instead of flying, so that the app doesn't make me ill.
 8. As a colour-blind Student, I want every status shown by shape, word, pattern and colour, so that I never have to tell colours apart.
@@ -57,14 +57,14 @@ v2 adds four things while staying $0, PWA-only and free of KSU IT approvals:
 17. As a Student on desktop, I want a left rail grouping every destination and a right Campus Pulse rail, so that I can move around quickly.
 18. As a Student, I want the centre "Ask Scrappy" pill to open a Quick Sheet with an Ask field, four create tiles and chips for every destination, so that everything is one tap away.
 19. As a Student selling something, I want photo-first Listings with up to 4 photos, a cover and a gallery, so that buyers can see what they're getting.
-20. As a Student, I want the About page to say when KSUX was last tested for accessibility and list its known issues, so that I can trust the claim.
+20. As a Student, I want the About page to say when OwlSide was last tested for accessibility and list its known issues, so that I can trust the claim.
 
 ### Maps, Parking and Transit
 
 21. As a Student, I want every map paired with an always-on list that holds the same items in the same order, so that I can do every map task without the map.
 22. As a screen-reader Student, I want a "Skip map" link and announcements when I select a lot, stop or Incident, so that the map canvas doesn't trap me.
 23. As a Student, I want 44 px zoom and recenter buttons and no rotation or tilt, so that the map is easy to control.
-24. As a Student, I want OpenStreetMap attribution always visible, so that KSUX respects the map data licence.
+24. As a Student, I want OpenStreetMap attribution always visible, so that OwlSide respects the map data licence.
 25. As a Student, I want a full-bleed parking map with a bottom sheet holding a one-tap "Just parked at <lot>?" strip, so that I can report fullness the moment I park.
 26. As a Student leaving a lot, I want "I'm leaving" to also ask how full it is, so that my exit helps the next driver.
 27. As a Student, I want a lot with no recent report to say "No recent reports" with a dashed edge and no made-up percentage, so that I'm not misled by an estimate.
@@ -83,8 +83,8 @@ v2 adds four things while staying $0, PWA-only and free of KSU IT approvals:
 37. As a deaf or hard-of-hearing Student, I want the text line shown with KSU's own qualifier and no gatekeeping, so that I can use it when a voice call isn't possible.
 38. As a Student, I want the Emergency Panel to work without sign-in, GPS or network, and never auto-dial, so that it's there when everything else fails.
 39. As a Student, I want `/safety` to show Official Alerts at the top, then community Incidents, each clearly labelled by source, so that I can tell official notices from community reports.
-40. As a Student opening Safety for the first time, I want a short card explaining what KSUX is and isn't (not 911, not 24/7, not official, community reports unverified), so that I understand its limits.
-41. As a Student, I want an About KSUX Safety page with the full list of what KSUX never claims and its independence statement, so that I can check exactly what it does.
+40. As a Student opening Safety for the first time, I want a short card explaining what OwlSide is and isn't (not 911, not 24/7, not official, community reports unverified), so that I understand its limits.
+41. As a Student, I want an About OwlSide Safety page with the full list of what OwlSide never claims and its independence statement, so that I can check exactly what it does.
 42. As a Student offline, I want Safety to say "Offline: can't load community Incidents" and "Offline: can't check official sources" while still showing the Emergency Panel and contacts, so that silence is never mistaken for safety.
 
 ### Reporting an Incident
@@ -93,7 +93,7 @@ v2 adds four things while staying $0, PWA-only and free of KSU IT approvals:
 44. As a Student, I want medical, sexual-misconduct and "suspicious person" choices to divert me to the right official help and never post publicly, so that sensitive cases go to people who can act.
 45. As a Student, I want to pick a building or area by hand, with an optional one-time "near me" sort that is never saved, so that my location stays private.
 46. As a Student, I want to give when I saw it separately from when I post, so that the timeline is honest.
-47. As a Student, I want KSUX to block names, handles, room numbers, phone numbers, plates and claims like "all clear" or "verified" before I post, so that I don't accidentally harm someone or overstate what I know.
+47. As a Student, I want OwlSide to block names, handles, room numbers, phone numbers, plates and claims like "all clear" or "verified" before I post, so that I don't accidentally harm someone or overstate what I know.
 48. As a Student, I want to choose whether my handle shows or reads "Student · name hidden", knowing Moderators can still see it, so that I decide how visible I am.
 49. As a Student wanting full anonymity, I want to be pointed to LiveSafe, so that I use a channel built for it.
 50. As a Student, I want the confirmation to say plainly that posting did not contact police or KSU, so that I don't assume help is coming.
@@ -107,7 +107,7 @@ v2 adds four things while staying $0, PWA-only and free of KSU IT approvals:
 55. As a Student, I want every card to read "Community report · not verified" with posted and updated times, so that I never mistake it for verified news.
 56. As a Student, I want older Incidents (24 h–7 d) behind a disclosure labelled by age, not resolution, so that age is never presented as "resolved".
 57. As a Student, I want no likes, reposts, replies or Clout on Incidents, so that nothing rewards sensational reports.
-58. As a Student, I want "Report to KSUX moderators" and "This post identifies me" on every Incident, so that I can flag harm quickly.
+58. As a Student, I want "Report to OwlSide moderators" and "This post identifies me" on every Incident, so that I can flag harm quickly.
 59. As a Student who is identified in an Incident, I want one "identifies me" claim to hide it until a Moderator reviews it, so that harm stops at once.
 60. As a Student, I want a removed, redacted or deleted Incident to update in place when I reconnect, never flashing the old text, so that removed content stays removed.
 
@@ -121,11 +121,11 @@ v2 adds four things while staying $0, PWA-only and free of KSU IT approvals:
 66. As a Moderator, I want every action to show exactly what will happen, who is told and the log line it writes before I confirm, so that I never act by accident.
 67. As a Moderator, I want Remove to require a reason the author will see, so that removals are explained.
 68. As a Moderator, I want Redaction to require the exact words from the original and preview the result, so that I remove only what's needed.
-69. As a Moderator, I want notes only from fixed templates, including one that links an Official Alert, so that KSUX never authors free-text claims.
+69. As a Moderator, I want notes only from fixed templates, including one that links an Official Alert, so that OwlSide never authors free-text claims.
 70. As a Moderator restoring an Incident that had "false or misleading" reports, I want to choose whether to add "Several Students reported this as inaccurate", so that the note fits the case.
 71. As a Moderator, I want to approve, approve with blur, or reject a held photo, so that only safe images are shown.
 72. As a Moderator, I want items involving me (my own Incident, report or claim) left out of my queue with a note, so that I never judge my own case.
-73. As a Moderator who is a campus security authority, I want no access to Incident items, so that KSUX doesn't create Clery reporting duties.
+73. As a Moderator who is a campus security authority, I want no access to Incident items, so that OwlSide doesn't create Clery reporting duties.
 74. As a Moderator, I want to review Appeals on decisions I didn't make, so that every author gets a second opinion.
 75. As a Moderator, I want an action log of who did what to which item, with content snapshots kept 30 days and entries kept 1 year, so that decisions are auditable without hoarding content.
 76. As a maintainer, I want to be the only one who can suspend accounts and appoint or revoke Moderators, so that heavy powers stay with the project owners.
@@ -177,10 +177,10 @@ v2 adds four things while staying $0, PWA-only and free of KSU IT approvals:
 
 - **Audience**: real KSU Students. Judge Demo Mode still exercises every feature with no real-world side effects ([#36](https://github.com/Control707/KSUX/issues/36)).
 - **Constraints that stand**: $0 total cost with no card on file; PWA only (no native or Capacitor build); zero KSU IT approvals. The Alert source sits behind a swappable adapter for a future approved feed. Moderation is a $0 volunteer operation with no 24/7 claim. The 5-day target is replaced by phases ([§13](#13-build-phases-cut-lines-and-launch-switches)).
-- **Never claimed** ([#49](https://github.com/Control707/KSUX/issues/49)). KSUX never says or implies any of these:
+- **Never claimed** ([#49](https://github.com/Control707/KSUX/issues/49)). OwlSide never says or implies any of these:
   1. that it is 911, police or dispatch;
   2. that it is monitored 24/7;
-  3. that it is official KSU (nothing KSUX authors carries "KSU" or "Official"; official content shows only under its exact source name);
+  3. that it is official KSU (nothing OwlSide authors carries "KSU" or "Official"; official content shows only under its exact source name);
   4. that community content is verified;
   5. an all-clear inferred from silence, age or expiry;
   6. that something was received or acknowledged when it was only sent ("Sent to police", "Help is on the way" and "We're monitoring" are banned);
@@ -194,12 +194,12 @@ v2 adds four things while staying $0, PWA-only and free of KSU IT approvals:
 |---|---|
 | First-run Safety intro (first open of `/safety`) | One dismissible card: not 911, not 24/7, not official, community reports unverified, Clout isn't trust |
 | Emergency Panel | [§5](#5-safety-page-and-emergency-panel) |
-| Incident form, fixed fine print | "Posting does not contact police. KSUX moderators are volunteers and may not see this for hours." |
+| Incident form, fixed fine print | "Posting does not contact police. OwlSide moderators are volunteers and may not see this for hours." |
 | Every Incident card | "Community report · not verified · Posted [t] · Updated [t] · by @handle \| Student · name hidden" |
 | Every Alert card | "Source: [exact source] · issued [t] · updated [t] · retrieved [t]" |
-| Moderation Report menu | Renamed **"Report to KSUX moderators"**. Confirmation: "Sent to KSUX moderators" |
-| Police handoffs | Honest states only: "Opening your phone app… KSUX can't confirm the call or a police response." |
-| About KSUX Safety (linked from Profile and the panel) | The full never-claim list, plus "KSUX is an independent student project, not operated or endorsed by Kennesaw State University." The independence line appears **only** here (user's choice); KSU marks are never used in a way that implies endorsement |
+| Moderation Report menu | Renamed **"Report to OwlSide moderators"**. Confirmation: "Sent to OwlSide moderators" |
+| Police handoffs | Honest states only: "Opening your phone app… OwlSide can't confirm the call or a police response." |
+| About OwlSide Safety (linked from Profile and the panel) | The full never-claim list, plus "OwlSide is an independent student project, not operated or endorsed by Kennesaw State University." The independence line appears **only** here (user's choice); KSU marks are never used in a way that implies endorsement |
 | Judge Demo Mode | Every Incident and Alert is a fixture labelled "Demo · not real". Handoffs never dial, text or open real numbers ("Demo Mode: nothing dialled") |
 
 ### 2. Design system (Direction C)
@@ -305,13 +305,13 @@ From [#46](https://github.com/Control707/KSUX/issues/46) ([verdict](https://gith
   - then **Report something you saw**;
   - then the Campus-scoped **Incidents** map and list ([§7](#7-incidents-reading-lifecycle-and-offline)).
 
-  No badges, unread counts or push for Incidents. Entry points: Quick Sheet chips, the desktop rail, and Profile → About KSUX Safety.
+  No badges, unread counts or push for Incidents. Entry points: Quick Sheet chips, the desktop rail, and Profile → About OwlSide Safety.
 - **Emergency Panel** is shown before **every** Incident report and **every** Campus Safety Moderation Report, not just the first time:
-  - heading "Is anyone in danger right now?" with "KSUX can't send help and doesn't contact police";
+  - heading "Is anyone in danger right now?" with "OwlSide can't send help and doesn't contact police";
   - **Call 911** (fire, medical, crime in progress);
   - **Call KSU Police** (470-578-6666 · answered 24/7);
   - **Text KSU Police** (770-356-3866) with KSU's qualifier (deaf, hard of hearing, speech disability, or when a voice call is dangerous or impossible), and no gatekeeping;
-  - a small LiveSafe pointer marked "outside KSUX";
+  - a small LiveSafe pointer marked "outside OwlSide";
   - last, **"Not an emergency · post to the community"**.
 
   It needs no sign-in, GPS or network; it never auto-dials or plays audio; and it is precached for offline use. Calls use `tel:`/`sms:` with honest-state copy; Demo Mode intercepts them.
@@ -326,14 +326,14 @@ From [#48](https://github.com/Control707/KSUX/issues/48) ([verdict](https://gith
 | # | Step | Rules |
 |---|---|---|
 | 0 | Emergency Panel | §5 |
-| 1 | What happened? | 8 categories with shape + word + hint + colour: Fire, smoke or alarm ▲ · Hazard ◆ · Crash or road blocked ■ · Theft or break-in ● · Vandalism or damage ✚ · Power, water or building outage ⬢ · Area closed ▬ · Something else ○. **Diverts, never posted:** medical → Call 911 / KSU Police; sexual misconduct, dating violence or stalking → "KSUX doesn't post these publicly" + Title IX office, KSU CPS, LiveSafe, KSU Police; "a person seems suspicious" → why KSUX doesn't post about people + Call KSU Police. Each divert has "Choose something else" |
+| 1 | What happened? | 8 categories with shape + word + hint + colour: Fire, smoke or alarm ▲ · Hazard ◆ · Crash or road blocked ■ · Theft or break-in ● · Vandalism or damage ✚ · Power, water or building outage ⬢ · Area closed ▬ · Something else ○. **Diverts, never posted:** medical → Call 911 / KSU Police; sexual misconduct, dating violence or stalking → "OwlSide doesn't post these publicly" + Title IX office, KSU CPS, LiveSafe, KSU Police; "a person seems suspicious" → why OwlSide doesn't post about people + Call KSU Police. Each divert has "Choose something else" |
 | 2 | Where? | Campus control, then a searchable building/area list (from campus buildings) or a map picker that snaps to a building/area. Optional "Suggest places near me" uses location once to sort, then "It wasn't saved or posted." Optional "Where exactly?" ≤60 chars, rejecting room/unit numbers. Housing only at complex level. Nothing inferred from Campus setting, home Campus or GPS |
 | 3 | When did you see it? | Just now / ~15 min / ~1 hour / Earlier today (+ "About what time?"). Stored as the claimed observed time, separate from the posted time |
 | 4 | What did you see? | ≤280 chars with a counter. Hard blocks on identifying details (@handles, names, room numbers, phone numbers, plates) and on banned claims ("all clear", "resolved", "verified", "confirmed", "police on scene", "it's safe now") |
 | 5 | Photo? (**P1**) | Optional; held for review; location data stripped; "Blur the whole photo". At P0 the step is omitted and the flow has 6 steps ("Step n of 6") |
-| 6 | Your name | **Show my handle** or **Student · name hidden**. Fixed note: Moderators can see who posted; KSUX may have to share account details if the law requires; not anonymous to police; LiveSafe for anonymous tips |
+| 6 | Your name | **Show my handle** or **Student · name hidden**. Fixed note: Moderators can see who posted; OwlSide may have to share account details if the law requires; not anonymous to police; LiveSafe for anonymous tips |
 | 7 | Preview | The exact card + the fixed fine print. Primary: **Post to the community** |
-| ✓ | Posted | "Posted to the KSUX community … This did not contact police or KSU". Actions: See it on Incidents · Still need help? Call or text · Delete this post |
+| ✓ | Posted | "Posted to the OwlSide community … This did not contact police or KSU". Actions: See it on Incidents · Still need help? Call or text · Delete this post |
 
 - **Posting limits:** any verified Student, 3 Incidents/hour, 6/day, 5 Author Updates per Incident. Text publishes **immediately** once write-time checks pass.
 - **Author edits:** the author may edit the original for **5 minutes** after posting. After that the original is locked, and **Redaction is the only change ever made to it** (resolved during spec review; folded into ADR-0009 and the glossary). Corrections after lock are dated Author Updates.
@@ -353,7 +353,7 @@ From [#48](https://github.com/Control707/KSUX/issues/48) ([verdict](https://gith
   - the provenance line;
   - "Demo · not real" in Demo.
 
-  Actions: **Details**, **Report to KSUX moderators**. The details sheet adds **This post identifies me** for everyone, and **Add an update** (same checks) and **Delete my post** for the author.
+  Actions: **Details**, **Report to OwlSide moderators**. The details sheet adds **This post identifies me** for everyone, and **Add an update** (same checks) and **Delete my post** for the author.
 - **Block:** a Student who blocked the author sees "Student · name hidden", but the Incident still shows; safety information never disappears on Block.
 - **Retention:**
 
@@ -366,11 +366,11 @@ From [#48](https://github.com/Control707/KSUX/issues/48) ([verdict](https://gith
 
 - **Offline** ([#60](https://github.com/Control707/KSUX/issues/60)):
   - Incident data is network-only. `/safety` and every descendant bypass service-worker HTML caching and are never stored; the cached root shell renders the offline Safety state without old data.
-  - Offline Safety shows the precached Emergency Panel, contacts and official links, plus "Offline: can't load community Incidents. Reconnect to see current reports. Saved schedules and campus maps may still be available elsewhere in KSUX." and, separately, "Offline: can't check official sources."
-  - **Report an Incident** offline opens the panel, then "You're offline. Posting to the KSUX community needs a connection. Nothing has been sent or saved." with Retry connection / Close.
+  - Offline Safety shows the precached Emergency Panel, contacts and official links, plus "Offline: can't load community Incidents. Reconnect to see current reports. Saved schedules and campus maps may still be available elsewhere in OwlSide." and, separately, "Offline: can't check official sources."
+  - **Report an Incident** offline opens the panel, then "You're offline. Posting to the OwlSide community needs a connection. Nothing has been sent or saved." with Retry connection / Close.
   - If connectivity drops mid-flow, the in-memory step stays only in that tab. Submit is disabled with "Not posted — reconnect to submit". Closing discards after a confirm. Reconnect never auto-submits.
   - On reconnect, both Alerts and Incidents are re-queried: "Back online · checking for updates…" then "Updated just now" (polite, no focus steal). A failed refresh keeps the offline state with Retry and never reuses the old result.
-  - Server truth replaces the screen without flashing old content: Removed → "Removed by KSUX moderators" + reason; Redacted → spans become "[removed by moderators]" + note; Deleted → tombstone; Under review → hidden; aged out → moved to Older or the tombstone.
+  - Server truth replaces the screen without flashing old content: Removed → "Removed by OwlSide moderators" + reason; Redacted → spans become "[removed by moderators]" + note; Deleted → tombstone; Under review → hidden; aged out → moved to Older or the tombstone.
   - The commuter cache never holds Incident ids, text, locations, photos, Updates, states or drafts.
 
 ### 8. Moderation: policy and the Moderator console
@@ -385,7 +385,7 @@ From [#48](https://github.com/Control707/KSUX/issues/48) ([verdict](https://gith
 | Anything else, including Campus Safety | 3 |
 
   - "Identifies me" claims: max 3 per account per day. After 3 rejected claims in 30 days the account loses the one-tap hide, and its later claims count toward the 2-reporter threshold.
-  - Campus Safety also opens the Emergency Panel ("This reports the post to KSUX volunteer moderators. It does not contact police.").
+  - Campus Safety also opens the Emergency Panel ("This reports the post to OwlSide volunteer moderators. It does not contact police.").
   - Moderation Report reasons on an Incident: It identifies a person · It's false or misleading · Harassment or hate · Campus Safety: someone is in danger · Something else.
 - **Disputes:** restoring after "false or misleading" reports lets the **Moderator choose** whether to add the "Several Students reported this as inaccurate" note ([#68](https://github.com/Control707/KSUX/issues/68), amending #51). There is no "Disputed" badge, ranking penalty or verdict word.
 - **Moderator notes** come only from fixed templates (code constants, no free text): Identifying details removed · Several Students reported this as inaccurate · An official notice exists [link to a listed Official Alert] · Possible duplicate [link to another visible Incident] · Photo not approved. Notes are dated and carry no Moderator handle; maintainers may remove one on a takedown notice.
@@ -461,7 +461,7 @@ From [#53](https://github.com/Control707/KSUX/issues/53) and ADR-0007.
 From [#65](https://github.com/Control707/KSUX/issues/65) ([verdict](https://github.com/Control707/KSUX/blob/prototype/v2-notification-prefs/prototype/VERDICT-v2-notification-prefs.md)).
 
 - **Page and entry points:** one page at `/profile/notifications` (not a location screen; Back header, bar hidden). Reached from the Profile row "Notifications" with a one-line summary, the `/safety` Alert card (`#alerts`) and the Chats header bell (`#messages`, replacing the v1 "Enable Web Push" button). A deep link moves focus to that section's heading.
-- **Intro:** "Push is extra. KSUX always shows new things inside the app; push only reaches you when KSUX is closed."
+- **Intro:** "Push is extra. OwlSide always shows new things inside the app; push only reaches you when OwlSide is closed."
 - **Sections:**
   1. **This phone:** one status (symbol + word + colour):
 
@@ -469,18 +469,18 @@ From [#65](https://github.com/Control707/KSUX/issues/65) ([verdict](https://gith
 |---|---|---|
 | Not asked yet | "Push is off on this phone" | Turn on push for this phone |
 | Allowed + subscribed | "Push is on for this phone. Only what you switch on below is pushed." | Turn off push on this phone |
-| Blocked | "Notifications are blocked for KSUX", with steps for Chrome/Edge, the iPhone Home Screen app and Android | I changed it · check again |
+| Blocked | "Notifications are blocked for OwlSide", with steps for Chrome/Edge, the iPhone Home Screen app and Android | I changed it · check again |
 | Unsupported browser | "This browser can't get push"; in-app toasts still work; which browsers do support push | — |
 | iPhone in a Safari tab | "On iPhone, push only works from the Home Screen", with 4 numbered Share › Add to Home Screen steps | I opened it from the Home Screen |
 | iPhone below iOS 16.4 | "Push needs iOS 16.4 or later", plus where to update | — |
 | Judge Demo Mode | "Demo Mode: no push"; never asks; switches disabled; toasts still shown | — |
 
   2. **Messages:** a switch each for Direct Messages, Message Requests, Deal Chats and @scrappy replies, each describing its handle-only payload, plus a fixed note on the 60 s / muted / blocked / already-open rules (ADR-0005).
-  3. **Official Alerts:** one switch, off by default. It describes the source-named payload and the 3/day cap, plus a fixed callout: "KSUX push is not an emergency channel… KSU Alert (Rave)… call 911". Turning it on opens a confirm `alertdialog` covering 5-minute polling, the seen-twice lag, possible non-delivery, the cap and Rave. **P0:** "Not available yet" plus a Rave sign-up pointer. **Stale or kill switch:** "paused / switched off by KSUX"; the setting is kept.
+  3. **Official Alerts:** one switch, off by default. It describes the source-named payload and the 3/day cap, plus a fixed callout: "OwlSide push is not an emergency channel… KSU Alert (Rave)… call 911". Turning it on opens a confirm `alertdialog` covering 5-minute polling, the seen-twice lag, possible non-delivery, the cap and Rave. **P0:** "Not available yet" plus a Rave sign-up pointer. **Stale or kill switch:** "paused / switched off by OwlSide"; the setting is kept.
   4. **Never pushed:** Group Chats, Spot Openings, Incidents and Clout, each with a one-line reason.
   5. **Your devices:** "n of 3 used", "This one", and Remove for the others. Enabling while 3 are used asks the Student to remove one first.
 - **Switches:** `role="switch"` buttons of at least 44 px, with a visible On/Off word and the description linked by `aria-describedby`. When push can't work they are `aria-disabled` with the reason. Every change is announced politely.
-- **Enabling:** turning on any type while push is off opens a KSUX explanation dialog ("Your browser will ask next… if you choose Block, KSUX can't ask again") with Not now / Continue, then the browser prompt. Allow turns the type on with "Push is on for this phone"; Block shows the blocked state with focus on it. Turning push off for the phone keeps the saved choices. There is **no test push**.
+- **Enabling:** turning on any type while push is off opens a OwlSide explanation dialog ("Your browser will ask next… if you choose Block, OwlSide can't ask again") with Not now / Continue, then the browser prompt. Allow turns the type on with "Push is on for this phone"; Block shows the blocked state with focus on it. Turning push off for the phone keeps the saved choices. There is **no test push**.
 - **Push kinds:** the allowed kinds gain `official_alert` (ADR-0007 supersedes only ADR-0005's push-scope clause). **Clout, Incidents, Group Chats and Spot Openings never push.**
 
 ### 11. Scrappy
@@ -673,7 +673,7 @@ From [#54](https://github.com/Control707/KSUX/issues/54).
 ## Out of Scope
 
 - Building anything during this map; implementation starts from the tickets.
-- KSUX acting as dispatch, a responder or an emergency channel, or receiving emergencies for police.
+- OwlSide acting as dispatch, a responder or an emergency channel, or receiving emergencies for police.
 - Native iOS/Android or Capacitor apps.
 - Fully anonymous Incidents (LiveSafe serves that).
 - Moderator-issued or volume-promoted Alerts; any "community alert".
@@ -697,7 +697,7 @@ From [#54](https://github.com/Control707/KSUX/issues/54).
   - video media would need direct client upload plus in-browser re-encode;
   - incident media have no free automated moderation, so human review comes first;
   - the 2024 Title IX rule status and KSU's view on whether Moderators are CSAs are unverified, and the CSA guard stands until KSU answers.
-- **Legal posture** ([#40](https://github.com/Control707/KSUX/issues/40)): Clery, FERPA and open-records duties bind KSU, not an independent KSUX, but could attach if KSU names, adopts or contracts KSUX, or if a maintainer is personally a CSA. A Post or Incident is never a police, CSA or Title IX report. §230 covers Student content but not KSUX-authored labels or Scrappy output, which is why notes are templates and Scrappy has no safety tools.
+- **Legal posture** ([#40](https://github.com/Control707/KSUX/issues/40)): Clery, FERPA and open-records duties bind KSU, not an independent OwlSide, but could attach if KSU names, adopts or contracts OwlSide, or if a maintainer is personally a CSA. A Post or Incident is never a police, CSA or Title IX report. §230 covers Student content but not OwlSide-authored labels or Scrappy output, which is why notes are templates and Scrappy has no safety tools.
 - **Prototypes** (throwaway branches, never merged): [shell](https://github.com/Control707/KSUX/blob/prototype/v2-shell/prototype/v2-shell-c.html), [parking](https://github.com/Control707/KSUX/blob/prototype/v2-parking/prototype/v2-parking.html), [incident flow](https://github.com/Control707/KSUX/blob/prototype/v2-incident-flow/prototype/v2-incident-flow.html), [notification prefs](https://github.com/Control707/KSUX/blob/prototype/v2-notification-prefs/prototype/v2-notification-prefs.html), [transit](https://github.com/Control707/KSUX/blob/prototype/v2-transit/prototype/v2-transit.html), [moderator console](https://github.com/Control707/KSUX/blob/prototype/v2-moderation/prototype/v2-moderation.html).
 
 ## Amendments to SPEC.md
@@ -706,7 +706,7 @@ From [#54](https://github.com/Control707/KSUX/issues/54).
 |---|---|
 | §1 | 5-day target → phases (§13 here). Audience is real Students; Judge Demo Mode is still required |
 | §3 | Global 3-way switcher → location-only Campus (§3 here); new routes; Quick Sheet and rail as in §3; Feed stream "Campus" → "All KSU" |
-| §4.5 | `Report` → "Report to KSUX moderators"; Campus Safety opens the Emergency Panel; v1 3-reporter quarantine kept for Posts and Listings, with the Incident thresholds added; maintainer-only queue → appointed Moderators + console (§8) |
+| §4.5 | `Report` → "Report to OwlSide moderators"; Campus Safety opens the Emergency Panel; v1 3-reporter quarantine kept for Posts and Listings, with the Incident thresholds added; maintainer-only queue → appointed Moderators + console (§8) |
 | §5.1 Tier C, §5.2 | Remove "168-hr Banner 9 priors" and the 70/30 blend / "Estimated · Typical <Day Hour> class load" (§4 here). Passio `serviceAlerts` → Shuttle Notices |
 | §5.4 | Push gains the opt-in `official_alert` kind (ADR-0007); notification settings move to `/profile/notifications`; `/safety/**` bypasses the service worker |
 | §6.4 | Scrappy: the safety gate before quota, no safety or Clout tools (ADR-0011) |

@@ -25,8 +25,8 @@ const QUIET = { tw: fixture("timely-warnings-quiet.html"), adv: fixture("emergen
 const ISSUED = { tw: fixture("timely-warnings-issued.html"), adv: fixture("emergency-advisory-quiet.html") };
 
 function env(mode: string, push: boolean) {
-  process.env.KSUX_ALERT_COPY_MODE = mode;
-  process.env.KSUX_ALERT_PUSH = push ? "true" : "false";
+  process.env.OWLSIDE_ALERT_COPY_MODE = mode;
+  process.env.OWLSIDE_ALERT_PUSH = push ? "true" : "false";
 }
 
 async function setup() {
@@ -62,8 +62,8 @@ const scheduledPushes = (t: ReturnType<typeof createTestConvex>) => t.run(async 
 beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(START); });
 afterEach(() => {
   vi.useRealTimers();
-  delete process.env.KSUX_ALERT_COPY_MODE;
-  delete process.env.KSUX_ALERT_PUSH;
+  delete process.env.OWLSIDE_ALERT_COPY_MODE;
+  delete process.env.OWLSIDE_ALERT_PUSH;
 });
 
 describe("source adapter results", () => {
@@ -329,8 +329,8 @@ describe("Judge Demo sample Alert", () => {
 describe("maintainer controls", () => {
   it("signs off after a shortened hackathon window and then displays and pushes", async () => {
     env("shadow", false);
-    process.env.KSUX_ALERT_SHADOW_HOURS = "1";
-    process.env.KSUX_MAINTAINER_EMAILS = "keeper@students.kennesaw.edu";
+    process.env.OWLSIDE_ALERT_SHADOW_HOURS = "1";
+    process.env.OWLSIDE_MAINTAINER_EMAILS = "keeper@students.kennesaw.edu";
     try {
       const { t, poll, setPages } = await setup();
       await poll(START);
@@ -359,8 +359,8 @@ describe("maintainer controls", () => {
       const after = await t.query(api.officialAlerts.getAlertOps, { sessionToken: keeper.sessionToken });
       expect(after?.sources[0]).toMatchObject({ gatePassed: false, signedOffWindowMs: null });
     } finally {
-      delete process.env.KSUX_ALERT_SHADOW_HOURS;
-      delete process.env.KSUX_MAINTAINER_EMAILS;
+      delete process.env.OWLSIDE_ALERT_SHADOW_HOURS;
+      delete process.env.OWLSIDE_MAINTAINER_EMAILS;
     }
   });
 
@@ -368,7 +368,7 @@ describe("maintainer controls", () => {
     env("shadow", false);
     const { t, poll, sources } = await setup();
     await poll(START);
-    process.env.KSUX_MAINTAINER_EMAILS = "keeper@students.kennesaw.edu";
+    process.env.OWLSIDE_MAINTAINER_EMAILS = "keeper@students.kennesaw.edu";
     try {
       const keeper = await createVerifiedTestStudent(t, { handle: "keeper", displayName: "Keeper" });
       const other = await createVerifiedTestStudent(t, { handle: "other", displayName: "Other" });
@@ -384,7 +384,7 @@ describe("maintainer controls", () => {
       expect(ops?.sources.find((s) => s.sourceKey === "ksu_emergency_advisories")?.gatePassed).toBe(true);
       expect(await t.query(api.officialAlerts.getAlertOps, { sessionToken: other.sessionToken })).toBeNull();
     } finally {
-      delete process.env.KSUX_MAINTAINER_EMAILS;
+      delete process.env.OWLSIDE_MAINTAINER_EMAILS;
     }
   });
 });

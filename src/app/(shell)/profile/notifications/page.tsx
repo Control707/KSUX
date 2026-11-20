@@ -12,7 +12,7 @@ export default function NotificationPreferencesPage() {
   return (
     <div className="space-y-[var(--sp-4)] p-[var(--sp-4)]">
       <h1 className="font-display text-[length:var(--fs-2xl)] font-bold">Notifications</h1>
-      <p>Push is extra. KSUX always shows new things inside the app; push only reaches you when KSUX is closed.</p>
+      <p>Push is extra. OwlSide always shows new things inside the app; push only reaches you when OwlSide is closed.</p>
       <AlertPushSettings />
       <section id="messages" aria-labelledby="notif-messages" className={card}>
         <h2 id="notif-messages" className="font-display text-[length:var(--fs-xl)] font-bold">Messages</h2>
@@ -25,7 +25,7 @@ export default function NotificationPreferencesPage() {
         <ul className="list-disc space-y-[var(--sp-1)] pl-[var(--sp-5)]">
           <li>Group Chats: too many people at once.</li>
           <li>Spot Openings: they change too fast to be useful by push.</li>
-          <li>Incidents: community reports aren’t verified, so KSUX doesn’t push them.</li>
+          <li>Incidents: community reports aren’t verified, so OwlSide doesn’t push them.</li>
           <li>Clout: it’s a score, not news.</li>
         </ul>
       </section>

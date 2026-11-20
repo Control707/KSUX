@@ -32,19 +32,19 @@ export default function OfficialAlertPage() {
         <p role="status">Loading the Alert…</p>
       ) : !data.found ? (
         <p data-testid="alert-detail-missing">
-          KSUX can’t show this Alert now. It may be older than 30 days, or KSUX has switched its copy off. Read current
+          OwlSide can’t show this Alert now. It may be older than 30 days, or OwlSide has switched its copy off. Read current
           notices on KSU’s own pages.
         </p>
       ) : (
         <>
           {stale && (
             <p className="font-bold" data-testid="alert-stale">
-              KSUX’s copy is out of date: last checked OK {data.source.lastSuccessAt ? formatTime(data.source.lastSuccessAt) : "never"}. Check KSU’s page for the current notice.
+              OwlSide’s copy is out of date: last checked OK {data.source.lastSuccessAt ? formatTime(data.source.lastSuccessAt) : "never"}. Check KSU’s page for the current notice.
             </p>
           )}
           <AlertItemCard item={data.alert} source={data.source} linkToDetails={false} />
           <p className="text-[length:var(--fs-sm)]">
-            KSUX quotes up to 280 characters word for word, with no summary. KSU’s page is the record.
+            OwlSide quotes up to 280 characters word for word, with no summary. KSU’s page is the record.
           </p>
         </>
       )}

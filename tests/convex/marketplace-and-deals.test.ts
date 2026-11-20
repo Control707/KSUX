@@ -7,8 +7,8 @@ import {
 
 describe("Seam 1 — Peer-to-Peer Marketplace Listings, Isolated Deal Chats & Meetup Handoffs (#24)", () => {
   beforeEach(() => {
-    process.env.KSUX_SKIP_PUSH_SCHEDULER = "true";
-    process.env.KSUX_SKIP_STORAGE_SCHEDULER = "true";
+    process.env.OWLSIDE_SKIP_PUSH_SCHEDULER = "true";
+    process.env.OWLSIDE_SKIP_STORAGE_SCHEDULER = "true";
   });
 
   it("isolates Deal Chats per (Listing, primaryBuyer), rejects blocked co-party invites, flags Zelle/Venmo scam keywords, enforces seller-only Pending/Sold, and caps buyer-confirmed trust increments at 1/7d per pair", async () => {

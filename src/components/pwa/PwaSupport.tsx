@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Download, RefreshCw, Share, X } from "lucide-react";
 import { useViewerClient } from "@/lib/viewerClient";
 
-const INSTALL_DISMISSED_KEY = "ksux_install_banner_dismissed";
+const INSTALL_DISMISSED_KEY = "owlside_install_banner_dismissed";
 
 export function ServiceWorkerManager() {
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(
@@ -165,7 +165,7 @@ export function InstallHomeScreenCard() {
       <div className="flex flex-wrap items-center justify-between gap-[var(--sp-2)]">
         <div className="min-w-0">
           <h2 id="install-pwa-title" className="font-display text-lg font-bold">
-            <span aria-hidden="true">📲 </span>Install KSUX on your Home Screen
+            <span aria-hidden="true">📲 </span>Install OwlSide on your Home Screen
           </h2>
           <p className="text-sm text-[var(--muted)] [overflow-wrap:anywhere]">
             Open the campus map and your saved class schedule even when you are offline.
@@ -184,7 +184,7 @@ export function InstallHomeScreenCard() {
             ) : (
               <Download aria-hidden="true" className="h-4 w-4" />
             )}
-            <span>Install KSUX to Home Screen</span>
+            <span>Install OwlSide to Home Screen</span>
           </button>
           <button
             type="button"

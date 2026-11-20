@@ -16,8 +16,8 @@ export function IncidentPhoto({ incidentId, review = false, blurred = false }: {
     let objectUrl: string | undefined;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (authArgs.demoShortCode) {
-      headers["x-ksux-demo-session"] = authArgs.demoShortCode;
-      headers["x-ksux-demo-persona"] = authArgs.demoPersonaHandle!;
+      headers["x-owlside-demo-session"] = authArgs.demoShortCode;
+      headers["x-owlside-demo-persona"] = authArgs.demoPersonaHandle!;
     }
     void fetch("/api/incident-photo", { method: "POST", headers, credentials: "same-origin", cache: "no-store",
       body: JSON.stringify({ incidentId, review }), signal: controller.signal })

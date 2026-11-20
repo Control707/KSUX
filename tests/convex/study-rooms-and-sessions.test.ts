@@ -7,7 +7,7 @@ import {
 
 describe("Seam 1 — Study Rooms (48-bit LibCal SWR + Walk-in Vibes) & Study Sessions (#22)", () => {
   beforeEach(() => {
-    process.env.KSUX_SKIP_LIBCAL_SCHEDULER = "true";
+    process.env.OWLSIDE_SKIP_LIBCAL_SCHEDULER = "true";
   });
 
   it("enforces single-flight 60s SWR lease locking, 45m walk-in vibe decay, atomic maxSeats, and Course Hub Members Only gating", async () => {

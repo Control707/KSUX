@@ -1,4 +1,4 @@
-const SW_VERSION = "ksux-v4";
+const SW_VERSION = "owlside-v4";
 const SHELL_CACHE = `${SW_VERSION}-shell`;
 const STATIC_CACHE = `${SW_VERSION}-static`;
 const GEOJSON_CACHE = `${SW_VERSION}-geojson`;
@@ -38,7 +38,8 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((k) => /^ksux-v\d+-(shell|static|geojson)$/.test(k) && !keep.has(k))
+            // Remove pre-rebrand caches as well as stale OwlSide app shells.
+            .filter((k) => /^(?:owlside|ksu-?x)-v\d+-(shell|static|geojson)$/.test(k) && !keep.has(k))
             .map((staleKey) => caches.delete(staleKey))
         )
       )
@@ -100,7 +101,7 @@ async function networkFirstHtmlWith3sTimeout(request) {
     if (cachedExact) return cachedExact;
     const cachedRoot = await cache.match("/");
     if (cachedRoot) return cachedRoot;
-    return new Response("Offline — open KSUX home screen to view saved schedule.", {
+    return new Response("Offline — open OwlSide home screen to view saved schedule.", {
       status: 503,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
@@ -202,10 +203,10 @@ self.addEventListener("push", (event) => {
   try {
     const payload = event.data.json();
     event.waitUntil(
-      self.registration.showNotification(payload.title || "KSUX Campus", {
+      self.registration.showNotification(payload.title || "OwlSide Campus", {
         body: payload.body || "New campus update",
         icon: "/icons/icon-192.svg",
-        tag: payload.tag || "ksux-push",
+        tag: payload.tag || "owlside-push",
         data: { href: payload.href || "/chats" },
       })
     );

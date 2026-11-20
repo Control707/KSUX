@@ -30,8 +30,8 @@ function report(t: T, sessionToken: string, parkingLotId: Id<"parkingLots">, ful
 }
 
 beforeEach(() => {
-  process.env.KSUX_SKIP_PUSH_SCHEDULER = "true";
-  process.env.KSUX_SKIP_STORAGE_SCHEDULER = "true";
+  process.env.OWLSIDE_SKIP_PUSH_SCHEDULER = "true";
+  process.env.OWLSIDE_SKIP_STORAGE_SCHEDULER = "true";
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -213,7 +213,7 @@ describe("Handoff Clout, holds and reversals", () => {
   it("holds on review, releases on restore, and reverses on removal while the buyer keeps theirs", async () => {
     const { t, students: [seller, buyer, buyer2, r1, r2, r3, maintainer] } =
       await setup(["hold_seller", "hold_buyer", "hold_buyer2", "hold_r1", "hold_r2", "hold_r3", "hold_maint"]);
-    vi.stubEnv("KSUX_MAINTAINER_EMAILS", maintainer!.canonicalEmail);
+    vi.stubEnv("OWLSIDE_MAINTAINER_EMAILS", maintainer!.canonicalEmail);
     const now = Date.now();
     const deal = await completeDeal(t, seller!, buyer!, true, now);
     const reportListing = async () => {
@@ -259,7 +259,7 @@ describe("Handoff Clout, holds and reversals", () => {
 
   it("suspension reverses all of the account's Clout and the partner keeps their payout", async () => {
     const { t, students: [a, b, maintainer], lotId } = await setup(["susp_a", "susp_b", "susp_maint"]);
-    vi.stubEnv("KSUX_MAINTAINER_EMAILS", maintainer!.canonicalEmail);
+    vi.stubEnv("OWLSIDE_MAINTAINER_EMAILS", maintainer!.canonicalEmail);
     const now = Date.now();
     await report(t, a!.sessionToken, lotId, 1, now);
     await report(t, b!.sessionToken, lotId, 1, now + minute);

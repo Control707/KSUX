@@ -50,7 +50,7 @@ test("next class connects both Campuses to Your stop, the shared map and offline
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
   await expect.poll(() => page.evaluate(() => {
-    const key = "ksux_commuter_cache:demo:" + sessionStorage.getItem("ksux_demo_short_code") + ":" + sessionStorage.getItem("ksux_demo_persona");
+    const key = "owlside_commuter_cache:demo:" + sessionStorage.getItem("owlside_demo_short_code") + ":" + sessionStorage.getItem("owlside_demo_persona");
     return JSON.parse(sessionStorage.getItem(key) ?? "null")?.snapshot?.wayfinding?.yourStopId;
   })).toBe("361");
   await context.setOffline(true);

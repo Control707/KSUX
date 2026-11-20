@@ -62,14 +62,14 @@ export async function POST(request: Request) {
     contextEntity,
   };
   const siteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL;
-  const credential = process.env.KSUX_SERVER_SECRET;
+  const credential = process.env.OWLSIDE_SERVER_SECRET;
   if (siteUrl && credential) {
     try {
       const upstream = await fetch(new URL("/scrappy/stream", siteUrl), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-ksux-server-credential": credential,
+          "x-owlside-server-credential": credential,
         },
         body: JSON.stringify(args),
         cache: "no-store",

@@ -166,7 +166,7 @@ export async function resolveViewerFromDb(
     }
 
     const maintainers = parseMaintainerEmails(
-      process.env.KSUX_MAINTAINER_EMAILS
+      process.env.OWLSIDE_MAINTAINER_EMAILS
     );
     isMaintainer = Boolean(
       actorStudent.canonicalEmail &&

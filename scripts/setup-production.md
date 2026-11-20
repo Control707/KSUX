@@ -1,4 +1,4 @@
-# KSUX production setup wizard
+# OwlSide production setup wizard
 
 From the repository root, in your own interactive terminal:
 
@@ -35,7 +35,7 @@ print secrets, or pass credentials as CLI arguments.
 
 Your development `.env.local` is not changed. No GitHub secrets are created;
 this project has no GitHub Actions workflows requiring them. The upstream
-wizard library remains unchanged; KSUX-specific helpers are below its STAGES
+wizard library remains unchanged; OwlSide-specific helpers are below its STAGES
 marker.
 
 ### Destination map
@@ -50,7 +50,7 @@ marker.
 | Optional Cloudflare account ID / API token (secret token) | No | Yes |
 | Optional `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Yes | Yes |
 | Optional `VAPID_PRIVATE_KEY` (secret), `VAPID_SUBJECT` | No | Yes |
-| `KSUX_ALLOW_DEV_OTP_LOG=false`, `KSUX_MAINTAINER_EMAILS` | No | Yes |
+| `OWLSIDE_ALLOW_DEV_OTP_LOG=false`, `OWLSIDE_MAINTAINER_EMAILS` | No | Yes |
 
 Values are also retained in the local private state file for reruns. Moderator
 emails must preserve the actual `@students.kennesaw.edu` or `@kennesaw.edu`
@@ -112,7 +112,7 @@ No end-to-end provisioning or deployment is performed by these tests.
 - [Google app passwords](https://support.google.com/accounts/answer/185833)
 - [Groq data controls and Zero Data Retention](https://console.groq.com/docs/your-data)
 - [Cloudflare Workers AI REST token/account setup](https://developers.cloudflare.com/workers-ai/get-started/rest-api/)
-- [KSUX operations runbook](../docs/RUNBOOK.md)
+- [OwlSide operations runbook](../docs/RUNBOOK.md)
 
 This is the repeatable team onboarding path, linked from the repository README.
 `setup-env.sh` is a small stable entry point for the maintained 12-stage

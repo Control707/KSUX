@@ -340,7 +340,7 @@ export const revoke = moderatorMutation({ args: { studentId: v.id("students") },
   if (!row || row.revokedAt !== undefined) moderationError("Active appointment not found.");
   const student = await ctx.db.get(row.studentId);
   // Revoking a roster appointment must not erase a maintainer's CSA guard.
-  const retainCsa = row.isCsa && Boolean(student?.canonicalEmail && parseMaintainerEmails(process.env.KSUX_MAINTAINER_EMAILS).has(student.canonicalEmail));
+  const retainCsa = row.isCsa && Boolean(student?.canonicalEmail && parseMaintainerEmails(process.env.OWLSIDE_MAINTAINER_EMAILS).has(student.canonicalEmail));
   await ctx.db.patch(row._id, { revokedAt: Date.now(), purgeAt: retainCsa ? undefined : Date.now() + 30 * DAY });
   await writeAction(ctx, { action: "moderator_revoke", targetType: "student", targetKey: String(args.studentId) });
 } });

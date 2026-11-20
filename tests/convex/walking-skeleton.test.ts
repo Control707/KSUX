@@ -7,7 +7,7 @@ import {
 } from "../helpers/convexTestEnv";
 
 describe("Seam 1 — Walking Skeleton viewerContext & Judge Demo Mode Isolation (#14)", () => {
-  beforeEach(() => { vi.stubEnv("KSUX_SERVER_SECRET", TEST_SERVER_SECRET); });
+  beforeEach(() => { vi.stubEnv("OWLSIDE_SERVER_SECRET", TEST_SERVER_SECRET); });
   afterEach(() => { vi.unstubAllEnvs(); });
 
   it("seeds published Banner sections and retires legacy synthetic campus observations", async () => {

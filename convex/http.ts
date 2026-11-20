@@ -11,7 +11,7 @@ http.route({
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     try {
-      await requireServerSecret(request.headers.get("x-ksux-server-credential") ?? "");
+      await requireServerSecret(request.headers.get("x-owlside-server-credential") ?? "");
     } catch {
       return Response.json({ error: "Forbidden." }, { status: 403 });
     }
