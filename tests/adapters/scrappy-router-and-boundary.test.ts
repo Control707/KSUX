@@ -145,7 +145,7 @@ describe("Seam 2 — Scrappy Static Chat/Mutation Boundary & 3-Tier LLM Router F
         groqApiKey: "gsk_test",
         geminiApiKey: "gem_test",
       },
-      fetchImpl: async (url, init) => {
+      fetchImpl: async (_url, init) => {
         longCalls.push(JSON.parse(String(init.body)).model);
         return {
           ok: true,

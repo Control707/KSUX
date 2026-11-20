@@ -1,6 +1,5 @@
 import { ConvexError, PropertyValidators, v, ObjectType } from "convex/values";
 import {
-  action,
   mutation,
   query,
   MutationCtx,
@@ -394,7 +393,6 @@ export function filterVisibleContent<
 // =========================================================================
 export const publicAuthQuery = query;
 export const publicAuthMutation = mutation;
-export const publicAuthAction = action;
 
 // =========================================================================
 // Authenticated Viewer Function Wrappers

@@ -73,7 +73,6 @@ export function sourceInfo(sourceKey: string): OfficialAlertSourceInfo | null {
   return Object.hasOwn(OFFICIAL_SOURCES, sourceKey) ? OFFICIAL_SOURCES[sourceKey as OfficialSourceKey] : null;
 }
 
-export const POLL_INTERVAL_MS = 5 * 60_000;
 export const STALE_AFTER_MS = 20 * 60_000;
 export const HEARTBEAT_MS = 10 * 60_000;
 export const NO_LONGER_LISTED_SHOWN_MS = 24 * 60 * 60_000;

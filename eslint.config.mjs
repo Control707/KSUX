@@ -16,6 +16,7 @@ export default tseslint.config(
       "public/sw.js",
       "next-env.d.ts",
       ".dsh/**",
+      ".worktrees/**",
     ],
   },
   js.configs.recommended,

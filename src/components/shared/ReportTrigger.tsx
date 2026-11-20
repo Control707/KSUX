@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useId, useState } from "react";
-import { Flag, ShieldAlert } from "lucide-react";
+import { Flag } from "lucide-react";
 import { Dialog } from "@/components/a11y/Dialog";
 import { useAnnouncer } from "@/components/a11y/Announcer";
 import { EmergencyPanel } from "@/components/safety/EmergencyPanel";
@@ -259,27 +259,6 @@ export function CampusSafetyEmergencyPanel({ mode }: { mode: "live" | "demo" }) 
     <div data-testid="ksu-police-callout" className="space-y-[var(--sp-2)]">
       <p className="text-sm font-bold">{CAMPUS_SAFETY_REPORT_NOTE}</p>
       <EmergencyPanel mode={mode} headingLevel={3} compact testId="report-emergency-panel" />
-    </div>
-  );
-}
-
-export function KsuPoliceEmergencyCallout() {
-  return (
-    <div
-      data-testid="ksu-police-callout"
-      className="rounded-[var(--r-sm)] border-2 border-[var(--bad-fg)] bg-[var(--bad-bg)] p-[var(--sp-3)] text-[var(--bad-fg)]"
-    >
-      <p className="flex items-start gap-[var(--sp-2)] text-sm font-bold">
-        <ShieldAlert aria-hidden="true" className="mt-[0.1rem] h-4 w-4 shrink-0" />
-        <span>Emergency? OwlSide reports do not reach police or EMS.</span>
-      </p>
-      <p className="mt-[var(--sp-1)] text-sm leading-snug [overflow-wrap:anywhere]">
-        Call <strong>911</strong>, or contact the KSU Department of Public Safety at{" "}
-        <a href="tel:4705786666" className="inline font-bold underline">
-          470-578-6666
-        </a>
-        .
-      </p>
     </div>
   );
 }
