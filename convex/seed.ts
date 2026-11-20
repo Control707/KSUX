@@ -436,7 +436,7 @@ export const backfillEmbeddings = internalAction({
       return {
         status: "skipped_missing_cloudflare_credentials",
         message:
-          "CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_API_TOKEN unset — KSUX uses Convex full-text search + structured tools cleanly.",
+          "CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_API_TOKEN unset — OwlSide uses Convex full-text search + structured tools cleanly.",
       };
     }
     return {

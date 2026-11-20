@@ -1,4 +1,4 @@
-# KSUX
+# OwlSide
 
 The unified campus social network and daily-life companion for Kennesaw State University across both the Kennesaw and Marietta campuses.
 
@@ -15,7 +15,7 @@ One of Kennesaw State University's two physical campuses — `Kennesaw` or `Mari
 _Avoid_: Site, branch, location
 
 **Judge Demo Mode**:
-A one-click isolated evaluation mode with switchable pre-seeded Student personas that lets hackathon evaluators use every interactive feature of KSUX without a `.edu` email inbox.
+A one-click isolated evaluation mode with switchable pre-seeded Student personas that lets hackathon evaluators use every interactive feature of OwlSide without a `.edu` email inbox.
 _Avoid_: Guest mode, anonymous mode, sandbox
 
 ### Social, Communities & Messaging
@@ -110,15 +110,15 @@ A dated addition beneath an Incident, either an author update or a moderator not
 _Avoid_: Edit, comment, reply, resolution
 
 **Alert**:
-A safety notice issued by a named official source (such as KSU Alert, University Police, or KSU emergency management) and shown by KSUX with its source and timestamps; only an official source can create, update, or clear one.
+A safety notice issued by a named official source (such as KSU Alert, University Police, or KSU emergency management) and shown by OwlSide with its source and timestamps; only an official source can create, update, or clear one.
 _Avoid_: Community alert, warning, notification
 
 **Moderation Report**:
-A Student's request that KSUX Moderators review a piece of content or a Student for a stated reason; it never contacts police.
+A Student's request that OwlSide Moderators review a piece of content or a Student for a stated reason; it never contacts police.
 _Avoid_: Flag, police report, report (unqualified)
 
 **Moderator**:
-A volunteer KSUX Student, appointed by maintainers, who reviews Moderation Reports, Incident photos and Appeals and writes moderator notes; not police, not KSU staff, and not on call.
+A volunteer OwlSide Student, appointed by maintainers, who reviews Moderation Reports, Incident photos and Appeals and writes moderator notes; not police, not KSU staff, and not on call.
 _Avoid_: Admin, dispatcher, officer
 
 **Redaction**:
@@ -150,6 +150,6 @@ _Avoid_: Ranking, hall of fame, scoreboard
 ### Campus AI
 
 **Scrappy**:
-KSUX's campus AI owl assistant able to answer Student questions across public KSUX modules via a dedicated chat view or `@scrappy` mentions in Feed Posts and replies, without access to Direct Messages, Group Chats, Deal Chats, Incidents, Alerts, or anyone's Clout; it answers safety questions with the Safety Card.
+OwlSide's campus AI owl assistant able to answer Student questions across public OwlSide modules via a dedicated chat view or `@scrappy` mentions in Feed Posts and replies, without access to Direct Messages, Group Chats, Deal Chats, Incidents, Alerts, or anyone's Clout; it answers safety questions with the Safety Card.
 _Avoid_: Bot, copilot, Grok clone
 

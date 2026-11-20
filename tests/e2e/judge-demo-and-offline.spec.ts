@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("Seam 3 — KSUX 2-Tab Live WebSocket & Offline Commuter PWA Smoke (#26)", () => {
+test.describe("Seam 3 — OwlSide 2-Tab Live WebSocket & Offline Commuter PWA Smoke (#26)", () => {
   test("exercises Welcome gate, 2-tab Judge Demo personas, Campus switcher, Parking Report, @scrappy + SSE Drafts, Deal Chat handoff, Moderation restore, Reset Demo, and Offline fallback", async ({
     browser,
     baseURL,
@@ -51,10 +51,10 @@ test.describe("Seam 3 — KSUX 2-Tab Live WebSocket & Offline Commuter PWA Smoke
 
     // Verify independent per-tab sessionStorage personas!
     const persona1 = await tab1.evaluate(() =>
-      window.sessionStorage.getItem("ksux_demo_persona")
+      window.sessionStorage.getItem("owlside_demo_persona")
     );
     const persona2 = await tab2.evaluate(() =>
-      window.sessionStorage.getItem("ksux_demo_persona")
+      window.sessionStorage.getItem("owlside_demo_persona")
     );
     expect(persona1).toBe("maya_cs");
     expect(persona2).toBe("alex_owl");
@@ -171,7 +171,7 @@ test.describe("Seam 3 — KSUX 2-Tab Live WebSocket & Offline Commuter PWA Smoke
     await tab1.getByTestId("judge-demo-pill").click();
     await tab1.getByTestId("persona-switch-maya_cs").click();
 
-    // 9. Warm Now HUD & Parking GeoJSON, verify zero chatMessages in ksux_commuter_cache, then go Offline!
+    // 9. Warm Now HUD & Parking GeoJSON, verify zero chatMessages in owlside_commuter_cache, then go Offline!
     await tab1.goto(`${baseURL}/`);
     await expect(tab1.getByTestId("bento-schedule-tile")).toContainText(
       "CS 3305"
@@ -180,9 +180,9 @@ test.describe("Seam 3 — KSUX 2-Tab Live WebSocket & Offline Commuter PWA Smoke
     await expect(tab1.getByTestId("campus-geo-map")).toBeVisible();
 
     const cacheBeforeOffline = await tab1.evaluate(() => {
-      const shortCode = window.sessionStorage.getItem("ksux_demo_short_code");
-      const persona = window.sessionStorage.getItem("ksux_demo_persona");
-      return window.sessionStorage.getItem(`ksux_commuter_cache:demo:${shortCode}:${persona}`);
+      const shortCode = window.sessionStorage.getItem("owlside_demo_short_code");
+      const persona = window.sessionStorage.getItem("owlside_demo_persona");
+      return window.sessionStorage.getItem(`owlside_commuter_cache:demo:${shortCode}:${persona}`);
     });
     expect(cacheBeforeOffline).toBeTruthy();
     expect(cacheBeforeOffline).not.toContain("chatMessages");
@@ -196,14 +196,14 @@ test.describe("Seam 3 — KSUX 2-Tab Live WebSocket & Offline Commuter PWA Smoke
     await expect(tab1.getByTestId("bento-schedule-tile")).toContainText("CS 3305");
     await expect(tab1.getByTestId("campus-geo-map")).not.toHaveAttribute("data-loaded-buildings", "0");
 
-    // Exit Judge Demo Mode wipes ksux_commuter_cache immediately
+    // Exit Judge Demo Mode wipes owlside_commuter_cache immediately
     await context.setOffline(false);
     await expect(tab1.getByTestId("judge-demo-pill")).toContainText("Maya");
     await tab1.getByTestId("judge-demo-pill").click();
     await tab1.getByTestId("verify-edu-from-demo-btn").click();
 
     const hasCachedDemoAfterExit = await tab1.evaluate(() =>
-      Object.keys(window.sessionStorage).some((key) => key.startsWith("ksux_commuter_cache:demo:"))
+      Object.keys(window.sessionStorage).some((key) => key.startsWith("owlside_commuter_cache:demo:"))
     );
     expect(hasCachedDemoAfterExit).toBe(false);
 

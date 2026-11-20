@@ -12,7 +12,7 @@ describe("Seam 2 — Gmail App-Password SMTP & Dev OTP Console Fallback (#15)", 
       },
       {
         nodeEnv: "production",
-        primaryUser: "ksux.mailer@gmail.com",
+        primaryUser: "owlside.mailer@gmail.com",
         primaryPass: "abcd efgh ijkl mnop",
       },
       {
@@ -62,7 +62,7 @@ describe("Seam 2 — Gmail App-Password SMTP & Dev OTP Console Fallback (#15)", 
     expect(usedUsers).toEqual(["primary@gmail.com", "fallback@gmail.com"]);
   });
 
-  it("permits dev console OTP logging ONLY outside production when KSUX_ALLOW_DEV_OTP_LOG=true", async () => {
+  it("permits dev console OTP logging ONLY outside production when OWLSIDE_ALLOW_DEV_OTP_LOG=true", async () => {
     const logger = vi.fn();
     const devRes = await dispatchOtpEmailWithFallback(
       {
@@ -84,7 +84,7 @@ describe("Seam 2 — Gmail App-Password SMTP & Dev OTP Console Fallback (#15)", 
       expect.stringContaining("774411")
     );
 
-    // Must hard-reject in production even if KSUX_ALLOW_DEV_OTP_LOG=true!
+    // Must hard-reject in production even if OWLSIDE_ALLOW_DEV_OTP_LOG=true!
     await expect(
       dispatchOtpEmailWithFallback(
         {

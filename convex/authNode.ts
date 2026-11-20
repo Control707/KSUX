@@ -19,7 +19,7 @@ export const sendOtpEmailAction = internalAction({
       },
       {
         nodeEnv: process.env.NODE_ENV,
-        allowDevOtpLog: process.env.KSUX_ALLOW_DEV_OTP_LOG ?? "true",
+        allowDevOtpLog: process.env.OWLSIDE_ALLOW_DEV_OTP_LOG ?? "true",
         primaryUser: process.env.GMAIL_SMTP_USER,
         primaryPass: process.env.GMAIL_SMTP_APP_PASSWORD,
         fallbackUser: process.env.GMAIL_SMTP_FALLBACK_USER,

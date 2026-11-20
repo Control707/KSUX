@@ -29,12 +29,12 @@ export function AlertSourceOps() {
     <section className={`${ui.card} space-y-[var(--sp-3)]`} aria-labelledby="alert-source-ops">
       <h2 id="alert-source-ops" className={ui.h2}>Official Alert copy</h2>
       <p>
-        Mode <strong>{ops.mode}</strong> (KSUX_ALERT_COPY_MODE). Push switch {ops.pushRequested ? "on" : "off"} (KSUX_ALERT_PUSH).
+        Mode <strong>{ops.mode}</strong> (OWLSIDE_ALERT_COPY_MODE). Push switch {ops.pushRequested ? "on" : "off"} (OWLSIDE_ALERT_PUSH).
         {" "}{ops.sentToday} of {ops.dailyCap} Alert pushes sent today.
       </p>
       <p data-testid="alert-shadow-window">
         Required shadow window: {span(ops.shadowWindowMs)}
-        {ops.shadowWindowMs < ops.fullShadowMs ? ` (shortened from ${span(ops.fullShadowMs)} by KSUX_ALERT_SHADOW_HOURS; record this deviation from SPEC-v2 §13).` : "."}
+        {ops.shadowWindowMs < ops.fullShadowMs ? ` (shortened from ${span(ops.fullShadowMs)} by OWLSIDE_ALERT_SHADOW_HOURS; record this deviation from SPEC-v2 §13).` : "."}
       </p>
       {ops.sources.length === 0 && <p>No source rows yet. Run the seed, then set the mode to shadow.</p>}
       {ops.sources.map((s) => (

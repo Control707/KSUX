@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "KSUX — Kennesaw State Campus Companion",
-    short_name: "KSUX",
+    name: "OwlSide — Kennesaw State Campus Companion",
+    short_name: "OwlSide",
     description:
       "Unified campus social network, Marketplace, Big Owl Bus, Parking, Study Rooms, Course Hubs, and Scrappy AI for Kennesaw & Marietta Campuses.",
     start_url: "/",

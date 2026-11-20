@@ -7,7 +7,7 @@ import {
 
 describe("Seam 1 — Campus Feed, Posts, Threads, #Topic Trends & Entity Embeds (#17)", () => {
   beforeEach(() => {
-    process.env.KSUX_SKIP_STORAGE_SCHEDULER = "true";
+    process.env.OWLSIDE_SKIP_STORAGE_SCHEDULER = "true";
   });
 
   it("scopes Campus stream by Kennesaw/Marietta/All KSU, enforces Course Hub (false) vs Club (true) cross-post defaults, and preserves Following across switches", async () => {

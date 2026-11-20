@@ -38,7 +38,7 @@ export function CampusEntityCard({
   campus,
   href,
 }: CampusEntityEmbedProps) {
-  const badgeLabel = ENTITY_LABELS[entityType] ?? "KSUX Campus";
+  const badgeLabel = ENTITY_LABELS[entityType] ?? "OwlSide Campus";
 
   return (
     <Link

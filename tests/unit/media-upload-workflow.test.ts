@@ -30,7 +30,7 @@ async function webPRequest(purpose = "post", blur = false) {
 describe("WebP upload workflow", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.stubEnv("KSUX_SERVER_SECRET", "test-server-credential");
+    vi.stubEnv("OWLSIDE_SERVER_SECRET", "test-server-credential");
     vi.stubEnv("UPLOADTHING_TOKEN", "");
     mocks.auth = { demoShortCode: "demo-session", demoPersonaHandle: "maya_cs" };
   });

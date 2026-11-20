@@ -79,13 +79,13 @@ export function Dialog({
     const panel = panelRef.current;
     if (!panel) return;
     const trigger = document.activeElement as HTMLElement | null;
-    const portalRoot = panel.closest("[data-ksux-portal]") as HTMLElement | null;
+    const portalRoot = panel.closest("[data-owlside-portal]") as HTMLElement | null;
     const changed: Element[] = [];
     for (const el of Array.from(document.body.children)) {
       if (el === portalRoot || el.contains(panel)) continue;
       if (el.tagName === "SCRIPT" || el.hasAttribute("inert")) continue;
       // Toasts and announcements must keep speaking while a dialog is open.
-      if (el.hasAttribute("data-ksux-live")) continue;
+      if (el.hasAttribute("data-owlside-live")) continue;
       el.setAttribute("inert", "");
       changed.push(el);
     }
@@ -137,9 +137,9 @@ export function Dialog({
   const isSheet = variant === "sheet";
 
   return createPortal(
-    <div data-ksux-portal="">
+    <div data-owlside-portal="">
       <div
-        className="ksux-backdrop fixed inset-0 z-50 bg-black/55"
+        className="owlside-backdrop fixed inset-0 z-50 bg-black/55"
         aria-hidden="true"
         onClick={() => onCloseRef.current()}
       />
@@ -159,8 +159,8 @@ export function Dialog({
           onKeyDown={onKeyDown}
           className={`pointer-events-auto max-h-[90dvh] w-full overflow-y-auto bg-[var(--surface)] text-[var(--ink)] shadow-2xl outline-none ${
             isSheet
-              ? "ksux-sheet max-w-xl rounded-t-[var(--r-lg)] p-[var(--sp-4)] pb-[calc(var(--sp-4)+env(safe-area-inset-bottom,0px))] sm:rounded-[var(--r-lg)]"
-              : "ksux-dialog max-w-lg rounded-[var(--r-lg)] p-[var(--sp-5)]"
+              ? "owlside-sheet max-w-xl rounded-t-[var(--r-lg)] p-[var(--sp-4)] pb-[calc(var(--sp-4)+env(safe-area-inset-bottom,0px))] sm:rounded-[var(--r-lg)]"
+              : "owlside-dialog max-w-lg rounded-[var(--r-lg)] p-[var(--sp-5)]"
           } ${className}`}
         >
           <div className="flex items-start justify-between gap-[var(--sp-3)]">

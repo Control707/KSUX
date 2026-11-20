@@ -2,15 +2,15 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
-import AboutKsuxSafetyPage from "../../src/app/safety/about/page";
+import AboutOwlSideSafetyPage from "../../src/app/safety/about/page";
 import EmergencyPage from "../../src/app/emergency/page";
 import { KSU_SOURCES } from "../../src/components/safety/safetyContent";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/emergency" }));
 
-it("About KSUX Safety lists the never-claims and the independence statement", () => {
-  const html = renderToStaticMarkup(createElement(AboutKsuxSafetyPage));
-  expect(html).toContain("KSUX is an independent student project, not operated or endorsed by Kennesaw State University.");
+it("About OwlSide Safety lists the never-claims and the independence statement", () => {
+  const html = renderToStaticMarkup(createElement(AboutOwlSideSafetyPage));
+  expect(html).toContain("OwlSide is an independent student project, not operated or endorsed by Kennesaw State University.");
   for (const phrase of ["isn’t 911", "isn’t monitored 24/7", "isn’t official KSU", "aren’t verified", "doesn’t contact police"]) {
     expect(html).toContain(phrase);
   }

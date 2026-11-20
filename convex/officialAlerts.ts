@@ -2,7 +2,7 @@
  * Official Alerts, P1 (ADR-0007, SPEC-v2 §9–§10, #80).
  *
  * - `runScheduledAlertPoll` reads the two agreed KSU pages every 5 minutes,
- *   only while `KSUX_ALERT_COPY_MODE` is `shadow` or `display`.
+ *   only while `OWLSIDE_ALERT_COPY_MODE` is `shadow` or `display`.
  * - In `shadow` the copy is recorded but never shown and never pushed; the
  *   source rows collect the 14-day evidence a maintainer signs off.
  * - Status reads (`alertSourceStatus`) compute stale at read time and fall back
@@ -504,7 +504,7 @@ export const setAlertKillSwitch = viewerMutation({
     const source = await ksuSource(ctx.db, sourceKey);
     if (!source || !sourceInfo(sourceKey)) throw new ConvexError({ code: "NOT_FOUND", message: "Unknown official source." });
     await ctx.db.patch(source._id, on
-      ? { killSwitch: "manual", killReason: (reason?.trim() || "Switched off by a KSUX maintainer").slice(0, 200) }
+      ? { killSwitch: "manual", killReason: (reason?.trim() || "Switched off by a OwlSide maintainer").slice(0, 200) }
       : { killSwitch: "off", killReason: undefined, backoffUntil: undefined });
     return { killSwitch: on ? "manual" : "off" };
   },

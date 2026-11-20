@@ -43,7 +43,7 @@ for (const theme of THEMES) for (const [size, viewport] of Object.entries(VIEWPO
   await expect(page.getByRole("heading", { name: /^Review ◆/ })).toBeFocused();
   await expect(page.getByTestId("moderation-queue-view")).toHaveAttribute("aria-busy", "false");
   await expect(page.getByTestId("mobile-bottom-nav")).toHaveCount(0);
-  await expect(page).toHaveTitle(/KSUX/);
+  await expect(page).toHaveTitle(/OwlSide/);
   await expectNoSeriousAxe(page, { label: `review ${theme} ${size}` });
   await expectTargetSizes(page, "body", "review"); await expectMinTextSize(page, "body", "review");
   const trigger = page.getByRole("button", { name: "Redact", exact: true }); await trigger.click();

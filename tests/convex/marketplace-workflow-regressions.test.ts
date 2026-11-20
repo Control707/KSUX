@@ -9,7 +9,7 @@ const DAY_MS = 86_400_000;
 
 describe("Marketplace workflow regressions", () => {
   beforeEach(() => {
-    vi.stubEnv("KSUX_SKIP_PUSH_SCHEDULER", "true");
+    vi.stubEnv("OWLSIDE_SKIP_PUSH_SCHEDULER", "true");
   });
 
   afterEach(() => {

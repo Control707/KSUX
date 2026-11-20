@@ -104,12 +104,12 @@ export function isStale(lastSuccessAt: number | undefined, now: number) {
  */
 export type AlertCopyMode = "off" | "shadow" | "display";
 
-export function alertCopyMode(env: string | undefined = process.env.KSUX_ALERT_COPY_MODE): AlertCopyMode {
+export function alertCopyMode(env: string | undefined = process.env.OWLSIDE_ALERT_COPY_MODE): AlertCopyMode {
   const value = env?.trim().toLowerCase();
   return value === "shadow" || value === "display" ? value : "off";
 }
 
-export function alertPushRequested(env: string | undefined = process.env.KSUX_ALERT_PUSH) {
+export function alertPushRequested(env: string | undefined = process.env.OWLSIDE_ALERT_PUSH) {
   return env?.trim().toLowerCase() === "true";
 }
 
@@ -125,11 +125,11 @@ export interface ShadowEvidence {
 export const MIN_SHADOW_MS = 60 * 60_000;
 
 /**
- * Required shadow window. SPEC-v2 §13 asks for 14 days; `KSUX_ALERT_SHADOW_HOURS`
+ * Required shadow window. SPEC-v2 §13 asks for 14 days; `OWLSIDE_ALERT_SHADOW_HOURS`
  * shortens it (never below 1 hour) for a time-boxed event such as a hackathon.
  * A shortened window is recorded on each signed-off source and shown to maintainers.
  */
-export function shadowWindowMs(env: string | undefined = process.env.KSUX_ALERT_SHADOW_HOURS) {
+export function shadowWindowMs(env: string | undefined = process.env.OWLSIDE_ALERT_SHADOW_HOURS) {
   const hours = Number(env?.trim());
   if (!env?.trim() || !Number.isFinite(hours) || hours <= 0) return SHADOW_MS;
   return Math.min(SHADOW_MS, Math.max(MIN_SHADOW_MS, Math.round(hours * 60 * 60_000)));
@@ -369,7 +369,7 @@ export async function fetchSource(sourceKey: OfficialSourceKey, now: number, fet
   let response: Awaited<ReturnType<PageFetch>>;
   try {
     response = await fetchImpl(href, {
-      headers: { Accept: "text/html", "User-Agent": "KSUX student project (read-only official notice check)" },
+      headers: { Accept: "text/html", "User-Agent": "OwlSide student project (read-only official notice check)" },
       redirect: "follow",
       signal: AbortSignal.timeout(10_000),
     });
@@ -389,9 +389,9 @@ export function officialAlertPushPayload(sourceKey: string, alertId: string, all
   const info = sourceInfo(sourceKey);
   if (!info) return null;
   return {
-    title: "KSUX · Official Alert",
+    title: "OwlSide · Official Alert",
     body: allClear ? info.pushAllClear : info.pushNew,
     href: `/safety/alerts/${alertId}`,
-    tag: `ksux-official-alert-${alertId}`,
+    tag: `owlside-official-alert-${alertId}`,
   };
 }

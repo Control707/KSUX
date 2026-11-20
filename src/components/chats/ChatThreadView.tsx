@@ -47,7 +47,7 @@ function useIncomingAnnouncements(messages: any[] | undefined) {
     const incoming = fresh.filter((m) => !m.isOwnMessage && !m.isDeleted && !m.collapsedBlocked);
     if (incoming.length === 0) return;
     const last = incoming[incoming.length - 1];
-    const who = last.sender ? `@${last.sender.handle}` : "KSUX";
+    const who = last.sender ? `@${last.sender.handle}` : "OwlSide";
     const text = last.body ? `: ${String(last.body).slice(0, 140)}` : last.mediaUrl ? " sent a photo" : "";
     announce(incoming.length > 1 ? `${incoming.length} new messages. Latest from ${who}${text}` : `New message from ${who}${text}`);
   }, [messages, announce]);
@@ -273,7 +273,7 @@ export function ChatThreadView({
                     </li>
                   );
                 }
-                const senderName = msg.sender ? `@${msg.sender.handle}` : "KSUX";
+                const senderName = msg.sender ? `@${msg.sender.handle}` : "OwlSide";
                 return (
                   <li
                     key={String(msg._id)}
@@ -294,7 +294,7 @@ export function ChatThreadView({
                             <span className="font-normal text-[var(--muted)]">@{msg.sender.handle}</span>
                           </>
                         ) : (
-                          "KSUX system message"
+                          "OwlSide system message"
                         )}
                         {msg.editedAt && <span className="font-normal text-[var(--muted)]"> · Edited</span>}
                       </p>

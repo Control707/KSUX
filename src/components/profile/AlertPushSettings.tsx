@@ -11,12 +11,12 @@ import { KSU_SOURCES } from "@/components/safety/safetyContent";
 import { pushDeviceState, type PushDeviceState } from "@/lib/pushDevice";
 
 const PHONE_COPY: Record<PushDeviceState, { symbol: string; word: string; text: string }> = {
-  demo: { symbol: "■", word: "Demo", text: "Demo Mode: no push. KSUX never asks for permission in Demo; in-app toasts still show." },
+  demo: { symbol: "■", word: "Demo", text: "Demo Mode: no push. OwlSide never asks for permission in Demo; in-app toasts still show." },
   unsupported: { symbol: "✕", word: "Unsupported", text: "This browser can’t get push. In-app toasts still work. Chrome, Edge and Firefox on a computer or Android, and the iPhone Home Screen app (iOS 16.4 or later), support push." },
   ios_tab: { symbol: "!", word: "Home Screen needed", text: "On iPhone, push only works from the Home Screen." },
   ios_old: { symbol: "✕", word: "Update needed", text: "Push needs iOS 16.4 or later. Update in Settings › General › Software Update." },
-  not_configured: { symbol: "✕", word: "Not set up", text: "Push isn’t set up on this KSUX server. In-app toasts still work." },
-  blocked: { symbol: "✕", word: "Blocked", text: "Notifications are blocked for KSUX." },
+  not_configured: { symbol: "✕", word: "Not set up", text: "Push isn’t set up on this OwlSide server. In-app toasts still work." },
+  blocked: { symbol: "✕", word: "Blocked", text: "Notifications are blocked for OwlSide." },
   not_asked: { symbol: "○", word: "Off", text: "Push is off on this phone." },
   on: { symbol: "✓", word: "On", text: "Push is on for this phone. Only what you switch on below is pushed." },
 };
@@ -31,7 +31,7 @@ async function currentSubscription() {
   return (await reg?.pushManager.getSubscription()) ?? null;
 }
 
-/** "This phone" status plus the endpoint KSUX knows it by. */
+/** "This phone" status plus the endpoint OwlSide knows it by. */
 function usePushDevice(demo: boolean) {
   const [state, setState] = useState<PushDeviceState | null>(null);
   const [endpoint, setEndpoint] = useState<string | undefined>();
@@ -90,7 +90,7 @@ export function AlertPushSettings() {
     if (permission !== "granted") {
       await check();
       statusRef.current?.focus();
-      announce("Notifications are blocked for KSUX.");
+      announce("Notifications are blocked for OwlSide.");
       return null;
     }
     const reg = await navigator.serviceWorker.ready;
@@ -144,17 +144,17 @@ export function AlertPushSettings() {
         )}
         {state === "ios_tab" && (
           <ol className="list-decimal space-y-[var(--sp-1)] pl-[var(--sp-5)]" data-testid="ios-home-screen-steps">
-            <li>Open KSUX in Safari.</li>
+            <li>Open OwlSide in Safari.</li>
             <li>Tap Share (the square with an arrow).</li>
             <li>Choose Add to Home Screen, then Add.</li>
-            <li>Open KSUX from the new Home Screen icon and come back here.</li>
+            <li>Open OwlSide from the new Home Screen icon and come back here.</li>
           </ol>
         )}
         {state === "blocked" && (
           <ul className="list-disc space-y-[var(--sp-1)] pl-[var(--sp-5)] text-sm">
             <li>Chrome or Edge: select the icon left of the address, then Notifications › Allow.</li>
-            <li>iPhone Home Screen app: Settings › Notifications › KSUX › Allow Notifications.</li>
-            <li>Android: Settings › Apps › your browser or KSUX › Notifications.</li>
+            <li>iPhone Home Screen app: Settings › Notifications › OwlSide › Allow Notifications.</li>
+            <li>Android: Settings › Apps › your browser or OwlSide › Notifications.</li>
           </ul>
         )}
         {(state === "blocked" || state === "ios_tab") && (
@@ -190,19 +190,19 @@ export function AlertPushSettings() {
           <span>Official Alert push</span><span aria-hidden="true">{optedIn ? "✓ On" : "○ Off"}</span>
         </button>
         <p id="alert-push-description">
-          Off by default. When KSU Police or KSU’s Emergency Advisory page posts a new notice or an all clear, KSUX can push a
+          Off by default. When KSU Police or KSU’s Emergency Advisory page posts a new notice or an all clear, OwlSide can push a
           message naming only the source, like “KSU Police posted a new Timely Warning”. No details, at most {pref?.available ? pref.dailyCap : 3} a day for everyone.
         </p>
         <p id="alert-push-reason" data-testid="alert-push-reason" className="font-bold">
-          {pref?.available && pref.phase === "paused" ? "Paused: KSUX’s copy of a KSU page is out of date. Your setting is kept."
-            : pref?.available && pref.phase === "switched_off" ? "Switched off by KSUX while its copy of a KSU page is checked. Your setting is kept."
+          {pref?.available && pref.phase === "paused" ? "Paused: OwlSide’s copy of a KSU page is out of date. Your setting is kept."
+            : pref?.available && pref.phase === "switched_off" ? "Switched off by OwlSide while its copy of a KSU page is checked. Your setting is kept."
               : disabledReason ?? ""}
         </p>
         {pref?.available && (pref.phase === "paused" || pref.phase === "switched_off") && (
           <Link href="/safety#official-alerts" className={ui.link}>See Official Alerts</Link>
         )}
         <div className="rounded-[var(--r-md)] border-2 border-[var(--line-strong)] p-[var(--sp-3)]" data-testid="alert-push-callout">
-          <p className="font-bold">KSUX push is not an emergency channel.</p>
+          <p className="font-bold">OwlSide push is not an emergency channel.</p>
           <p>
             It can be late or never arrive, and phones don’t treat it as a critical alert. KSU’s official emergency channel is
             KSU Alert (Rave), which sends texts, calls and email. In an emergency, call 911.
@@ -213,7 +213,7 @@ export function AlertPushSettings() {
       </section>
 
       <Dialog open={explainOpen} onClose={() => setExplainOpen(false)} role="alertdialog" title="Turn on push for this phone?"
-        description="Your browser will ask next. If you choose Block, KSUX can’t ask again; you’d have to change it in your browser settings.">
+        description="Your browser will ask next. If you choose Block, OwlSide can’t ask again; you’d have to change it in your browser settings.">
         <div className="flex flex-wrap justify-end gap-[var(--sp-2)]">
           <button type="button" className={ui.secondary} onClick={() => setExplainOpen(false)}>Not now</button>
           <button type="button" className={ui.primary} onClick={() => { setExplainOpen(false); void run(async () => { await turnOnPhone(); }); }}>Continue</button>
@@ -222,8 +222,8 @@ export function AlertPushSettings() {
 
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} role="alertdialog" title="Turn on Official Alert push?" testId="alert-push-confirm">
         <ul className="list-disc space-y-[var(--sp-1)] pl-[var(--sp-5)]">
-          <li>KSUX checks KSU’s pages every 5 minutes and pushes only after it sees a notice twice, so a push can be 10 minutes or more behind KSU.</li>
-          <li>A push may arrive late or never. KSUX can’t confirm delivery.</li>
+          <li>OwlSide checks KSU’s pages every 5 minutes and pushes only after it sees a notice twice, so a push can be 10 minutes or more behind KSU.</li>
+          <li>A push may arrive late or never. OwlSide can’t confirm delivery.</li>
           <li>At most 3 Official Alert pushes a day for everyone; later notices that day are only in the app.</li>
           <li>The message names the source, not what happened. Open it to read KSU’s words.</li>
           <li>For emergencies, KSU Alert (Rave) is the official channel, and 911 is always first.</li>

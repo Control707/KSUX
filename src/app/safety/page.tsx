@@ -56,7 +56,7 @@ export default function SafetyPage() {
       <ModerationReportNote />
       <KsuContactsSection mode={mode} />
       <Link href="/safety/about" className="inline-flex min-h-[var(--target)] items-center font-bold underline">
-        About KSUX Safety
+        About OwlSide Safety
       </Link>
     </>
   );

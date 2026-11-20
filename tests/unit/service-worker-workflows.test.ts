@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 
-const origin = "https://ksux.example";
+const origin = "https://owlside.example";
 const source = readFileSync(new URL("../../public/sw.js", import.meta.url), "utf8");
 
 type WorkerRequest = Pick<Request, "url" | "method" | "mode">;
@@ -158,12 +158,25 @@ describe("Offline commuter service worker workflows", () => {
   it("serves a cached hashed bundle when only its query string differs", async () => {
     const worker = workerHarness();
     worker.network.mockResolvedValueOnce(new Response("bundle"));
-    await worker.dispatchFetch("/_next/static/chunks/main-app.js?v=1").response;
+    await worker.dispatchFetch("/_next/static/chunks/main-app-abcdef.js?v=1").response;
     worker.network.mockRejectedValue(new Error("Offline"));
 
-    const offline = await worker.dispatchFetch("/_next/static/chunks/main-app.js?v=2").response;
+    const offline = await worker.dispatchFetch("/_next/static/chunks/main-app-abcdef.js?v=2").response;
     expect(await offline?.text()).toBe("bundle");
     expect(worker.network).toHaveBeenCalledOnce();
+  });
+
+  it.each(["chunks/main-app.js", "css/app/layout.css"])("revalidates unversioned %s and keeps its latest offline copy", async (asset) => {
+    const worker = workerHarness();
+    worker.network.mockResolvedValueOnce(new Response("previous build"));
+    expect(await (await worker.dispatchFetch(`/_next/static/${asset}?v=1`).response)?.text()).toBe("previous build");
+
+    worker.network.mockResolvedValueOnce(new Response("current build"));
+    expect(await (await worker.dispatchFetch(`/_next/static/${asset}?v=2`).response)?.text()).toBe("current build");
+
+    worker.network.mockRejectedValueOnce(new Error("Offline"));
+    expect(await (await worker.dispatchFetch(`/_next/static/${asset}?v=3`).response)?.text()).toBe("current build");
+    expect(worker.network).toHaveBeenCalledTimes(3);
   });
 
   it("leaves write requests, live APIs and external map tiles to the browser", () => {
@@ -197,7 +210,7 @@ describe("Offline commuter service worker workflows", () => {
       const page = await worker.dispatchFetch(path, { mode: "navigate" }).response;
       expect(await page?.text()).toBe(`Fresh ${origin}${path}`);
     }
-    const shell = await worker.cacheStorage.open("ksux-v4-shell");
+    const shell = await worker.cacheStorage.open("owlside-v4-shell");
     for (const path of paths) expect(await shell.match(path)).toBeUndefined();
   });
 
@@ -239,16 +252,21 @@ describe("Offline commuter service worker workflows", () => {
     expect(await (await worker.dispatchFetch(path).response)?.text()).toBe("Fresh lot geometry");
   });
 
-  it("removes stale KSUX caches during activation while preserving other origin caches", async () => {
+  it("removes stale OwlSide caches during activation while preserving other origin caches", async () => {
     const worker = workerHarness();
-    worker.openCache("ksux-v0-shell");
+    worker.openCache("owlside-v0-shell");
+    const legacyCaches = ["ksux-v4-shell", "ksux-v4-static", "ksux-v4-geojson", "ksu-x-v4-shell"];
+    for (const name of legacyCaches) worker.openCache(name);
     worker.openCache("other-campus-app");
     await Promise.all(worker.dispatch("install").lifetime);
     await Promise.all(worker.dispatch("activate").lifetime);
 
     expect(worker.claim).toHaveBeenCalledOnce();
     const keys = await worker.cacheStorage.keys();
-    expect(keys).not.toContain("ksux-v0-shell");
+    expect(keys).not.toContain("owlside-v0-shell");
+    for (const name of legacyCaches) expect(keys).not.toContain(name);
+    expect(keys).toContain("owlside-v4-shell");
+    expect(keys).toContain("owlside-v4-geojson");
     expect(keys).toContain("other-campus-app");
   });
 });

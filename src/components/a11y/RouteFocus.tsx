@@ -28,23 +28,27 @@ export function RouteHeadingFocus({ containerId = MAIN_CONTENT_ID }: { container
     previous.current = pathname;
     if (isFirst || !changed) return;
 
-    let attempts = 0;
-    let frame = 0;
     const tryFocus = () => {
       const container = document.getElementById(containerId);
       const heading = container?.querySelector<HTMLElement>("h1");
       if (heading) {
         if (!heading.hasAttribute("tabindex")) heading.setAttribute("tabindex", "-1");
         heading.setAttribute("data-route-heading", "");
-        heading.focus({ preventScroll: false });
-        return;
+        // Next.js owns route/hash scrolling and history restoration. Focusing
+        // again must not move the viewport after that navigation has settled.
+        heading.focus({ preventScroll: true });
+        return true;
       }
-      // Screens render their heading after data arrives; keep looking briefly.
-      if (attempts++ < 120) frame = requestAnimationFrame(tryFocus);
-      else container?.focus({ preventScroll: true });
+      return false;
     };
-    frame = requestAnimationFrame(tryFocus);
-    return () => cancelAnimationFrame(frame);
+    if (tryFocus()) return;
+    // Wait for data-driven headings without polling every frame or giving up
+    // before a slow connection finishes. Stop watching on the next navigation.
+    const observer = new MutationObserver(() => {
+      if (tryFocus()) observer.disconnect();
+    });
+    observer.observe(document.getElementById(containerId) ?? document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
   }, [pathname, containerId]);
 
   return null;

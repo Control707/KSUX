@@ -65,8 +65,8 @@ export function ScrappyView() {
       "Content-Type": "application/json",
     };
     if (auth.status === "demo") {
-      headers["x-ksux-demo-session"] = auth.demoShortCode;
-      headers["x-ksux-demo-persona"] = auth.demoPersonaHandle;
+      headers["x-owlside-demo-session"] = auth.demoShortCode;
+      headers["x-owlside-demo-persona"] = auth.demoPersonaHandle;
     }
 
     try {

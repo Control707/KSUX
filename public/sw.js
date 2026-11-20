@@ -1,4 +1,4 @@
-const SW_VERSION = "ksux-v4";
+const SW_VERSION = "owlside-v4";
 const SHELL_CACHE = `${SW_VERSION}-shell`;
 const STATIC_CACHE = `${SW_VERSION}-static`;
 const GEOJSON_CACHE = `${SW_VERSION}-geojson`;
@@ -38,7 +38,8 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((k) => /^ksux-v\d+-(shell|static|geojson)$/.test(k) && !keep.has(k))
+            // Remove pre-rebrand caches as well as stale OwlSide app shells.
+            .filter((k) => /^(?:owlside|ksu-?x)-v\d+-(shell|static|geojson)$/.test(k) && !keep.has(k))
             .map((staleKey) => caches.delete(staleKey))
         )
       )
@@ -100,7 +101,7 @@ async function networkFirstHtmlWith3sTimeout(request) {
     if (cachedExact) return cachedExact;
     const cachedRoot = await cache.match("/");
     if (cachedRoot) return cachedRoot;
-    return new Response("Offline — open KSUX home screen to view saved schedule.", {
+    return new Response("Offline — open OwlSide home screen to view saved schedule.", {
       status: 503,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
@@ -127,9 +128,8 @@ async function networkOnlySafetyNavigation(request) {
 
 async function cacheFirstHashedBundle(request) {
   const cache = await caches.open(STATIC_CACHE);
-  // File names under /_next/static are content-hashed, so the query string
-  // (dev-server ?v= cache-busting, deployment ?dpl= routing) never changes the
-  // bytes. Ignoring it lets the cached shell find bundles primed earlier.
+  // Only content-hashed filenames are immutable across builds. Deployment
+  // query strings do not change those bytes.
   const hit = await cache.match(request, { ignoreSearch: true });
   if (hit) return hit;
   const fresh = await fetch(request);
@@ -137,6 +137,23 @@ async function cacheFirstHashedBundle(request) {
     await cache.put(request, fresh.clone()).catch(() => {});
   }
   return fresh;
+}
+
+// Development scripts and styles keep the same filename across edits. Prefer
+// the current build while keeping the newest copy available for offline use.
+async function networkFirstUnhashedBundle(request) {
+  const cache = await caches.open(STATIC_CACHE);
+  const url = new URL(request.url);
+  const key = `${url.origin}${url.pathname}`;
+  try {
+    const fresh = await fetch(request);
+    if (fresh.ok) await cache.put(key, fresh.clone()).catch(() => {});
+    return fresh;
+  } catch (error) {
+    const cached = await cache.match(key) ?? await cache.match(request, { ignoreSearch: true });
+    if (cached) return cached;
+    throw error;
+  }
 }
 
 function staleWhileRevalidateAsset(event) {
@@ -180,9 +197,10 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-First on content-hashed Next.js static bundles
+  // Cache-First only for immutable filenames; revalidate unversioned assets.
   if (url.origin === self.location.origin && url.pathname.startsWith("/_next/static/")) {
-    event.respondWith(cacheFirstHashedBundle(event.request));
+    const hashed = /(?:^|[\/.-])[a-f0-9]{6,}\.(?:js|css)$/i.test(url.pathname);
+    event.respondWith(hashed ? cacheFirstHashedBundle(event.request) : networkFirstUnhashedBundle(event.request));
     return;
   }
 
@@ -202,10 +220,10 @@ self.addEventListener("push", (event) => {
   try {
     const payload = event.data.json();
     event.waitUntil(
-      self.registration.showNotification(payload.title || "KSUX Campus", {
+      self.registration.showNotification(payload.title || "OwlSide Campus", {
         body: payload.body || "New campus update",
         icon: "/icons/icon-192.svg",
-        tag: payload.tag || "ksux-push",
+        tag: payload.tag || "owlside-push",
         data: { href: payload.href || "/chats" },
       })
     );

@@ -69,7 +69,7 @@ function assertLocalDeployment() {
       (settings.CONVEX_DEPLOYMENT && !/^(anonymous|local):/.test(settings.CONVEX_DEPLOYMENT))) {
     throw new Error("Playwright fixture seeding requires a local Convex deployment. Run the suite with local deployment settings.");
   }
-  return settings.KSUX_SERVER_SECRET;
+  return settings.OWLSIDE_SERVER_SECRET;
 }
 
 function stopBackend(child: ChildProcess | undefined) {
@@ -96,7 +96,7 @@ async function main() {
     CONVEX_AGENT_MODE: "anonymous",
     NEXT_PUBLIC_CONVEX_URL: `http://127.0.0.1:${backendPort}`,
     NEXT_PUBLIC_CONVEX_SITE_URL: `http://127.0.0.1:${backendPort + 1}`,
-    KSUX_SERVER_SECRET: configuredSecret || randomBytes(32).toString("hex"),
+    OWLSIDE_SERVER_SECRET: configuredSecret || randomBytes(32).toString("hex"),
     PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH ??
       (fs.existsSync(browsersDir) ? browsersDir : undefined),
   };
@@ -115,11 +115,11 @@ async function main() {
     } else if (process.env.CI) {
       throw new Error("CI requires port 3210 to be free so Playwright can start its own Convex backend.");
     } else if (!configuredSecret) {
-      throw new Error("Set KSUX_SERVER_SECRET for the running local backend, or stop that backend so the test runner can configure its own.");
+      throw new Error("Set OWLSIDE_SERVER_SECRET for the running local backend, or stop that backend so the test runner can configure its own.");
     }
 
     if (backend) {
-      const secretStatus = await runCli(convexCli, ["env", "set", "KSUX_SERVER_SECRET", env.KSUX_SERVER_SECRET!], env);
+      const secretStatus = await runCli(convexCli, ["env", "set", "OWLSIDE_SERVER_SECRET", env.OWLSIDE_SERVER_SECRET!], env);
       if (secretStatus !== 0) return secretStatus;
     }
     console.log("[e2e] Seeding the local Judge Demo Mode fixtures");

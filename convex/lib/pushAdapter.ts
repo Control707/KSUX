@@ -85,10 +85,10 @@ export function buildPrivacySafePushIfEligible(
   return {
     send: true,
     payload: {
-      title: "KSUX Campus",
+      title: "OwlSide Campus",
       body: contextLabel,
       href: input.href,
-      tag: input.chatId ? `ksux-chat-${input.chatId}` : `ksux-${input.eventKind}`,
+      tag: input.chatId ? `owlside-chat-${input.chatId}` : `owlside-${input.eventKind}`,
     },
   };
 }

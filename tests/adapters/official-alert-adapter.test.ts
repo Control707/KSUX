@@ -110,8 +110,8 @@ describe("fetching", () => {
 it("names the source, never the content, in the push payload", () => {
   const payload = officialAlertPushPayload("ksu_timely_warnings", "abc", false)!;
   expect(payload).toEqual({
-    title: "KSUX · Official Alert", body: "KSU Police posted a new Timely Warning",
-    href: "/safety/alerts/abc", tag: "ksux-official-alert-abc",
+    title: "OwlSide · Official Alert", body: "KSU Police posted a new Timely Warning",
+    href: "/safety/alerts/abc", tag: "owlside-official-alert-abc",
   });
   expect(JSON.stringify(payload)).not.toMatch(/urgent|robbery/i);
 });

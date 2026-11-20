@@ -15,7 +15,7 @@ export default function SafetyLayout({ children }: { children: React.ReactNode }
       <header className="border-b border-[var(--line)] px-[var(--sp-4)] py-[var(--sp-2)]">
         <nav aria-label="Safety" className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-[var(--sp-4)]">
           <Link href="/" className="inline-flex min-h-[var(--target)] items-center font-bold underline">
-            Back to KSUX
+            Back to OwlSide
           </Link>
           <Link href="/safety" className="inline-flex min-h-[var(--target)] items-center font-bold underline">
             Safety

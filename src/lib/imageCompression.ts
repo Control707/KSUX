@@ -125,7 +125,7 @@ export async function compressImageToExifStrippedWebP(
     throw new Error("Compressed WebP still exceeds the 1 MB limit.");
   }
 
-  const baseName = inputFile.name.replace(/\.[^.]+$/, "") || "ksux-image";
+  const baseName = inputFile.name.replace(/\.[^.]+$/, "") || "owlside-image";
   const file = new File([blob], `${baseName}.webp`, { type: "image/webp" });
   const dataUrl = await blobToDataUrl(blob);
 

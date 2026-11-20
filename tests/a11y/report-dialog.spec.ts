@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { THEMES, enterDemo, expectMinTextSize, expectNoSeriousAxe, expectTargetSizes } from "./helpers";
 
-/** The shared "Report to KSUX moderators" dialog, opened from a Feed post in Demo. */
+/** The shared "Report to OwlSide moderators" dialog, opened from a Feed post in Demo. */
 
 /** Let the dialog fade-in finish so axe doesn't measure contrast mid-animation. */
 async function settleAnimations(page: import("@playwright/test").Page) {
@@ -10,11 +10,11 @@ async function settleAnimations(page: import("@playwright/test").Page) {
 
 async function openFeedReport(page: import("@playwright/test").Page) {
   await enterDemo(page, "/feed");
-  const trigger = page.getByRole("button", { name: "Report to KSUX moderators" }).first();
+  const trigger = page.getByRole("button", { name: "Report to OwlSide moderators" }).first();
   await expect(trigger).toBeVisible({ timeout: 20_000 });
   await trigger.focus();
   await page.keyboard.press("Enter");
-  const dialog = page.getByRole("dialog", { name: "Report to KSUX moderators" });
+  const dialog = page.getByRole("dialog", { name: "Report to OwlSide moderators" });
   await expect(dialog).toBeVisible();
   return { trigger, dialog };
 }
@@ -43,11 +43,11 @@ test("report dialog groups reasons, labels notes, closes on Escape and restores 
   await expect(trigger).toBeFocused();
 });
 
-test("sending a report toasts “Sent to KSUX moderators” in Demo", async ({ page }) => {
+test("sending a report toasts “Sent to OwlSide moderators” in Demo", async ({ page }) => {
   const { dialog } = await openFeedReport(page);
   await dialog.getByRole("radio", { name: /Harassment/ }).check();
   await dialog.getByRole("button", { name: "Send report" }).click();
-  await expect(page.getByTestId("toast-status-region")).toContainText("Sent to KSUX moderators");
+  await expect(page.getByTestId("toast-status-region")).toContainText("Sent to OwlSide moderators");
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
@@ -58,6 +58,6 @@ test("a Campus Safety report shows emergency contacts and keeps them in the conf
   await dialog.getByRole("button", { name: "Send report" }).click();
   // The Feed hides a reported post at once, so the toast carries the emergency reminder.
   const toast = page.getByTestId("toast-status-region");
-  await expect(toast).toContainText("Sent to KSUX moderators");
+  await expect(toast).toContainText("Sent to OwlSide moderators");
   await expect(toast).toContainText("Call 911");
 });

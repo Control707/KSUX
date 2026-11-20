@@ -11,9 +11,9 @@ const MINUTE_MS = 60_000;
 
 describe("Identity workflow regressions", () => {
   beforeEach(() => {
-    vi.stubEnv("KSUX_SERVER_SECRET", TEST_SERVER_SECRET);
-    vi.stubEnv("KSUX_SKIP_OTP_SCHEDULER", "true");
-    vi.stubEnv("KSUX_ALLOW_DEV_OTP_LOG", "true");
+    vi.stubEnv("OWLSIDE_SERVER_SECRET", TEST_SERVER_SECRET);
+    vi.stubEnv("OWLSIDE_SKIP_OTP_SCHEDULER", "true");
+    vi.stubEnv("OWLSIDE_ALLOW_DEV_OTP_LOG", "true");
   });
 
   afterEach(() => {

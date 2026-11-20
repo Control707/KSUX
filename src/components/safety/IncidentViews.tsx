@@ -74,14 +74,14 @@ function IncidentActions({ incident, details }: { incident: Incident; details: b
       if (action === "edit") await edit({ incidentId: incident._id, text });
       if (action === "update") await addUpdate({ incidentId: incident._id, text });
       if (action === "delete") await deleteOwn({ incidentId: incident._id });
-      toast({ message: action === "report" ? "Sent to KSUX moderators. This did not contact police." : action === "delete" ? "Deleted by author" : "Incident updated" });
+      toast({ message: action === "report" ? "Sent to OwlSide moderators. This did not contact police." : action === "delete" ? "Deleted by author" : "Incident updated" });
       setAction(null); setText("");
     } catch (e) { setError(incidentError(e)); } finally { setBusy(false); }
   }
   function open(next: typeof action) { setAction(next); setError(""); setReason(""); setAcknowledged(false); setText(next === "edit" ? incident.text : ""); }
   return <>
     <div className="flex flex-wrap gap-[var(--sp-2)]">
-      {!incident.isAuthor && <button type="button" className={incidentButton} onClick={() => open("report")}>Report to KSUX moderators</button>}
+      {!incident.isAuthor && <button type="button" className={incidentButton} onClick={() => open("report")}>Report to OwlSide moderators</button>}
       {!incident.isAuthor && details && <button type="button" className={incidentButton} onClick={() => { open("report"); setReason("identifies_me"); }}>This post identifies me</button>}
       {incident.isAuthor && details && <>
         {incident.canEdit && <button type="button" className={incidentButton} onClick={() => open("edit")}>Edit original (5-minute window)</button>}
@@ -91,11 +91,11 @@ function IncidentActions({ incident, details }: { incident: Incident; details: b
       </>}
     </div>
     <Dialog open={action !== null} onClose={() => { if (!busy) { if (panel) { setPanel(false); setReason(""); } else setAction(null); } }} role={action === "delete" ? "alertdialog" : "dialog"}
-      title={panel ? "Campus Safety Moderation Report" : action === "report" ? "Report to KSUX moderators" : action === "edit" ? "Edit original" : action === "delete" ? "Delete my post?" : "Add an Incident Update"} hideTitle={panel}>
+      title={panel ? "Campus Safety Moderation Report" : action === "report" ? "Report to OwlSide moderators" : action === "edit" ? "Edit original" : action === "delete" ? "Delete my post?" : "Add an Incident Update"} hideTitle={panel}>
       <div ref={reportContent} className="space-y-[var(--sp-3)]">
         {panel ? <EmergencyPanel mode={mode} headingLevel={2} onContinue={() => { setPanel(false); setAcknowledged(true); }} /> : <>
         {action === "report" && <>
-          <p>This reports the post to KSUX volunteer moderators. It does not contact police. Moderators aren’t on call.</p>
+          <p>This reports the post to OwlSide volunteer moderators. It does not contact police. Moderators aren’t on call.</p>
           <label className="block">Reason<select aria-label="Reason" className={incidentField} value={reason} onChange={(e) => {
             const value = e.target.value as typeof reason; setReason(value); setAcknowledged(false);
             if (value === "campus_safety") setPanel(true);
@@ -106,7 +106,7 @@ function IncidentActions({ incident, details }: { incident: Incident; details: b
         {error && <p role="alert">{error}</p>}
         <div className="flex flex-wrap gap-[var(--sp-2)]">
           <button type="button" className={incidentButton} disabled={busy} onClick={() => setAction(null)}>Cancel</button>
-          <button type="button" className={incidentButton} disabled={busy || (reason === "campus_safety" && !acknowledged)} onClick={() => void send()}>{busy ? "Sending…" : action === "report" ? "Send to KSUX moderators" : action === "delete" ? "Delete now" : "Save"}</button>
+          <button type="button" className={incidentButton} disabled={busy || (reason === "campus_safety" && !acknowledged)} onClick={() => void send()}>{busy ? "Sending…" : action === "report" ? "Send to OwlSide moderators" : action === "delete" ? "Delete now" : "Save"}</button>
         </div>
         </>}
       </div>
@@ -118,9 +118,9 @@ export function IncidentRegion({ online, reconnectedAt }: { online: boolean; rec
   const { auth, authArgs } = useViewerClient();
   return <section aria-labelledby="community-incidents" className="space-y-[var(--sp-3)]">
     <h2 id="community-incidents" className="font-display text-[length:var(--fs-xl)] font-bold">Community Incidents</h2>
-    {!online ? <div data-testid="offline-incidents"><p className="font-bold">{OFFLINE_INCIDENTS}</p><p>Reconnect to see current reports. Saved schedules and campus maps may still be available elsewhere in KSUX.</p></div>
+    {!online ? <div data-testid="offline-incidents"><p className="font-bold">{OFFLINE_INCIDENTS}</p><p>Reconnect to see current reports. Saved schedules and campus maps may still be available elsewhere in OwlSide.</p></div>
       : authArgs ? <IncidentList key={JSON.stringify(authArgs) + reconnectedAt} />
-        : <p>{auth.status === "booting" ? "Connecting…" : "Sign in or enter Judge Demo Mode from KSUX to read community Incidents. Emergency contacts remain available above."}</p>}
+        : <p>{auth.status === "booting" ? "Connecting…" : "Sign in or enter Judge Demo Mode from OwlSide to read community Incidents. Emergency contacts remain available above."}</p>}
   </section>;
 }
 
@@ -182,7 +182,7 @@ export function IncidentDetail({ incidentId }: { incidentId: string }) {
     <h1 className="font-display text-[length:var(--fs-2xl)] font-bold">Community Incident</h1>
     {!online ? <p role="status" data-testid="offline-incidents">{OFFLINE_INCIDENTS} Reconnect to load current reports.</p>
       : authArgs ? <NetworkDetail key={JSON.stringify(authArgs) + reconnectedAt + incidentId} incidentId={incidentId} />
-        : <p>Sign in or enter Judge Demo Mode from KSUX to read this Incident.</p>}
+        : <p>Sign in or enter Judge Demo Mode from OwlSide to read this Incident.</p>}
     <Link className={incidentButton + " inline-flex items-center"} href="/safety">Back to Safety</Link>
   </>;
 }
@@ -191,13 +191,13 @@ function NetworkDetail({ incidentId }: { incidentId: string }) {
   const { announce } = useAnnouncer();
   const state = data?.state;
   React.useEffect(() => {
-    if (state) announce(state === "visible" ? "Incident updated from the server" : state === "under_review" ? "Under review. Community text hidden." : state === "deleted" ? "Deleted by author" : state === "removed" ? "Removed by KSUX moderators" : "Incident no longer available");
+    if (state) announce(state === "visible" ? "Incident updated from the server" : state === "under_review" ? "Under review. Community text hidden." : state === "deleted" ? "Deleted by author" : state === "removed" ? "Removed by OwlSide moderators" : "Incident no longer available");
   }, [state, announce]);
   return <div className="space-y-[var(--sp-3)]">
     <p role="status">{error ?? (data ? "Updated just now" : "Back online · checking for updates…")}</p>
     <button className={incidentButton} onClick={() => void refresh()}>Retry connection / Refresh Incident</button>
     {data?.state === "visible" && <IncidentCard incident={data.incident} details />}
-    {data && data.state !== "visible" && <p className="font-bold" data-testid="incident-tombstone">{data.state === "under_review" ? "Under review" : data.state === "removed" ? "Removed by KSUX moderators" : data.state === "deleted" ? "Deleted by author" : "Incident no longer available"}</p>}
+    {data && data.state !== "visible" && <p className="font-bold" data-testid="incident-tombstone">{data.state === "under_review" ? "Under review" : data.state === "removed" ? "Removed by OwlSide moderators" : data.state === "deleted" ? "Deleted by author" : "Incident no longer available"}</p>}
     {data?.state === "removed" && data.reason && <p>Reason: {data.reason}</p>}
   </div>;
 }

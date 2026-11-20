@@ -6,7 +6,7 @@ it("reports successful empty, partial, stale, and recovered streams only to main
   const t = createTestConvex();
   const maintainer = await createVerifiedTestStudent(t, { handle: "feed_admin", displayName: "Feed Admin" });
   const student = await createVerifiedTestStudent(t, { handle: "feed_reader", displayName: "Feed Reader" });
-  vi.stubEnv("KSUX_MAINTAINER_EMAILS", maintainer.canonicalEmail);
+  vi.stubEnv("OWLSIDE_MAINTAINER_EMAILS", maintainer.canonicalEmail);
   try {
     const health = async () => Object.fromEntries((await t.query(api.moderation.getCampusFeedHealth, {
       sessionToken: maintainer.sessionToken,

@@ -145,7 +145,7 @@ export function ReportIncidentEntry({
             <p role="status">
               {mode === "demo"
                 ? "Demo is connecting. Nothing has been sent or saved. Close and try again."
-                : "KSUX can’t take community reports yet. Nothing has been sent or saved."}
+                : "OwlSide can’t take community reports yet. Nothing has been sent or saved."}
             </p>
             <div className="flex flex-wrap gap-[var(--sp-2)]">
               <button type="button" className={button} onClick={() => setStep("panel")}>

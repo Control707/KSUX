@@ -24,7 +24,7 @@ Every route is checked whole by a `screenMatrix` spec in `tests/a11y/`. Each spe
 | Area | Spec |
 |---|---|
 | Welcome, OTP, onboarding | `onboarding.spec.ts`, `tests/unit/onboarding-markup.test.ts` (onboarding needs a real `.edu` Student, so its markup is checked statically) |
-| Report to KSUX moderators | `report-dialog.spec.ts` |
+| Report to OwlSide moderators | `report-dialog.spec.ts` |
 | Now, Feed | `now.spec.ts`, `feed.spec.ts` |
 | Marketplace, Chats, Scrappy | `marketplace.spec.ts`, `chats.spec.ts`, `scrappy.spec.ts` |
 | Parking, Transit, shared map | `parking.spec.ts`, `transit.spec.ts`, `map.spec.ts` |
@@ -35,5 +35,5 @@ Every route is checked whole by a `screenMatrix` spec in `tests/a11y/`. Each spe
 ## Follow-ups
 
 - Parking does not yet use the shared map's `fill` and `renderPanel` props, so its map is not full-bleed under the sheet and the map list sits beside the sheet rather than in it.
-- The Transit "posted" time on a Shuttle Notice is the time KSUX retrieved it. Passio GO does not supply a posted time.
+- The Transit "posted" time on a Shuttle Notice is the time OwlSide retrieved it. Passio GO does not supply a posted time.
 - The Incidents map layer arrives with Phase 1B.

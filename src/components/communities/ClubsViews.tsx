@@ -74,7 +74,7 @@ export function ClubsDirectoryView() {
             {coverage === "demo"
               ? "Judge Demo Mode shows sample Clubs."
               : coverage === "partial"
-                ? "KSUX covers part of the official Club directory for the selected Campus."
+                ? "OwlSide covers part of the official Club directory for the selected Campus."
                 : "Institutional Club data is unavailable for the selected Campus. You can still browse Community Clubs."}
           </p>
         )}
@@ -252,7 +252,7 @@ export function ClubProfileView({ slug }: { slug: string }) {
       const res = await claimOfficer({ clubId: club._id });
       toast({
         tone: "success",
-        message: res.status === "auto_approved" ? "Officer role approved" : "Officer claim sent to KSUX moderators",
+        message: res.status === "auto_approved" ? "Officer role approved" : "Officer claim sent to OwlSide moderators",
         detail: res.status === "auto_approved" ? "Your .edu email matched the Club contact." : "A moderator will review it.",
       });
     } catch (err) {

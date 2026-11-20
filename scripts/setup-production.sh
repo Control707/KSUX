@@ -198,7 +198,7 @@ finish() {
 # the whole file before the first prompt, so an edit mid-run can't break it.
 # ──────────────────────────────────────────────────────────────────────────
 
-# KSUX-specific helpers live BELOW the unchanged upstream library.
+# OwlSide-specific helpers live BELOW the unchanged upstream library.
 # Source: https://github.com/mattpocock/skills/tree/main/skills/engineering/wizard
 fail() { warn "$1"; exit 1; }
 
@@ -279,7 +279,7 @@ umask 077
 : >> "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 
-banner "KSUX · full production setup"
+banner "OwlSide · full production setup"
 warn "Credentials are saved as plaintext with mode 0600 in .env.production-setup. This is NOT an encrypted password vault."
 say "Your .env.local is untouched. No GitHub secrets, paid upgrades, or custom domains are created."
 say "Optional skips preserve existing remote credentials; they do NOT disable an already-configured service."
@@ -287,20 +287,20 @@ pause "Press Enter after reading the safety notes."
 
 stage "Vercel: verify the existing project and account"
 vercel whoami || fail "Run vercel login in your terminal, then restart."
-[[ -f .vercel/project.json ]] || fail "Run vercel link for the intended existing KSUX project, then restart."
+[[ -f .vercel/project.json ]] || fail "Run vercel link for the intended existing OwlSide project, then restart."
 project_meta="$(node --input-type=module -e 'import fs from "node:fs"; const p=JSON.parse(fs.readFileSync(".vercel/project.json","utf8")); if(!/^prj_[A-Za-z0-9]+$/.test(p.projectId)||!/^team_[A-Za-z0-9]+$/.test(p.orgId)) process.exit(1); console.log(p.projectId+" "+p.orgId);')" || fail "Invalid Vercel project metadata."
 read -r VERCEL_PROJECT_ID VERCEL_TEAM_ID <<< "$project_meta"
 export VERCEL_PROJECT_ID VERCEL_TEAM_ID
 say "Target project: $VERCEL_PROJECT_ID; team: $VERCEL_TEAM_ID"
 vercel api "/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_TEAM_ID" --scope "$VERCEL_TEAM_ID" | node --input-type=module -e 'let s="";for await(const c of process.stdin)s+=c;const p=JSON.parse(s);if(p.id!==process.env.VERCEL_PROJECT_ID||p.accountId!==process.env.VERCEL_TEAM_ID)process.exit(1);console.log("  Verified project: "+p.name);' || fail "Could not verify the owning Vercel team and project."
 open_url "https://vercel.com/dashboard"
-step "Open the verified KSUX project. Settings → Git: verify Control707/KSUX and production branch main."
+step "Open the verified OwlSide project. Settings → Git: verify Control707/KSUX and production branch main."
 step "Review the current plan and usage limits; stay on free tiers. Do not enable paid services."
 confirm "Is this the correct production project and Git connection" || fail "Cancelled before remote changes."
 
 stage "Convex: production deployment and deploy key"
 open_url "https://dashboard.convex.dev"
-step "Open/create the ksux project on the free plan, then select its Production deployment."
+step "Open/create the owlside project on the free plan, then select its Production deployment."
 step "Deployment Settings → General → Generate Production Deploy Key. Include deployment:deploy."
 note "This wizard also needs permission to manage environment variables and run the seed; use an appropriately authorized production key."
 capture CONVEX_DEPLOY_KEY "Paste the Production Deploy Key (hidden):" secret
@@ -316,7 +316,7 @@ confirm "Use this Convex production deployment for all remaining writes" || fail
 
 stage "UploadThing: shared production upload token"
 open_url "https://uploadthing.com/dashboard"
-step "Open/create the KSUX app on the free plan. Copy its SDK token, named UPLOADTHING_TOKEN."
+step "Open/create the OwlSide app on the free plan. Copy its SDK token, named UPLOADTHING_TOKEN."
 note "Dashboard labels can change: use https://docs.uploadthing.com/getting-started/appdir if the token is not visible."
 capture UPLOADTHING_TOKEN "Paste UPLOADTHING_TOKEN (hidden):" secret
 say "The same token will be installed in Vercel and Convex (uploads and cleanup)."
@@ -325,18 +325,18 @@ stage "Gmail: production OTP delivery"
 open_url "https://myaccount.google.com/security"
 step "Sign in as the sending Gmail account; enable 2-Step Verification if it is not already enabled."
 open_url "https://myaccount.google.com/apppasswords"
-step "Create an app password named KSUX. If unavailable, check your account/admin policy; do not use your normal password."
+step "Create an app password named OwlSide. If unavailable, check your account/admin policy; do not use your normal password."
 capture GMAIL_SMTP_USER "Sending Gmail address:"
 capture GMAIL_SMTP_APP_PASSWORD "Paste the 16-character app password without display spaces (hidden):" secret
 [[ "$GMAIL_SMTP_USER" == *@* && "$GMAIL_SMTP_APP_PASSWORD" =~ ^[A-Za-z0-9]{16}$ ]] || fail "Expected an email address and a 16-character app password (remove spaces)."
 if optional_service SETUP_GMAIL_FALLBACK "Configure a second Gmail sender for quota fallback"; then
   open_url "https://myaccount.google.com/apppasswords"
-  step "Switch to the second account and create its own KSUX app password with 2-Step Verification enabled."
+  step "Switch to the second account and create its own OwlSide app password with 2-Step Verification enabled."
   capture GMAIL_SMTP_FALLBACK_USER "Fallback Gmail address:"
   capture GMAIL_SMTP_FALLBACK_APP_PASSWORD "Fallback app password without spaces (hidden):" secret
   [[ "$GMAIL_SMTP_FALLBACK_USER" == *@* && "$GMAIL_SMTP_FALLBACK_APP_PASSWORD" =~ ^[A-Za-z0-9]{16}$ ]] || fail "Invalid fallback sender/app-password format."
 fi
-write_env KSUX_ALLOW_DEV_OTP_LOG false
+write_env OWLSIDE_ALLOW_DEV_OTP_LOG false
 note "Production OTP logging will explicitly be disabled."
 
 stage "Groq: privacy controls and primary AI key"
@@ -344,7 +344,7 @@ open_url "https://console.groq.com/settings/data-controls"
 step "For the intended organization, enable Zero Data Retention for inference/system reliability and abuse monitoring."
 confirm "Have you enabled and verified Groq Zero Data Retention" || fail "Enable ZDR before configuring the primary AI service."
 open_url "https://console.groq.com/keys"
-step "Create a KSUX API key in that same organization, then copy it."
+step "Create a OwlSide API key in that same organization, then copy it."
 capture GROQ_API_KEY "Paste GROQ_API_KEY (hidden):" secret
 
 stage "Gemini: optional AI fallback"
@@ -392,8 +392,8 @@ fi
 stage "Maintainer: production moderation access"
 step "Use the exact canonical KSU email addresses of authorized production moderators."
 note "Keep each actual domain (@students.kennesaw.edu or @kennesaw.edu); remove +aliases."
-capture KSUX_MAINTAINER_EMAILS "Comma-separated canonical KSU maintainer emails (no spaces):"
-printf '%s' "$KSUX_MAINTAINER_EMAILS" | node --input-type=module -e 'let s="";for await(const c of process.stdin)s+=c;if(!s.split(",").every(e=>/^[a-z0-9._-]+@(students\.)?kennesaw\.edu$/.test(e)))process.exit(1);' || fail "Use lowercase KSU addresses without +aliases, separated by commas."
+capture OWLSIDE_MAINTAINER_EMAILS "Comma-separated canonical KSU maintainer emails (no spaces):"
+printf '%s' "$OWLSIDE_MAINTAINER_EMAILS" | node --input-type=module -e 'let s="";for await(const c of process.stdin)s+=c;if(!s.split(",").every(e=>/^[a-z0-9._-]+@(students\.)?kennesaw\.edu$/.test(e)))process.exit(1);' || fail "Use lowercase KSU addresses without +aliases, separated by commas."
 
 stage "Review targets and apply production environment"
 say "Vercel project: $VERCEL_PROJECT_ID; team: $VERCEL_TEAM_ID (Production only)."
@@ -402,7 +402,7 @@ say "Required: Convex URLs/key, UploadThing, primary Gmail, Groq, OTP logging=fa
 say "Optional selections: Gmail fallback=$SETUP_GMAIL_FALLBACK; Gemini=$SETUP_GEMINI; Cloudflare=$SETUP_CLOUDFLARE; Push=$SETUP_WEB_PUSH."
 warn "This replaces matching production environment values. Writes are sequential, not transactional; stop on failure and rerun."
 confirm "Apply these settings to BOTH verified production targets now" || fail "Nothing applied. Captured values remain in the private state file."
-for key in GMAIL_SMTP_USER GMAIL_SMTP_APP_PASSWORD GROQ_API_KEY UPLOADTHING_TOKEN KSUX_ALLOW_DEV_OTP_LOG KSUX_MAINTAINER_EMAILS; do set_convex "$key"; done
+for key in GMAIL_SMTP_USER GMAIL_SMTP_APP_PASSWORD GROQ_API_KEY UPLOADTHING_TOKEN OWLSIDE_ALLOW_DEV_OTP_LOG OWLSIDE_MAINTAINER_EMAILS; do set_convex "$key"; done
 if [[ "$SETUP_GMAIL_FALLBACK" == yes ]]; then
   for key in GMAIL_SMTP_FALLBACK_USER GMAIL_SMTP_FALLBACK_APP_PASSWORD; do set_convex "$key"; done
 fi
@@ -419,13 +419,13 @@ set_vercel NEXT_PUBLIC_CONVEX_SITE_URL
 set_vercel UPLOADTHING_TOKEN secret
 set_vercel CONVEX_DEPLOY_KEY secret
 # Read back only non-secrets, never decrypt or print credentials.
-for key in KSUX_ALLOW_DEV_OTP_LOG KSUX_MAINTAINER_EMAILS; do
+for key in OWLSIDE_ALLOW_DEV_OTP_LOG OWLSIDE_MAINTAINER_EMAILS; do
   [[ "$(convex_prod env get "$key")" == "${!key}" ]] || fail "Convex verification failed for $key."
 done
 
 stage "Vercel: build settings and production deployment"
 open_url "https://vercel.com/dashboard"
-step "Open the verified KSUX project → Settings → Build and Deployment."
+step "Open the verified OwlSide project → Settings → Build and Deployment."
 step "Override Build Command with: npx convex deploy --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL --cmd 'pnpm build'"
 step "Keep the Next.js framework preset and repository-root Root Directory; save the settings."
 warn "Production credentials must NOT be available to Preview/Development builds or untrusted pull requests."
@@ -451,9 +451,9 @@ else
 fi
 note "seed:backfillEmbeddings currently returns ready/embeddedCount=0; it does NOT generate vectors."
 step "Copy the production .vercel.app origin from the verified Vercel project."
-capture KSUX_PRODUCTION_URL "Production origin (https://...vercel.app, no trailing slash):"
-[[ "$KSUX_PRODUCTION_URL" =~ ^https://[a-zA-Z0-9-]+\.vercel\.app$ ]] || fail "Expected an HTTPS .vercel.app origin with no path."
-open_url "$KSUX_PRODUCTION_URL/?demo=1"
+capture OWLSIDE_PRODUCTION_URL "Production origin (https://...vercel.app, no trailing slash):"
+[[ "$OWLSIDE_PRODUCTION_URL" =~ ^https://[a-zA-Z0-9-]+\.vercel\.app$ ]] || fail "Expected an HTTPS .vercel.app origin with no path."
+open_url "$OWLSIDE_PRODUCTION_URL/?demo=1"
 step "Check demo login, both campuses, Feed, a two-tab chat, and Ask Scrappy."
 step "Outside demo mode, request a real KSU email OTP; verify delivery and successful login."
 step "As a real user, upload an image and verify maintainer moderation access."

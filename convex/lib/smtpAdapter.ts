@@ -33,11 +33,11 @@ export async function dispatchOtpEmailWithFallback(
   env: OtpDispatchEnv,
   deps: OtpDispatchDeps
 ): Promise<{ channel: "primary_smtp" | "fallback_smtp" | "dev_console" }> {
-  const subject = `${msg.code} is your KSUX verification code`;
-  const text = `Your KSUX 6-digit verification code is ${msg.code}. It expires in ${msg.expiresInMinutes} minutes. Never share this code.`;
+  const subject = `${msg.code} is your OwlSide verification code`;
+  const text = `Your OwlSide 6-digit verification code is ${msg.code}. It expires in ${msg.expiresInMinutes} minutes. Never share this code.`;
   const html = `<div style="font-family:system-ui,sans-serif;padding:20px;background:#111317;color:#fff;border-radius:12px;">
-    <h2 style="color:#FDBB30;margin:0 0 12px;">🦉 KSUX Verification Code</h2>
-    <p style="font-size:14px;color:#E5E7EB;">Enter this 6-digit numeric code in KSUX (expires in ${msg.expiresInMinutes} minutes):</p>
+    <h2 style="color:#FDBB30;margin:0 0 12px;">🦉 OwlSide Verification Code</h2>
+    <p style="font-size:14px;color:#E5E7EB;">Enter this 6-digit numeric code in OwlSide (expires in ${msg.expiresInMinutes} minutes):</p>
     <div style="font-size:32px;font-weight:900;letter-spacing:6px;color:#FDBB30;padding:12px 0;">${msg.code}</div>
     <p style="font-size:12px;color:#9CA3AF;">Sent without clickable links so KSU Safe Links never invalidates your code.</p>
   </div>`;
@@ -46,7 +46,7 @@ export async function dispatchOtpEmailWithFallback(
     try {
       const primary = deps.createTransport(env.primaryUser, env.primaryPass);
       await primary.sendMail({
-        from: `"KSUX Campus" <${env.primaryUser}>`,
+        from: `"OwlSide Campus" <${env.primaryUser}>`,
         to: msg.to,
         subject,
         text,
@@ -60,7 +60,7 @@ export async function dispatchOtpEmailWithFallback(
           env.fallbackPass
         );
         await fallback.sendMail({
-          from: `"KSUX Campus" <${env.fallbackUser}>`,
+          from: `"OwlSide Campus" <${env.fallbackUser}>`,
           to: msg.to,
           subject,
           text,
@@ -75,13 +75,13 @@ export async function dispatchOtpEmailWithFallback(
   const isProd = env.nodeEnv === "production";
   if (!isProd && env.allowDevOtpLog === "true") {
     const logFn = deps.devLogger ?? console.info;
-    logFn(`[KSUX DEV OTP] ${msg.to} -> ${msg.code}`);
+    logFn(`[OwlSide DEV OTP] ${msg.to} -> ${msg.code}`);
     return { channel: "dev_console" };
   }
 
   throw new Error(
     isProd
       ? "SMTP credentials are required in production; dev console OTP logging is forbidden."
-      : "GMAIL_SMTP_USER/GMAIL_SMTP_APP_PASSWORD unset and KSUX_ALLOW_DEV_OTP_LOG is not enabled."
+      : "GMAIL_SMTP_USER/GMAIL_SMTP_APP_PASSWORD unset and OWLSIDE_ALLOW_DEV_OTP_LOG is not enabled."
   );
 }

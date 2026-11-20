@@ -69,10 +69,10 @@ describe("Seam 2 — VAPID Web Push Eligibility, Handle-Only Payloads & 60s Thro
         { endpoint: "https://push.example/dead", p256dh: "k", auth: "a" },
       ],
       {
-        title: "KSUX Campus",
+        title: "OwlSide Campus",
         body: "@maya_cs sent a Direct Message",
         href: "/chats/1",
-        tag: "ksux-chat-1",
+        tag: "owlside-chat-1",
       },
       {
         sendNotification: async (sub) => {

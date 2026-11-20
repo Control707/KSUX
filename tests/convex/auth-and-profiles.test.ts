@@ -8,10 +8,10 @@ import {
 
 describe("Seam 1 — .edu Email OTP, Onboarding, Profiles, Follow & Hourly Purge (#15)", () => {
   beforeEach(() => {
-    process.env.KSUX_SERVER_SECRET = TEST_SERVER_SECRET;
-    process.env.KSUX_SKIP_OTP_SCHEDULER = "true";
-    process.env.KSUX_SKIP_STORAGE_SCHEDULER = "true";
-    process.env.KSUX_ALLOW_DEV_OTP_LOG = "true";
+    process.env.OWLSIDE_SERVER_SECRET = TEST_SERVER_SECRET;
+    process.env.OWLSIDE_SKIP_OTP_SCHEDULER = "true";
+    process.env.OWLSIDE_SKIP_STORAGE_SCHEDULER = "true";
+    process.env.OWLSIDE_ALLOW_DEV_OTP_LOG = "true";
   });
 
   it("canonicalizes @students.kennesaw.edu and @kennesaw.edu (+tag stripped), rejects outside domains, and hides raw emails", async () => {

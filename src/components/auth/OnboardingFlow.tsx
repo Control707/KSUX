@@ -304,7 +304,7 @@ export function OnboardingFlow() {
             </button>
             <button type="submit" disabled={submitting} className={primaryButton}>
               <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
-              <span>{submitting ? "Saving…" : "Enter KSUX"}</span>
+              <span>{submitting ? "Saving…" : "Enter OwlSide"}</span>
             </button>
           </div>
         </form>

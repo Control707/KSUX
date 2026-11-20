@@ -10,21 +10,21 @@ export const EMERGENCY_CONTACTS = {
 } as const;
 
 export const LIVESAFE_URL = "https://campus.kennesaw.edu/offices-services/livesafe/";
-export const HANDOFF_COPY = "Opening your phone app… KSUX can’t confirm the call or a police response.";
+export const HANDOFF_COPY = "Opening your phone app… OwlSide can’t confirm the call or a police response.";
 export const DEMO_HANDOFF_COPY = "Demo Mode: nothing dialled. In a real emergency, call 911.";
 
 /**
  * The event the root-layout interceptor dispatches when a Demo tab taps a
  * tel:/sms:/mailto: link before React knows it is a Demo session.
  */
-export const DEMO_CALL_EVENT = "ksux:demo-call-intercepted";
+export const DEMO_CALL_EVENT = "owlside:demo-call-intercepted";
 
 /**
  * Runs inline in <head> before any bundle loads, so Judge Demo Mode never
  * dials or opens an email to real KSU Police even before hydration or offline. Checks the tab's demo state at
  * click time; real Students are never blocked.
  */
-export const DEMO_CALL_INTERCEPT_SCRIPT = `(function(){try{document.addEventListener("click",function(e){var t=e.target;var a=t&&t.closest?t.closest('a[href^="tel:"],a[href^="sms:"],a[href^="mailto:"]'):null;if(!a)return;var demo=false;try{demo=!!sessionStorage.getItem("ksux_demo_short_code")||new URLSearchParams(location.search).has("demo")}catch(_){}if(!demo)return;e.preventDefault();e.stopPropagation();var p=a.closest("[data-emergency-panel]");var s=p&&p.querySelector("[data-emergency-status]");if(s)s.textContent=${JSON.stringify(DEMO_HANDOFF_COPY)};document.dispatchEvent(new CustomEvent(${JSON.stringify(DEMO_CALL_EVENT)}));},true);}catch(_){}})();`;
+export const DEMO_CALL_INTERCEPT_SCRIPT = `(function(){try{document.addEventListener("click",function(e){var t=e.target;var a=t&&t.closest?t.closest('a[href^="tel:"],a[href^="sms:"],a[href^="mailto:"]'):null;if(!a)return;var demo=false;try{demo=!!sessionStorage.getItem("owlside_demo_short_code")||new URLSearchParams(location.search).has("demo")}catch(_){}if(!demo)return;e.preventDefault();e.stopPropagation();var p=a.closest("[data-emergency-panel]");var s=p&&p.querySelector("[data-emergency-status]");if(s)s.textContent=${JSON.stringify(DEMO_HANDOFF_COPY)};document.dispatchEvent(new CustomEvent(${JSON.stringify(DEMO_CALL_EVENT)}));},true);}catch(_){}})();`;
 
 export type EmergencyPanelMode = "live" | "demo";
 
@@ -93,7 +93,7 @@ export function EmergencyPanel({
         Is anyone in danger right now?
       </Heading>
       <p className="mt-[var(--sp-1)] text-[length:var(--fs-body)]">
-        KSUX can’t send help and doesn’t contact police.
+        OwlSide can’t send help and doesn’t contact police.
       </p>
       {demo && (
         <p className="mt-[var(--sp-2)] rounded-[var(--r-sm)] bg-[var(--warn-bg)] px-[var(--sp-3)] py-[var(--sp-2)] text-sm font-bold text-[var(--warn-fg)]">
@@ -143,18 +143,18 @@ export function EmergencyPanel({
         {status}
       </p>
       <p className="text-sm text-[var(--muted)]">
-        Calls and texts open your phone app. KSUX can’t confirm the call or a police response.
+        Calls and texts open your phone app. OwlSide can’t confirm the call or a police response.
       </p>
 
       <p className="mt-[var(--sp-3)] text-sm">
-        Want to report to KSU without KSUX?{" "}
+        Want to report to KSU without OwlSide?{" "}
         <a
           href={LIVESAFE_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex min-h-[var(--target)] items-center gap-[var(--sp-1)] font-bold underline"
         >
-          KSU LiveSafe (outside KSUX)
+          KSU LiveSafe (outside OwlSide)
           <ExternalLink aria-hidden="true" className="h-4 w-4" />
           <span className="sr-only">, opens in a new tab</span>
         </a>

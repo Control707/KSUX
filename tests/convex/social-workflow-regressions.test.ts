@@ -9,8 +9,8 @@ const DAY_MS = 86_400_000;
 
 describe("Social workflow regressions", () => {
   beforeEach(() => {
-    vi.stubEnv("KSUX_SKIP_PUSH_SCHEDULER", "true");
-    vi.stubEnv("KSUX_SKIP_STORAGE_SCHEDULER", "true");
+    vi.stubEnv("OWLSIDE_SKIP_PUSH_SCHEDULER", "true");
+    vi.stubEnv("OWLSIDE_SKIP_STORAGE_SCHEDULER", "true");
   });
 
   afterEach(() => {
@@ -192,7 +192,7 @@ describe("Social workflow regressions", () => {
 
   it("restores a moderated Post without changing its Campus cross-post preference", async () => {
     const { t, alex, june } = await createPeers();
-    vi.stubEnv("KSUX_MAINTAINER_EMAILS", june.canonicalEmail);
+    vi.stubEnv("OWLSIDE_MAINTAINER_EMAILS", june.canonicalEmail);
     const { postId } = await t.mutation(api.feed.createPost, {
       sessionToken: alex.sessionToken,
       body: "Planning details for followers",

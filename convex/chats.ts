@@ -55,7 +55,7 @@ export async function getChatMembership(
   return membership && await isCurrentCampusChatMember(ctx, chat, studentId) ? membership : null;
 }
 
-function detectInternalKsuxLink(body: string):
+function detectInternalOwlSideLink(body: string):
   | { href: string; label: string; entityType?: string }
   | undefined {
   const m = body.match(
@@ -65,7 +65,7 @@ function detectInternalKsuxLink(body: string):
   const href = m[1];
   return {
     href,
-    label: `KSUX Link · ${href}`,
+    label: `OwlSide Link · ${href}`,
   };
 }
 
@@ -150,7 +150,7 @@ export async function appendMessageAndFanoutUnread(
     params.chat.kind === "deal" && detectDealScamWarning(params.body);
   const linkEmbed =
     params.messageType === "user"
-      ? detectInternalKsuxLink(params.body)
+      ? detectInternalOwlSideLink(params.body)
       : undefined;
 
   const messageId = await ctx.db.insert("chatMessages", {
@@ -228,7 +228,7 @@ export async function appendMessageAndFanoutUnread(
 
       if (pushDecision.send) {
         await ctx.db.patch(m._id, { lastPushSentAt: params.now });
-        if (process.env.KSUX_SKIP_PUSH_SCHEDULER !== "true") {
+        if (process.env.OWLSIDE_SKIP_PUSH_SCHEDULER !== "true") {
           await ctx.scheduler.runAfter(0, internal.pushNode.sendPushPayloadNode, {
             studentId: m.studentId,
             title: pushDecision.payload.title,
@@ -1010,7 +1010,7 @@ export const editChatMessage = viewerMutation({
     }
     await ctx.db.patch(msg._id, {
       body: trimmed,
-      linkEmbed: detectInternalKsuxLink(trimmed),
+      linkEmbed: detectInternalOwlSideLink(trimmed),
       scamWarningTriggered: Boolean(
         chat?.kind === "deal" && detectDealScamWarning(trimmed)
       ),

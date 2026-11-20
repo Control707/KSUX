@@ -41,7 +41,7 @@ it("keeps emergency resources public without requiring a sign-in or gate result"
   expect(html).toContain('href="tel:4705786666"');
   expect(html).toContain('href="mailto:police@kennesaw.edu"');
   expect(html).toContain('href="sms:7703563866"');
-  expect(html).toContain("KSUX can’t confirm the call or a police response.");
+  expect(html).toContain("OwlSide can’t confirm the call or a police response.");
   expect(html).toContain('href="/"');
   expect(html).toContain("Is anyone in danger right now?");
   expect(html).toContain('href="https://campus.kennesaw.edu/offices-services/livesafe/"');
@@ -56,7 +56,7 @@ it("shows the Emergency Panel while the session is still booting", () => {
 
 it("orders Official Alerts first, then the intro, the panel, reporting and Incidents", () => {
   const html = render();
-  const order = ["Official Alerts", "What KSUX Safety is and isn’t", "Is anyone in danger right now?", "Report something you saw", "Community Incidents"]
+  const order = ["Official Alerts", "What OwlSide Safety is and isn’t", "Is anyone in danger right now?", "Report something you saw", "Community Incidents"]
     .map((text) => html.indexOf(text));
   expect(order.every((i) => i >= 0)).toBe(true);
   expect([...order].sort((a, b) => a - b)).toEqual(order);
@@ -69,7 +69,7 @@ it("names the source of every official link and keeps the three kinds of help di
   expect(html).toContain("KSU Office of Emergency Management · KSU Alert (Rave) emergency notifications");
   expect(html).toContain("Not seeing an Alert doesn’t mean campus is safe.");
   expect(html).toContain("Official · KSU Police");
-  expect(html).toContain("In-app · KSUX volunteers");
+  expect(html).toContain("In-app · OwlSide volunteers");
   expect(html).toContain("Kennesaw Campus");
   expect(html).toContain("Marietta Campus");
   expect(html).toContain('href="/safety/about"');
@@ -123,18 +123,18 @@ describe("Official Alert copy (#80)", () => {
 
   it("labels a copy older than 20 minutes as out of date", () => {
     withSources(source({ display: "ok", items: [item], lastSuccessAt: now - 25 * 60_000 }));
-    expect(render()).toContain("KSUX’s copy is out of date");
+    expect(render()).toContain("OwlSide’s copy is out of date");
   });
 
-  it("falls back to links when KSUX has switched the copy off", () => {
+  it("falls back to links when OwlSide has switched the copy off", () => {
     withSources(source({ display: "links_only", reason: "kill_switched", items: [] }));
     const html = render();
-    expect(html).toContain("KSUX has switched off its copy of this page for now.");
+    expect(html).toContain("OwlSide has switched off its copy of this page for now.");
     expect(html).toContain("official-link-timelyWarnings");
   });
 
   it("keeps links-only wording while the copy is still in its shadow poll", () => {
     withSources(source({ display: "links_only", reason: "not_enabled" }));
-    expect(render()).toContain("KSUX doesn’t copy official notices yet.");
+    expect(render()).toContain("OwlSide doesn’t copy official notices yet.");
   });
 });

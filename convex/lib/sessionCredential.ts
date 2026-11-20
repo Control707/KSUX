@@ -5,7 +5,7 @@ const BROWSER_SESSION_MS = 15 * 60_000;
 const encoder = new TextEncoder();
 
 function serverSecret() {
-  const secret = process.env.KSUX_SERVER_SECRET;
+  const secret = process.env.OWLSIDE_SERVER_SECRET;
   if (!secret) {
     throw new ConvexError({ code: "SERVICE_UNAVAILABLE", message: "The server credential is not configured." });
   }
@@ -21,7 +21,7 @@ export async function requireServerSecret(candidate: string) {
   let mismatch = 0;
   for (let i = 0; i < expected.length; i++) mismatch |= actual.charCodeAt(i) ^ expected.charCodeAt(i);
   if (mismatch !== 0) {
-    throw new ConvexError({ code: "FORBIDDEN", message: "This operation requires the KSUX server." });
+    throw new ConvexError({ code: "FORBIDDEN", message: "This operation requires the OwlSide server." });
   }
 }
 

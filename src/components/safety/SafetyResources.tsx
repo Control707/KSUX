@@ -27,7 +27,7 @@ function checkedOnLabel() {
   );
 }
 
-/** An official KSU page, named by its source and opening outside KSUX. */
+/** An official KSU page, named by its source and opening outside OwlSide. */
 export function OfficialLink({ sourceKey, testId }: { sourceKey: KsuSourceKey; testId?: string }) {
   const s = KSU_SOURCES[sourceKey];
   return (
@@ -59,18 +59,18 @@ export function OfficialAlertsSection({ mode, online }: { mode: EmergencyPanelMo
         Official Alerts
         {activeCount > 0 && (
           <span data-testid="official-alert-count" className="inline-flex items-center gap-[var(--sp-1)] rounded-[var(--r-pill)] bg-[var(--alert-bg)] px-[var(--sp-3)] py-[2px] font-sans text-[length:var(--fs-sm)] text-[var(--alert-fg)]">
-            <span aria-hidden="true" className="ksux-alert-pulse inline-block h-2.5 w-2.5 rounded-full bg-[var(--accent)]" />
+            <span aria-hidden="true" className="owlside-alert-pulse inline-block h-2.5 w-2.5 rounded-full bg-[var(--accent)]" />
             {activeCount} active
           </span>
         )}
       </h2>
       {copied.length === 0 ? (
         <p>
-          KSUX doesn’t copy official notices yet. Open KSU’s own pages for current Alerts. Each link names its source.
+          OwlSide doesn’t copy official notices yet. Open KSU’s own pages for current Alerts. Each link names its source.
         </p>
       ) : (
         <p>
-          KSUX checks two KSU pages every 5 minutes and quotes them with their source and check time. It isn’t an
+          OwlSide checks two KSU pages every 5 minutes and quotes them with their source and check time. It isn’t an
           emergency channel and can be late or wrong. KSU’s pages are the record.
         </p>
       )}
@@ -96,7 +96,7 @@ export function OfficialAlertsSection({ mode, online }: { mode: EmergencyPanelMo
         <div className="space-y-[var(--sp-4)]" data-testid="official-alert-copy">
           {mode === "demo" && (
             <p data-testid="demo-alert-fixture" className="rounded-[var(--r-sm)] bg-[var(--warn-bg)] px-[var(--sp-2)] font-bold text-[var(--warn-fg)]">
-              Demo · not real. These sample notices are fixtures; KSUX makes no real fetch and sends no push in Demo.
+              Demo · not real. These sample notices are fixtures; OwlSide makes no real fetch and sends no push in Demo.
               Live official notices: <a className="underline" href={KSU_SOURCES.timelyWarnings.href} target="_blank" rel="noopener noreferrer">KSU Police page ↗</a>
             </p>
           )}
@@ -182,8 +182,8 @@ export function KsuContactsSection({ mode, headingLevel = 2 }: { mode: Emergency
 
       <p className="text-[length:var(--fs-sm)] text-[var(--muted)]">
         Source: <OfficialLink sourceKey="policeContact" /> and{" "}
-        <OfficialLink sourceKey="advisory" />. Checked by KSUX on{" "}
-        <time dateTime={RESOURCES_CHECKED_ON}>{checkedOnLabel()}</time>. This is when KSUX last checked the contacts, not an
+        <OfficialLink sourceKey="advisory" />. Checked by OwlSide on{" "}
+        <time dateTime={RESOURCES_CHECKED_ON}>{checkedOnLabel()}</time>. This is when OwlSide last checked the contacts, not an
         Alert time.
       </p>
     </section>
@@ -195,15 +195,15 @@ export function KsuContactsSection({ mode, headingLevel = 2 }: { mode: Emergency
  */
 export function ModerationReportNote() {
   return (
-    <section className={card} aria-labelledby="ksux-moderators" data-testid="moderation-report-note">
-      <h2 id="ksux-moderators" className="font-display text-[length:var(--fs-xl)] font-bold">
-        Report to KSUX moderators
+    <section className={card} aria-labelledby="owlside-moderators" data-testid="moderation-report-note">
+      <h2 id="owlside-moderators" className="font-display text-[length:var(--fs-xl)] font-bold">
+        Report to OwlSide moderators
       </h2>
       <p>
-        <span className={sourceTag}>In-app · KSUX volunteers</span>
+        <span className={sourceTag}>In-app · OwlSide volunteers</span>
       </p>
       <p>
-        Use <strong>Report</strong> on a post, listing or message to send it to KSUX volunteer moderators. It doesn’t
+        Use <strong>Report</strong> on a post, listing or message to send it to OwlSide volunteer moderators. It doesn’t
         contact police or KSU, and moderators may not see it for hours.
       </p>
     </section>

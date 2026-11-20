@@ -43,7 +43,7 @@ crons.cron(
   { fromWarmCron: true }
 );
 
-// 5m Official Alert copy (ADR-0007, #80). A no-op unless KSUX_ALERT_COPY_MODE is shadow or display.
+// 5m Official Alert copy (ADR-0007, #80). A no-op unless OWLSIDE_ALERT_COPY_MODE is shadow or display.
 crons.interval(
   "poll-official-alerts-5m",
   { minutes: 5 },

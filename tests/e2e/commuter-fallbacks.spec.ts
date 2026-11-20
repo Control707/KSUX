@@ -41,9 +41,9 @@ test("reloads a saved schedule and static campus map offline", async ({ page, co
   await page.waitForURL(/[?&]persona=maya_cs/);
   await expect(page.getByTestId("bento-schedule-tile")).toContainText("CS 3305");
   await page.waitForFunction(() => {
-    const shortCode = sessionStorage.getItem("ksux_demo_short_code");
-    const persona = sessionStorage.getItem("ksux_demo_persona");
-    const key = "ksux_commuter_cache:demo:" + shortCode + ":" + persona;
+    const shortCode = sessionStorage.getItem("owlside_demo_short_code");
+    const persona = sessionStorage.getItem("owlside_demo_persona");
+    const key = "owlside_commuter_cache:demo:" + shortCode + ":" + persona;
     return navigator.serviceWorker.controller && sessionStorage.getItem(key);
   });
   await expect(page.getByTestId("bento-schedule-tile")).toContainText("CS 3305");

@@ -53,7 +53,7 @@ export function incidentTextError(value: string, max = 280): string | null {
   if (/\b(?:all[ -]clear|resolved|verified|confirmed|police\s+(?:are\s+)?on\s+(?:the\s+)?scene|(?:it[’']?s|it is|campus is|area is)\s+safe(?:\s+now)?)\b/i.test(text))
     return "Describe only what you saw. Don’t claim all clear, resolved, verified, confirmed, police on scene or safe now.";
   if (/\b(?:medical|overdose|unconscious|sexual|rape|assault|stalking|dating violence|suspicious person|person (?:seems|looks) suspicious)\b/i.test(text))
-    return "KSUX doesn’t post medical emergencies, sexual misconduct, stalking or suspicions about people. Use emergency contacts, Title IX, KSU CPS or LiveSafe.";
+    return "OwlSide doesn’t post medical emergencies, sexual misconduct, stalking or suspicions about people. Use emergency contacts, Title IX, KSU CPS or LiveSafe.";
   return null;
 }
 

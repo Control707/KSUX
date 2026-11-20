@@ -56,7 +56,7 @@ export function IncidentForm({ mode, online, onStep, onPosted, onBusy, onBackPan
   useEffect(() => {
     onStep(!posted);
     heading.current?.focus();
-    announce(posted ? "Posted to the KSUX community. This did not contact police or KSU." : `Step ${step + 1} of 7. ${questions[step]}`);
+    announce(posted ? "Posted to the OwlSide community. This did not contact police or KSU." : `Step ${step + 1} of 7. ${questions[step]}`);
   }, [step, posted, divert, announce, onStep]);
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
   useEffect(() => { onBusy(pending); return () => onBusy(false); }, [pending, onBusy]);
@@ -100,7 +100,7 @@ export function IncidentForm({ mode, online, onStep, onPosted, onBusy, onBackPan
     } catch (e) { setError(incidentError(e)); } finally { setPending(false); }
   }
   if (posted) return <div className="space-y-[var(--sp-3)]" data-testid="incident-posted">
-    <h1 ref={heading} tabIndex={-1} className="font-display text-[length:var(--fs-xl)] font-bold">Posted to the KSUX community</h1>
+    <h1 ref={heading} tabIndex={-1} className="font-display text-[length:var(--fs-xl)] font-bold">Posted to the OwlSide community</h1>
     <p>This did not contact police or KSU.</p>
     {photo && <p role="status">{discarded ? "Photo discarded. Your Incident text is unchanged." : "Your photo is held for review. Other Students can’t see it unless a Moderator approves it. It will be discarded after 48 hours if nobody reviews it. No review time is promised."}</p>}
     {mode === "demo" && photo && !discarded && <button className={incidentButton} disabled={pending || !online} onClick={async () => {
@@ -116,7 +116,7 @@ export function IncidentForm({ mode, online, onStep, onPosted, onBusy, onBackPan
     }}>Delete this post</button>
   </div>;
   if (divert) return <div className="space-y-[var(--sp-3)]">
-    <h1 tabIndex={-1} ref={heading} className="font-display text-[length:var(--fs-xl)] font-bold">KSUX doesn’t post these publicly</h1>
+    <h1 tabIndex={-1} ref={heading} className="font-display text-[length:var(--fs-xl)] font-bold">OwlSide doesn’t post these publicly</h1>
     <p>{divert === "suspicious" ? "Suspicion about a person can identify and target them. Contact KSU Police about a concern." : divert === "medical" ? "For a medical emergency, call 911 or KSU Police." : "For sexual misconduct, dating violence or stalking, use KSU’s specialist resources or contact police."}</p>
     {divert === "sexual" && <div className="flex flex-wrap gap-[var(--sp-2)]">
       <a className={incidentButton} href="https://www.kennesaw.edu/sexual-misconduct/">KSU Title IX office</a>
@@ -187,7 +187,7 @@ export function IncidentForm({ mode, online, onStep, onPosted, onBusy, onBackPan
     {step === 5 && <div className="space-y-[var(--sp-3)]">
       <div className="flex flex-wrap gap-[var(--sp-2)]">{([ ["show_handle", "Show my handle"], ["hidden", "Student · name hidden"] ] as const).map(([value, label]) =>
         <button key={value} className={incidentButton} aria-pressed={nameLevel === value} onClick={() => setNameLevel(value)}>{label}</button>)}</div>
-      <p>Moderators can see who posted. KSUX may have to share account details if the law requires. This isn’t anonymous to police. For anonymous tips, use KSU LiveSafe outside KSUX.</p>
+      <p>Moderators can see who posted. OwlSide may have to share account details if the law requires. This isn’t anonymous to police. For anonymous tips, use KSU LiveSafe outside OwlSide.</p>
     </div>}
     {step === 6 && <article className="space-y-[var(--sp-2)] rounded-[var(--r-md)] border border-[var(--line)] p-[var(--sp-3)]">
       <p>{category && INCIDENT_CATEGORIES[category].shape} {category && INCIDENT_CATEGORIES[category].label} · {campus}</p>

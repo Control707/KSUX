@@ -94,7 +94,7 @@ export function AnnouncerProvider({ children }: { children: React.ReactNode }) {
   return (
     <AnnouncerContext.Provider value={value}>
       {children}
-      <div data-ksux-live="" className="pointer-events-none fixed inset-x-0 top-[var(--sp-3)] z-[60] flex flex-col items-center gap-[var(--sp-2)] px-[var(--sp-3)]">
+      <div data-owlside-live="" className="pointer-events-none fixed inset-x-0 top-[var(--sp-3)] z-[60] flex flex-col items-center gap-[var(--sp-2)] px-[var(--sp-3)]">
         <div role="alert" data-testid="toast-alert-region" className="flex w-full flex-col items-center gap-[var(--sp-2)]">
           {errorToasts.map((t) => (
             <ToastCard key={t.id} toast={t} onDismiss={dismissToast} />
@@ -106,10 +106,10 @@ export function AnnouncerProvider({ children }: { children: React.ReactNode }) {
           ))}
         </div>
       </div>
-      <div data-ksux-live="" className="sr-only" role="status" data-testid="live-status">
+      <div data-owlside-live="" className="sr-only" role="status" data-testid="live-status">
         {polite}
       </div>
-      <div data-ksux-live="" className="sr-only" role="alert" data-testid="live-alert">
+      <div data-owlside-live="" className="sr-only" role="alert" data-testid="live-alert">
         {assertive}
       </div>
     </AnnouncerContext.Provider>

@@ -23,14 +23,14 @@ vi.mock("next/server", () => ({
 }));
 
 vi.mock("@/lib/convexHttp", () => ({
-  SESSION_COOKIE_NAME: "ksux_session",
+  SESSION_COOKIE_NAME: "owlside_session",
   createServerConvexClient: () => ({ query: mocks.query, mutation: mocks.mutation }),
 }));
 
 describe("Student session route", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.stubEnv("KSUX_SERVER_SECRET", "route-unit-test-secret");
+    vi.stubEnv("OWLSIDE_SERVER_SECRET", "route-unit-test-secret");
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -54,7 +54,7 @@ describe("Student session route", () => {
     expect(body).not.toHaveProperty("sessionToken");
     expect(mocks.mutation).toHaveBeenCalledTimes(1);
     expect(getFunctionName(mocks.mutation.mock.calls[0]![0])).toBe("auth:verifyEmailOtp");
-    expect(mocks.setCookie).toHaveBeenCalledWith("ksux_session", "a-test-session", {
+    expect(mocks.setCookie).toHaveBeenCalledWith("owlside_session", "a-test-session", {
       httpOnly: true,
       sameSite: "lax",
       secure: false,
@@ -70,7 +70,7 @@ describe("Student session route", () => {
     const response = await DELETE(new Request("http://localhost/api/auth/session", { method: "DELETE" }));
 
     expect(response.status).toBe(200);
-    expect(mocks.deleteCookie).toHaveBeenCalledWith("ksux_session");
+    expect(mocks.deleteCookie).toHaveBeenCalledWith("owlside_session");
     expect(mocks.mutation).toHaveBeenCalledTimes(1);
     const [signOut, args] = mocks.mutation.mock.calls[0]!;
     expect(getFunctionName(signOut)).toBe("auth:signOutSession");
@@ -89,7 +89,7 @@ describe("Student session route", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.mutation.mock.calls[0]?.[1]).toEqual({ sessionToken: "a-test-session" });
-    expect(mocks.deleteCookie).toHaveBeenCalledWith("ksux_session");
+    expect(mocks.deleteCookie).toHaveBeenCalledWith("owlside_session");
   });
 
   it("forwards the current browser's push endpoint with the cookie session", async () => {

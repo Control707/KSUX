@@ -1,4 +1,4 @@
-# KSUX — Implementation Specification
+# OwlSide — Implementation Specification
 
 > Consolidated implementation specification resolved across Wayfinder [Map #1](https://github.com/Control707/KSUX/issues/1) (tickets `#2–#12`), [`GLOSSARY.md`](../GLOSSARY.md), and [`docs/adr/0001–0006`](./adr/).
 >
@@ -28,7 +28,7 @@
 | **Repo & Toolchain** | Single root `pnpm` repo: **Next.js App Router (React 19, TypeScript strict, Tailwind CSS v4)**, `lucide-react`, `maplibre-gl`, `vitest` + `convex-test`, Playwright | Use a hand-written versioned `public/sw.js` (avoiding `@serwist/next` / `next-pwa` Turbopack/webpack build friction). |
 | **Hosting** | **Vercel Hobby** (`*.vercel.app` under personal GitHub `Control707/KSUX`) | `100 GB` Fast Data Transfer, `1M` invocations, `300s` max Node.js duration. **Zero** `vercel.json` crons; deploy atomically via `npx convex deploy --cmd 'pnpm build'`. |
 | **Database, Realtime & Crons** | **Convex Free (S16)** | `1,000` concurrent WebSocket sessions, `1M` calls/mo, `1 GB/mo` DB I/O, `0.5 GB` DB+index, `0.5 GB` search/vector, `20 GB-hrs/mo` Action compute, no 7-day auto-pause. Mount-scoped `.paginate({ numItems: 25 })` / `.take(25)` (never unbounded `.collect()`), single `shellSummary` header subscription, zero typing/presence DB writes, V8 `internalAction`s (`64 MB`) for KSU HTTP syncs. |
-| **Auth Email** | **Gmail App-Password SMTP (`smtp.gmail.com:465`)** via `nodemailer` in `"use node"` `internalAction` | `500 emails / 24h` (optional secondary Gmail fallback; console OTP log in local dev when `KSUX_ALLOW_DEV_OTP_LOG=true`). Send 6-digit numeric OTPs (never magic links, which KSU Safe Links pre-fetches). |
+| **Auth Email** | **Gmail App-Password SMTP (`smtp.gmail.com:465`)** via `nodemailer` in `"use node"` `internalAction` | `500 emails / 24h` (optional secondary Gmail fallback; console OTP log in local dev when `OWLSIDE_ALLOW_DEV_OTP_LOG=true`). Send 6-digit numeric OTPs (never magic links, which KSU Safe Links pre-fetches). |
 | **Media Storage** | **UploadThing Free ("2GB App")** | `2 GB` storage, unlimited egress. Still images only, client-side Canvas WebP re-encoding (`≤1440px`, quality `0.8`, `1 MB` hard route limit, strips EXIF/GPS). Caps: `4` images/`Post` or `Listing`, `1`/chat message, `1` avatar, `20` uploads/`demoSessionId`. |
 | **Campus Maps** | **`MapLibre GL JS` + `OpenFreeMap`** (`tiles.openfreemap.org`) | No card, no API key; OSM/Carto raster fallback; static `/public/data/*.geojson` polygons & offline embedded background style. |
 | **`Scrappy` LLMs** | **3-Tier OpenAI-Compatible Router** | **Tier 1 (Primary)**: Groq Cloud Free (`openai/gpt-oss-120b` for `Ask Scrappy`, `openai/gpt-oss-20b` for `@scrappy` mentions; ZDR enabled, `60 RPM` / `2,000 RPD` / `400k uncached TPD`). **Tier 2 (Overflow on `429` / `>4,500` uncached input tokens)**: Google Gemini Free (`gemini-3.5-flash-lite` / `gemini-4-hydrogen`, `.edu` emails & internal IDs stripped). **Tier 3 (ZDR Fallback)**: Cloudflare Workers AI (`@cf/google/gemma-4-26b-a4b-it`, `10k Neurons/day`). |
@@ -38,7 +38,7 @@
 
 ## 3. Navigation Shell, Layout & `Campus` Switcher
 
-Prototype reference: [`prototype/ksux-shell.html`](https://github.com/Control707/KSUX/blob/prototype/ksux-shell/prototype/ksux-shell.html) (`Variant B + A Hybrid`).
+Prototype reference: [archived OwlSide shell](https://github.com/Control707/KSUX/blob/prototype/ksux-shell/prototype/ksux-shell.html) (`Variant B + A Hybrid`).
 
 1. **5-Slot Mobile Bottom Bar**:
    - **`Now` (`/`)**: Default 0-tap Commuter Bento HUD (pinned `Parking Lot` fullness + overflow `Shuttle Route` reroute, next Big Owl Bus ETA, open `Study Rooms` & `Study Sessions`, `Dining Venue` highlights, today's `Events`, `Scrappy` brief).
@@ -64,7 +64,7 @@ Prototype reference: [`prototype/ksux-shell.html`](https://github.com/Control707
 3. **OTP & Session Security**:
    - SHA-256-hashed 6-digit OTPs in `emailOtps`: `10m` expiry, `5`-attempt cap (invalidates code on 5th failure), `1 resend / 60s`, `5 OTPs / 24h` per canonical email, `10 OTPs / hr` per hashed IP.
    - Opaque 256-bit `sessionToken` stored hashed in `studentSessions` (`30d` sliding expiry refreshed at most once per `24h`), mirrored to `HttpOnly; SameSite=Lax; Path=/` cookie (`Secure` enabled when `NODE_ENV === "production"`).
-   - Next.js Route Handlers (`/api/uploadthing`, `/api/scrappy/stream`, `/api/auth/session`) contain zero duplicated auth logic; they forward the `sessionToken` cookie (or `x-ksux-demo-session` + `x-ksux-demo-persona`) to Convex `viewerContext` validation.
+   - Next.js Route Handlers (`/api/uploadthing`, `/api/scrappy/stream`, `/api/auth/session`) contain zero duplicated auth logic; they forward the `sessionToken` cookie (or `x-owlside-demo-session` + `x-owlside-demo-persona`) to Convex `viewerContext` validation.
 4. **Onboarding (`<30s`) & Handles**:
    - Step 1 (required): Display name, unique `@handle` (`3–20` `[a-z0-9_]`, case-insensitive uniqueness, reserved denylist blocking `scrappy`, `ksu`, `kennesaw`, `marietta`, `admin`, `mod`, `moderator`, `police`, `ksupd`, `owllife`, `support`, `system`, `official`, `maya_cs`, `jordan_me`, `alex_owl`, `sam_cpe`, `taylor_bio`, max `1` change / `30d`), and `homeCampus`.
    - Step 2 (skippable): Major, class year, avatar upload, `.ics` schedule upload or `Course Hub` search.
@@ -77,7 +77,7 @@ Prototype reference: [`prototype/ksux-shell.html`](https://github.com/Control707
 6. **`Judge Demo Mode` Two-Way Isolation**:
    - `?demo=1` or `?demo=<shortCode>` provisions/attaches a `demoSessionId` (`24h` TTL) cloning ~50 boot-relative fixture rows (`@maya_cs`, `@jordan_me`, `@alex_owl`, plus `@sam_cpe` and `@taylor_bio`) into `workspaceKey: "demo:<demoSessionId>"`.
    - `"ksu"` institutional rows are **100% read-only** to demo mutations; demo RSVPs, club joins, enrollments, and reports write exclusively to `"demo:<demoSessionId>"` and overlay at read time.
-   - `activePersonaHandle` lives in **per-tab `sessionStorage`** (passed via `viewerContext` / `x-ksux-demo-persona`); `Copy Co-Test Link` generates `?demo=<shortCode>&persona=alex_owl` for 2-tab live WebSocket co-testing without overwriting Tab 1.
+   - `activePersonaHandle` lives in **per-tab `sessionStorage`** (passed via `viewerContext` / `x-owlside-demo-persona`); `Copy Co-Test Link` generates `?demo=<shortCode>&persona=alex_owl` for 2-tab live WebSocket co-testing without overwriting Tab 1.
 
 ---
 
@@ -104,9 +104,9 @@ Prototype reference: [`prototype/ksux-shell.html`](https://github.com/Control707
    - Every upstream HTTP call uses `AbortSignal.timeout(8000)`, max `1` retry, `3`-strike exponential backoff (`15m → 30m → 60m` cap), and aborts upserts on `0` rows or `>80%` drop. Staleness pills appear past `15m` (`Shuttle`/`Study`), `2h` (`Events`), `24h` (`Dining`).
    - One `:42` hourly cron chains `≤200`-doc cursor batches: (a) `UTApi.deleteFiles` for expired `demoSessions` (`>24h`) and abandoned `pending` uploads (`>2h`), (b) cascade-delete expired `demoSessionId` rows, (c) prune expired `emailOtps` (`>1h`), `studentSessions` (`>30d`), `rateLimitBuckets`, `interpersonalLedgers`, `handleReservations`, aged pulses (`>24h`), and mark `>30d` untouched `Available` `Listings` `"expired"`.
 4. **Notifications & Offline PWA Scope**:
-   - **Tier 0 (Universal)**: Reactive `shellSummary` badges, top Slide-Down Toasts, `(N) KSUX` tab title.
+   - **Tier 0 (Universal)**: Reactive `shellSummary` badges, top Slide-Down Toasts, `(N) OwlSide` tab title.
    - **Tier 1 (Opt-In VAPID Web Push, `"prod"` only)**: Low-fan-out only (`Direct Messages`, `Message Requests`, `Deal Chats`, `@scrappy` replies; max `1` push / `(recipient, chatId)` / `60s`, handle-only payloads, suppressed if muted/blocked/active tab/read `<15s`, max `3` endpoints/`Student`, disabled in `Judge Demo Mode`).
-   - **Service Worker (`public/sw.js`)**: Network-First (`3s` timeout) HTML, Cache-First `/_next/static/*`, SWR `/public/data/*` (`<3 MB`), passthrough `/api/*` + Convex + Passio + UploadThing; non-disruptive `"Update available · Tap to reload"` pill. Offline MapLibre renders embedded style + precached GeoJSON + read-only `ksux_commuter_cache` (`0` offline writes, `0` offline `chatMessages`).
+   - **Service Worker (`public/sw.js`)**: Network-First (`3s` timeout) HTML, Cache-First `/_next/static/*`, SWR `/public/data/*` (`<3 MB`), passthrough `/api/*` + Convex + Passio + UploadThing; non-disruptive `"Update available · Tap to reload"` pill. Offline MapLibre renders embedded style + precached GeoJSON + read-only `owlside_commuter_cache` (`0` offline writes, `0` offline `chatMessages`).
 
 ---
 
@@ -157,10 +157,10 @@ Every `Student`-authored table leads B-tree, `.searchIndex`, and `.vectorIndex` 
 - **Slice B (Social & Communities)**: `convex/feed.ts`, `convex/communities.ts`, `/feed`, `/courses/[subjectCourse]` (+ stateless `.ics` import), `/clubs/[slug]`, `/events/[eventId]` UI.
 - **Slice C (`Marketplace`, Messaging & Push)**: `convex/marketplace.ts`, `convex/chats.ts`, `convex/push.ts`, `/marketplace`, `/chats`, `/chats/[chatId]` (`Direct Messages`, `Message Requests`, `Group Chats`, per-buyer `Deal Chats`, `Meetup Spot` Handoff Cards), Push settings.
 - **Slice D (Daily Life, Map & KSU Sync)**: `convex/dailyLife.ts`, `convex/sync/*`, `/` (`Now` HUD), `/parking`, `/study`, `/transit` (`MapLibre GL JS` + browser-direct Passio GO), `/dining` UI.
-- **Slice E (`Scrappy` & Offline PWA)**: `convex/scrappy/*`, `app/api/scrappy/stream/route.ts`, `/scrappy` (`Ask Scrappy` SSE), `@scrappy` `Feed` replies + Citation Pills + Pre-Filled Draft Cards, `public/sw.js`, `ksux_commuter_cache`.
+- **Slice E (`Scrappy` & Offline PWA)**: `convex/scrappy/*`, `app/api/scrappy/stream/route.ts`, `/scrappy` (`Ask Scrappy` SSE), `@scrappy` `Feed` replies + Citation Pills + Pre-Filled Draft Cards, `public/sw.js`, `owlside_commuter_cache`.
 
 ### Day 4/5 Scope-Protection Cut-Lines
-- **Never Cut (P0)**: Dual-Path Welcome + `.edu` OTP + `Judge Demo Mode` 3-persona switcher & `?demo=<shortCode>` 2-tab co-testing, all 5 shell slots + Quick Sheet, `Now` HUD, all 10 capabilities (`Parking`, `Study Rooms`, `Events`, `Clubs`, `Course Hubs`, `Shuttle Routes`, `Dining Venues`, `Feed`, `Direct Messages`/`Group Chats`/`Deal Chats`, `Scrappy` chat-isolated), and offline GeoJSON + `ksux_commuter_cache`.
+- **Never Cut (P0)**: Dual-Path Welcome + `.edu` OTP + `Judge Demo Mode` 3-persona switcher & `?demo=<shortCode>` 2-tab co-testing, all 5 shell slots + Quick Sheet, `Now` HUD, all 10 capabilities (`Parking`, `Study Rooms`, `Events`, `Clubs`, `Course Hubs`, `Shuttle Routes`, `Dining Venues`, `Feed`, `Direct Messages`/`Group Chats`/`Deal Chats`, `Scrappy` chat-isolated), and offline GeoJSON + `owlside_commuter_cache`.
 - **Cuttable / Graceful Fallback (P1)**:
   1. Defer VAPID OS Web Push registration while keeping universal Tier-0 in-app Slide-Down Toasts and unread badges.
   2. Use checked-in sample syllabi for `@maya_cs`/`@jordan_me` courses + official Simple Syllabus deep-link fallback if live Simple Syllabus HTML/API shifts.

@@ -54,7 +54,7 @@ export const requestEmailOtp = publicAuthMutation({
     if (suspendedEmailLock) {
       throw new ConvexError({
         code: "ACCOUNT_SUSPENDED",
-        message: "This KSU .edu account has been suspended from KSUX.",
+        message: "This KSU .edu account has been suspended from OwlSide.",
       });
     }
 
@@ -67,7 +67,7 @@ export const requestEmailOtp = publicAuthMutation({
     if (existingStudent && existingStudent.accountStatus === "suspended" && !await hasSuspensionAppealAccess(ctx, existingStudent._id, now)) {
       throw new ConvexError({
         code: "ACCOUNT_SUSPENDED",
-        message: "This KSU .edu account has been suspended from KSUX.",
+        message: "This KSU .edu account has been suspended from OwlSide.",
       });
     }
 
@@ -100,7 +100,7 @@ export const requestEmailOtp = publicAuthMutation({
     }
 
     // Check 10 OTPs / hr per hashed IP
-    const ipHash = await sha256Hex(`ksux-otp-network:${args.serverSecret}:${args.clientNetwork}`);
+    const ipHash = await sha256Hex(`owlside-otp-network:${args.serverSecret}:${args.clientNetwork}`);
     const ipBucketKey = `otp_ip:${ipHash}`;
     const ipBucket = await ctx.db
       .query("rateLimitBuckets")
@@ -152,7 +152,7 @@ export const requestEmailOtp = publicAuthMutation({
       expiresAt: now + OTP_TTL_MS,
     });
 
-    if (process.env.KSUX_SKIP_OTP_SCHEDULER !== "true") {
+    if (process.env.OWLSIDE_SKIP_OTP_SCHEDULER !== "true") {
       await ctx.scheduler.runAfter(0, internal.authNode.sendOtpEmailAction, {
         canonicalEmail,
         code,
@@ -161,7 +161,7 @@ export const requestEmailOtp = publicAuthMutation({
 
     const isDevOtpVisible =
       process.env.NODE_ENV !== "production" &&
-      process.env.KSUX_ALLOW_DEV_OTP_LOG === "true";
+      process.env.OWLSIDE_ALLOW_DEV_OTP_LOG === "true";
 
     return {
       ok: true,
@@ -201,7 +201,7 @@ export const verifyEmailOtp = publicAuthMutation({
     if (suspendedLock) {
       throw new ConvexError({
         code: "ACCOUNT_SUSPENDED",
-        message: "This KSU .edu account has been suspended from KSUX.",
+        message: "This KSU .edu account has been suspended from OwlSide.",
       });
     }
 
@@ -262,7 +262,7 @@ export const verifyEmailOtp = publicAuthMutation({
     if (student && student.accountStatus === "suspended" && !appealAccess) {
       throw new ConvexError({
         code: "ACCOUNT_SUSPENDED",
-        message: "This KSU .edu account has been suspended from KSUX.",
+        message: "This KSU .edu account has been suspended from OwlSide.",
       });
     }
 
@@ -306,7 +306,7 @@ export const verifyEmailOtp = publicAuthMutation({
       sessionToken,
       student: toPublicStudent(student),
       needsOnboarding: student.onboardingCompleted === false,
-      isModerator: parseMaintainerEmails(process.env.KSUX_MAINTAINER_EMAILS).has(canonicalEmail),
+      isModerator: parseMaintainerEmails(process.env.OWLSIDE_MAINTAINER_EMAILS).has(canonicalEmail),
       sessionExpiresAt,
       ...await mintBrowserCredential(tokenHash, sessionExpiresAt, now),
     };

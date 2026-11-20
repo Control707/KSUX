@@ -155,7 +155,7 @@ export function StudyView() {
         open={hostOpen}
         onClose={() => setHostOpen(false)}
         title="Host a Study Session"
-        description="Your session gets a Group Chat. KSUX does not reserve LibCal rooms for you."
+        description="Your session gets a Group Chat. OwlSide does not reserve LibCal rooms for you."
         testId="study-host-dialog"
       >
         <form onSubmit={handleCreateSession} className="space-y-[var(--sp-3)]">

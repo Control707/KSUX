@@ -32,9 +32,9 @@ async function setup() {
   const t = convexTest({ schema: rosterSchema, modules: convexModules });
   const lead = await createVerifiedTestStudent(t, { handle: "lead", displayName: "Lead" });
   const reader = await createVerifiedTestStudent(t, { handle: "reader", displayName: "Reader" });
-  vi.stubEnv("KSUX_MAINTAINER_EMAILS", lead.canonicalEmail);
-  vi.stubEnv("KSUX_V2_MODERATOR_OPS_COMPLETE", "true");
-  vi.stubEnv("KSUX_V2_INCIDENT_POSTING", "true");
+  vi.stubEnv("OWLSIDE_MAINTAINER_EMAILS", lead.canonicalEmail);
+  vi.stubEnv("OWLSIDE_V2_MODERATOR_OPS_COMPLETE", "true");
+  vi.stubEnv("OWLSIDE_V2_INCIDENT_POSTING", "true");
   const appoint = (studentId: typeof lead.studentId, overrides = {}) => t.run((ctx) => ctx.db.insert("moderators", {
     workspaceKey: "prod", studentId, appointedById: lead.studentId, isCsa: false,
     csaStatement: "I am not a campus security authority.", appointedAt: Date.now() - 1000, ...overrides,
@@ -55,8 +55,8 @@ it("keeps posting open regardless of appointments or switches, while still count
   await expect(ops()).resolves.toMatchObject({ gate: { moderatorCount: 1, postingEnabled: true } });
   const appointment = await appoint(reader.studentId);
   await expect(ops()).resolves.toMatchObject({ gate: { moderatorCount: 2 } });
-  vi.stubEnv("KSUX_V2_MODERATOR_OPS_COMPLETE", "false");
-  vi.stubEnv("KSUX_V2_INCIDENT_POSTING", "false");
+  vi.stubEnv("OWLSIDE_V2_MODERATOR_OPS_COMPLETE", "false");
+  vi.stubEnv("OWLSIDE_V2_INCIDENT_POSTING", "false");
   await expect(status()).resolves.toEqual({ postingEnabled: true });
   await t.run((ctx) => ctx.db.patch(appointment, { revokedAt: Date.now() }));
   await expect(ops()).resolves.toMatchObject({ gate: { moderatorCount: 1, postingEnabled: true } });

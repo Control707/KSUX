@@ -10,7 +10,7 @@ vi.mock("@/lib/convexHttp", () => ({
 }));
 vi.mock("uploadthing/server", () => ({ UTApi: class { generateSignedURL = mocks.signed; } }));
 const request = () => new Request("http://localhost/api/incident-photo", { method: "POST", body: JSON.stringify({ incidentId: "incident" }) });
-beforeEach(() => { vi.resetAllMocks(); vi.stubEnv("KSUX_SERVER_SECRET", "secret"); vi.stubEnv("UPLOADTHING_TOKEN", "storage-token"); vi.stubGlobal("fetch", mocks.fetch); });
+beforeEach(() => { vi.resetAllMocks(); vi.stubEnv("OWLSIDE_SERVER_SECRET", "secret"); vi.stubEnv("UPLOADTHING_TOKEN", "storage-token"); vi.stubGlobal("fetch", mocks.fetch); });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
 it("denies unavailable/held media before accessing storage", async () => {

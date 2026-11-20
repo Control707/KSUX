@@ -15,7 +15,7 @@ export const reserveUpload = viewerMutation({
   args: { ...metadata, serverSecret: v.string() },
   handler: async (ctx, args) => {
     await requireServerSecret(args.serverSecret);
-    if (args.purpose === "incident" && (ctx.viewer.mode === "demo" || process.env.KSUX_V2_INCIDENT_PHOTOS !== "true" ||
+    if (args.purpose === "incident" && (ctx.viewer.mode === "demo" || process.env.OWLSIDE_V2_INCIDENT_PHOTOS !== "true" ||
       !(await getIncidentLaunchGate(ctx.db, ctx.viewer.mode)).postingEnabled)) {
       throw new ConvexError({ code: "FORBIDDEN", message: "Incident photo uploads are unavailable. Demo uses static fixture photos." });
     }

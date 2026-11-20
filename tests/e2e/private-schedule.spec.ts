@@ -32,8 +32,8 @@ test("previews a mixed calendar, saves a private class, and shows it in Now", as
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("bento-schedule-tile")).toContainText("BIOL 9900 Field Lab");
   await expect.poll(() => page.evaluate(() => {
-    const key = "ksux_commuter_cache:demo:" + sessionStorage.getItem("ksux_demo_short_code")
-      + ":" + sessionStorage.getItem("ksux_demo_persona");
+    const key = "owlside_commuter_cache:demo:" + sessionStorage.getItem("owlside_demo_short_code")
+      + ":" + sessionStorage.getItem("owlside_demo_persona");
     return sessionStorage.getItem(key)?.includes("BIOL 9900 Field Lab") ?? false;
   })).toBe(true);
   await context.setOffline(true);

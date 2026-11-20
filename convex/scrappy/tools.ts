@@ -57,7 +57,7 @@ const PUBLIC_SIX_TOOL_SPECS: ScrappyToolSpec[] = [
   {
     name: "searchFeedPosts",
     description:
-      "Search public KSUX Feed Posts in the active workspace (up to 8 compact rows).",
+      "Search public OwlSide Feed Posts in the active workspace (up to 8 compact rows).",
     parameters: {
       type: "object",
       properties: {

@@ -201,6 +201,8 @@
 }
 
 html {
+  /* Loading/short pages must not change the available text width. */
+  scrollbar-gutter: stable;
   scroll-padding-top: var(--chrome-top);
   scroll-padding-bottom: var(--chrome-bottom);
 }
@@ -286,7 +288,7 @@ h3 {
 }
 
 /* Dialog and sheet motion. Reduced motion means fades only. */
-@keyframes ksux-fade-in {
+@keyframes owlside-fade-in {
   from {
     opacity: 0;
   }
@@ -294,7 +296,7 @@ h3 {
     opacity: 1;
   }
 }
-@keyframes ksux-sheet-in {
+@keyframes owlside-sheet-in {
   from {
     transform: translateY(var(--sheet-move));
   }
@@ -302,24 +304,24 @@ h3 {
     transform: none;
   }
 }
-.ksux-backdrop {
-  animation: ksux-fade-in var(--dur-fade) linear;
+.owlside-backdrop {
+  animation: owlside-fade-in var(--dur-fade) linear;
 }
-.ksux-sheet {
-  animation: ksux-sheet-in var(--dur-2) var(--ease);
+.owlside-sheet {
+  animation: owlside-sheet-in var(--dur-2) var(--ease);
 }
-.ksux-dialog {
-  animation: ksux-fade-in var(--dur-fade) linear;
+.owlside-dialog {
+  animation: owlside-fade-in var(--dur-fade) linear;
 }
 
 /* Official Alert pulse: opacity only (no transform), three times then still
    (WCAG 2.2.2: stops within 5 s), and off under reduced motion. */
-@keyframes ksux-alert-pulse {
+@keyframes owlside-alert-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
 }
-.ksux-alert-pulse {
-  animation: ksux-alert-pulse 1.4s ease-in-out 3;
+.owlside-alert-pulse {
+  animation: owlside-alert-pulse 1.4s ease-in-out 3;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -329,10 +331,10 @@ h3 {
     scroll-behavior: auto !important;
     transition-property: opacity, color, background-color, border-color !important;
   }
-  .ksux-sheet {
-    animation: ksux-fade-in var(--dur-fade) linear;
+  .owlside-sheet {
+    animation: owlside-fade-in var(--dur-fade) linear;
   }
-  .ksux-alert-pulse {
+  .owlside-alert-pulse {
     animation: none;
   }
 }

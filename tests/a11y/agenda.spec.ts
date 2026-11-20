@@ -34,8 +34,8 @@ for (const theme of THEMES) for (const [viewportName, viewport] of Object.entrie
     await page.emulateMedia({ colorScheme: theme });
     await enterDemo(page, "/agenda");
     const auth = await page.evaluate(() => ({
-      demoShortCode: sessionStorage.getItem("ksux_demo_short_code")!,
-      demoPersonaHandle: sessionStorage.getItem("ksux_demo_persona")!,
+      demoShortCode: sessionStorage.getItem("owlside_demo_short_code")!,
+      demoPersonaHandle: sessionStorage.getItem("owlside_demo_persona")!,
     }));
     const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL ?? "http://127.0.0.1:3210");
     const rooms = await convex.query(api.study.listStudyRoomsAndSessions, { ...auth, campusOverride: "All KSU" });

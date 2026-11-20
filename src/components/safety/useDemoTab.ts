@@ -11,7 +11,7 @@ export function useDemoTab(): boolean {
   useEffect(() => {
     try {
       setDemo(
-        !!window.sessionStorage.getItem("ksux_demo_short_code") ||
+        !!window.sessionStorage.getItem("owlside_demo_short_code") ||
           new URLSearchParams(window.location.search).has("demo")
       );
     } catch {

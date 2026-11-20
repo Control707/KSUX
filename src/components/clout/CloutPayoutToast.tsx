@@ -5,7 +5,7 @@ import { api } from "@convex/_generated/api";
 import { useAnnouncer } from "@/components/a11y/Announcer";
 import { useViewerQuery } from "@/lib/viewerClient";
 
-export const CLOUT_PAYOUT_EVENT = "ksux:clout-payout";
+export const CLOUT_PAYOUT_EVENT = "owlside:clout-payout";
 
 const SOURCE_PHRASE: Record<string, string> = {
   parking_report: "report was confirmed",

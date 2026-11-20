@@ -8,9 +8,9 @@ import type { Id } from "../../convex/_generated/dataModel";
 const NOW = Date.parse("2026-11-19T15:00:00Z");
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(NOW);
-  vi.stubEnv("KSUX_SERVER_SECRET", TEST_SERVER_SECRET);
-  vi.stubEnv("KSUX_V2_MODERATOR_OPS_COMPLETE", "true"); vi.stubEnv("KSUX_V2_INCIDENT_POSTING", "true");
-  vi.stubEnv("KSUX_V2_INCIDENT_PHOTOS", "true");
+  vi.stubEnv("OWLSIDE_SERVER_SECRET", TEST_SERVER_SECRET);
+  vi.stubEnv("OWLSIDE_V2_MODERATOR_OPS_COMPLETE", "true"); vi.stubEnv("OWLSIDE_V2_INCIDENT_POSTING", "true");
+  vi.stubEnv("OWLSIDE_V2_INCIDENT_PHOTOS", "true");
 });
 afterEach(() => { vi.unstubAllEnvs(); vi.useRealTimers(); });
 
@@ -109,7 +109,7 @@ it("approval preserves identifies-me quarantine and keeps its independent Modera
 it("denies conflicting authors/reporters, CSA reviewers and another workspace on both image access and photo decisions", async () => {
   const { t, author, reviewers, upload, create, mod, access } = await setup();
   const { incidentId } = await create(await upload());
-  vi.stubEnv("KSUX_MAINTAINER_EMAILS", author.canonicalEmail);
+  vi.stubEnv("OWLSIDE_MAINTAINER_EMAILS", author.canonicalEmail);
   await expect(access(incidentId, true)).rejects.toThrow(/involves you/);
   await t.mutation(api.incidents.report, { ...mod, incidentId, reason: "identifies_person" });
   await expect(access(incidentId, true, mod.sessionToken)).rejects.toThrow(/involves you/);
@@ -131,7 +131,7 @@ it("rejects attachment reuse, foreign ownership, wrong-purpose, cleanup-claimed 
     await t.run(({ db }) => db.patch(invalid, { ownerStudentId: author.studentId, purpose: "incident", deleteClaimedAt: undefined, workspaceKey: "prod", ...patch }));
     await expect(create(invalid)).rejects.toThrow(/unavailable/);
   }
-  vi.stubEnv("KSUX_V2_INCIDENT_PHOTOS", "false"); await expect(upload()).rejects.toThrow(/unavailable/);
+  vi.stubEnv("OWLSIDE_V2_INCIDENT_PHOTOS", "false"); await expect(upload()).rejects.toThrow(/unavailable/);
 });
 
 it("blocks review exactly at 48h before hourly cleanup, then discards/notifies once even when remote deletion needs a retry", async () => {

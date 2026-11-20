@@ -6,7 +6,7 @@ import { DAY, HOUR, INCIDENT_PLACES } from "../../convex/lib/incidentPolicy";
 const NOW = Date.parse("2026-11-19T15:00:00Z");
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(NOW);
-  vi.stubEnv("KSUX_V2_MODERATOR_OPS_COMPLETE", "true"); vi.stubEnv("KSUX_V2_INCIDENT_POSTING", "true");
+  vi.stubEnv("OWLSIDE_V2_MODERATOR_OPS_COMPLETE", "true"); vi.stubEnv("OWLSIDE_V2_INCIDENT_POSTING", "true");
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 async function setup() {
@@ -37,8 +37,8 @@ it("publishes a building-level Incident, never a Post, Alert or Clout event, wit
 
 it("accepts production posts without launch switches or appointed Moderators", async () => {
   const { t, write } = await setup();
-  vi.stubEnv("KSUX_V2_MODERATOR_OPS_COMPLETE", "false");
-  vi.stubEnv("KSUX_V2_INCIDENT_POSTING", "false");
+  vi.stubEnv("OWLSIDE_V2_MODERATOR_OPS_COMPLETE", "false");
+  vi.stubEnv("OWLSIDE_V2_INCIDENT_POSTING", "false");
   await t.run(async ({ db }) => { for (const row of await db.query("moderators").collect()) await db.patch(row._id, { revokedAt: NOW }); });
   await expect(write()).resolves.toMatchObject({ incidentId: expect.any(String) });
 });
@@ -193,7 +193,7 @@ it("isolates Demo writes, reads, updates and reports across sessions and product
   const a = await t.mutation(api.demo.session.provisionOrAttachDemoSession, {});
   const b = await t.mutation(api.demo.session.provisionOrAttachDemoSession, {});
   const demoAuth = { demoShortCode: a.shortCode, demoPersonaHandle: "maya_cs" };
-  vi.stubEnv("KSUX_V2_INCIDENT_POSTING", "false");
+  vi.stubEnv("OWLSIDE_V2_INCIDENT_POSTING", "false");
   const { incidentId } = await t.mutation(api.incidents.create, { ...demoAuth, category: "hazard", campus: "Kennesaw",
     buildingId: INCIDENT_PLACES[0]!.id, observedAt: NOW, text: "temporary water spill", nameLevel: "hidden" });
   expect(await detail(incidentId)).toEqual({ state: "unavailable" });

@@ -7,8 +7,8 @@ import {
 
 describe("Seam 1 — Unified Chats: DMs, Cold Message Requests, Group Chats, Unread Cursors & Push (#23)", () => {
   beforeEach(() => {
-    process.env.KSUX_SKIP_PUSH_SCHEDULER = "true";
-    process.env.KSUX_SKIP_STORAGE_SCHEDULER = "true";
+    process.env.OWLSIDE_SKIP_PUSH_SCHEDULER = "true";
+    process.env.OWLSIDE_SKIP_STORAGE_SCHEDULER = "true";
   });
 
   it("enforces cold Message Request 1-message text-only caps, 30-day decline cooldowns, and zero-scan lastReadSeq unread badges", async () => {

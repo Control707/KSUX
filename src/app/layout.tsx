@@ -5,14 +5,14 @@ import { AnnouncerProvider } from "@/components/a11y/Announcer";
 import { DEMO_CALL_INTERCEPT_SCRIPT } from "@/components/safety/EmergencyPanel";
 
 export const metadata: Metadata = {
-  title: "KSUX — Kennesaw State Campus Companion",
+  title: "OwlSide — Kennesaw State Campus Companion",
   description:
     "Unified campus social network, Marketplace, Big Owl Bus, Parking, Study Rooms, Course Hubs, and Scrappy AI for Kennesaw & Marietta Campuses.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "KSUX",
+    title: "OwlSide",
   },
 };
 

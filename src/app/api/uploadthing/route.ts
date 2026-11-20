@@ -57,7 +57,7 @@ export async function POST(request: Request) {
   if (!authEnvelope.sessionToken && !authEnvelope.demoShortCode) {
     return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
   }
-  const serverSecret = process.env.KSUX_SERVER_SECRET;
+  const serverSecret = process.env.OWLSIDE_SERVER_SECRET;
   const uploadToken = process.env.UPLOADTHING_TOKEN?.trim();
   if (!serverSecret || (!uploadToken && process.env.NODE_ENV === "production" && !authEnvelope.demoShortCode)) {
     return NextResponse.json({ error: "Image upload is unavailable." }, { status: 503 });

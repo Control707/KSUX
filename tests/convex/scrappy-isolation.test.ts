@@ -7,9 +7,9 @@ import {
 
 describe("Seam 1 — Scrappy Read-Only Tool Isolation, Non-Looping @scrappy Mentions & Quotas (#25)", () => {
   beforeEach(() => {
-    process.env.KSUX_SKIP_SCRAPPY_SCHEDULER = "true";
-    process.env.KSUX_SKIP_PUSH_SCHEDULER = "true";
-    process.env.KSUX_SKIP_STORAGE_SCHEDULER = "true";
+    process.env.OWLSIDE_SKIP_SCRAPPY_SCHEDULER = "true";
+    process.env.OWLSIDE_SKIP_PUSH_SCHEDULER = "true";
+    process.env.OWLSIDE_SKIP_STORAGE_SCHEDULER = "true";
   });
 
   it("filters Scrappy tool outputs by viewerContext (workspace, mutual Block, Under Review) and fences untrusted text", async () => {

@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues and specs are tracked as GitHub issues in `Control707/KSUX` via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Issues and specs for OwlSide are tracked as GitHub issues in `Control707/KSUX` via the `gh` CLI. This is the existing repository locator; keep links working until the repository is renamed. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
