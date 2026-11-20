@@ -8,12 +8,16 @@ function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
 }
 
-function authError(error: unknown) {
+function authError(error: unknown, reason = "unexpected error") {
   const detail = (error as { data?: { code?: string; message?: string } })?.data;
   if (detail?.code === "UNAUTHENTICATED") return json({ authenticated: false }, 401);
   if (detail?.code === "INVALID_EMAIL_DOMAIN") return json({ error: detail.message }, 400);
   if (detail?.code === "ACCOUNT_SUSPENDED") return json({ error: detail.message }, 403);
   if (detail?.code === "RATE_LIMITED") return json({ error: detail.message }, 429);
+  // The client only ever sees a generic message, so record the real cause for operators.
+  const summary = `[auth/session] sign-in unavailable: ${detail?.code ?? reason}${detail?.message ? ` - ${detail.message}` : ""}`;
+  if (error && !detail) console.error(summary, error);
+  else console.error(summary);
   return json({ error: "The sign-in service is temporarily unavailable." }, 503);
 }
 
@@ -40,7 +44,7 @@ export async function GET() {
   if (!token) return json({ authenticated: false });
 
   const serverSecret = process.env.OWLSIDE_SERVER_SECRET;
-  if (!serverSecret) return authError(null);
+  if (!serverSecret) return authError(null, "OWLSIDE_SERVER_SECRET is not set in the Next.js environment");
   try {
     const client = createServerConvexClient();
     const session = await client.mutation(api.auth.getBrowserSession, { sessionToken: token, serverSecret });
@@ -64,12 +68,12 @@ export async function POST(request: Request) {
   }
 
   const serverSecret = process.env.OWLSIDE_SERVER_SECRET;
-  if (!serverSecret) return authError(null);
+  if (!serverSecret) return authError(null, "OWLSIDE_SERVER_SECRET is not set in the Next.js environment");
   try {
     const client = createServerConvexClient();
     if (body.operation === "request") {
       const network = clientNetwork(request);
-      if (!network) return authError(null);
+      if (!network) return authError(null, "no trusted client network address (x-vercel-forwarded-for)");
       return json(await client.mutation(api.auth.requestEmailOtp, {
         email: body.email,
         clientNetwork: network,

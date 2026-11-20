@@ -34,6 +34,22 @@ describe("Student session route", () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
+  it("returns a generic 503 but logs the real cause when the server secret is missing", async () => {
+    vi.stubEnv("OWLSIDE_SERVER_SECRET", "");
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const response = await POST(new Request("http://localhost/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation: "request", email: "alex@kennesaw.edu" }),
+    }));
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "The sign-in service is temporarily unavailable." });
+    expect(mocks.mutation).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("OWLSIDE_SERVER_SECRET is not set"));
+    log.mockRestore();
+  });
+
   it("exchanges a valid OTP for a credential and keeps the long-lived token in an HttpOnly cookie", async () => {
     const student = { handle: "alex_session" };
     const sessionExpiresAt = Date.UTC(2027, 0, 1);
