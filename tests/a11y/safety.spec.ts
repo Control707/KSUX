@@ -128,6 +128,8 @@ test("a judge can trigger a sample Alert on demand and see the banner, with no p
   await trigger.getByRole("button", { name: "Simulate a new Official Alert (Demo)" }).click();
   await expect(trigger.getByRole("status")).toContainText("No push was sent.");
   await expect(page.getByTestId("official-alert-copy")).toContainText("Sample Timely Warning 1");
+  await expect(page.getByTestId("official-alert-count")).toContainText("active");
+  await expect(page.getByTestId("official-alert-item").filter({ hasText: "Sample Timely Warning 1" })).toHaveAttribute("data-active", "true");
   await expectNoSeriousAxe(page, { label: "/safety demo trigger" });
 
   await trigger.getByRole("link", { name: "Open the sample Alert" }).click();
@@ -140,7 +142,9 @@ test("a judge can trigger a sample Alert on demand and see the banner, with no p
   await page.goto("/feed");
   const banner = page.getByTestId("official-alert-banner");
   await expect(banner).toHaveAttribute("data-alert-id", sampleId);
-  await expect(banner).toContainText("Demo · not real: KSU Police posted a Timely Warning");
+  await expect(banner).toContainText("Official Alert · Demo · not real");
+  await expect(banner).toContainText("KSU Police posted a Timely Warning");
+  await expect(banner).toBeInViewport();
   await banner.getByRole("button", { name: /Dismiss/ }).click();
   await expect(banner).not.toHaveAttribute("data-alert-id", sampleId);
   await page.reload();

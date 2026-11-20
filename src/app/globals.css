@@ -55,6 +55,10 @@
   --warn-bg: #fcefd2;
   --bad-fg: #8f1d1d;
   --bad-bg: #fbe2e2;
+  /* Official Alert emphasis: solid, high contrast (≥7:1) in both themes. */
+  --alert-bg: #9b1c1c;
+  --alert-fg: #ffffff;
+  --alert-soft: #fde8e8;
   --ken-fg: #7a4e00;
   --ken-bg: #fbebc4;
   --mar-fg: #1e3a8a;
@@ -120,6 +124,9 @@
     --warn-bg: #34270c;
     --bad-fg: #ffa8a8;
     --bad-bg: #3d1515;
+    --alert-bg: #b42323;
+    --alert-fg: #ffffff;
+    --alert-soft: #3d1515;
     --ken-fg: #fdcb5c;
     --ken-bg: #3a2f14;
     --mar-fg: #a9c4ff;
@@ -305,6 +312,16 @@ h3 {
   animation: ksux-fade-in var(--dur-fade) linear;
 }
 
+/* Official Alert pulse: opacity only (no transform), three times then still
+   (WCAG 2.2.2: stops within 5 s), and off under reduced motion. */
+@keyframes ksux-alert-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.ksux-alert-pulse {
+  animation: ksux-alert-pulse 1.4s ease-in-out 3;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -314,6 +331,9 @@ h3 {
   }
   .ksux-sheet {
     animation: ksux-fade-in var(--dur-fade) linear;
+  }
+  .ksux-alert-pulse {
+    animation: none;
   }
 }
 
