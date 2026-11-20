@@ -90,6 +90,27 @@ convex_prod() { return 1; }
 GROQ_API_KEY=FAKE_SECRET_VALUE
 if (set_convex GROQ_API_KEY); then exit 22; fi
 `);
+  check('shared-server-secret', `
+convex_prod() {
+  [[ "$*" == 'env set OWLSIDE_SERVER_SECRET' ]] || return 20
+  local value; value="$(</dev/stdin)"
+  [[ "$value" == FAKE_SECRET_VALUE ]] || return 21
+  printf 'convex\\n' >> "$TEST_DIRECTORY/shared-targets"
+}
+vercel() {
+  [[ "$*" == 'env add OWLSIDE_SERVER_SECRET --environment production --project prj_test --scope team_test --force --yes --sensitive' ]] || return 22
+  local value; value="$(</dev/stdin)"
+  [[ "$value" == FAKE_SECRET_VALUE ]] || return 23
+  printf 'vercel\\n' >> "$TEST_DIRECTORY/shared-targets"
+}
+OWLSIDE_SERVER_SECRET=FAKE_SECRET_VALUE
+VERCEL_PROJECT_ID=prj_test
+VERCEL_TEAM_ID=team_test
+set_shared_server_secret
+[[ "$(cat "$TEST_DIRECTORY/shared-targets")" == $'convex\\nvercel' ]]
+`);
+  assert.match(source, /capture OWLSIDE_SERVER_SECRET .* secret/);
+  assert.match(source.slice(source.indexOf('run_wizard()')), /\r?\nset_shared_server_secret\r?\n/);
   console.log(`PASS stage count (${stages}); no GitHub-secret stage calls`);
 } finally {
   // Only remove the verified directory created by this test, not a user path.

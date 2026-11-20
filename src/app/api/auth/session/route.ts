@@ -17,6 +17,12 @@ function authError(error: unknown) {
   return json({ error: "The sign-in service is temporarily unavailable." }, 503);
 }
 
+function configuredServerSecret() {
+  const secret = process.env.OWLSIDE_SERVER_SECRET;
+  if (!secret) console.error("[OwlSide auth] OWLSIDE_SERVER_SECRET is missing from the server environment.");
+  return secret;
+}
+
 async function writeSessionCookie(cookieStore: Awaited<ReturnType<typeof cookies>>, token: string, expiresAt: number) {
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
@@ -39,7 +45,7 @@ export async function GET() {
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value?.trim();
   if (!token) return json({ authenticated: false });
 
-  const serverSecret = process.env.OWLSIDE_SERVER_SECRET;
+  const serverSecret = configuredServerSecret();
   if (!serverSecret) return authError(null);
   try {
     const client = createServerConvexClient();
@@ -63,7 +69,7 @@ export async function POST(request: Request) {
     return json({ error: "A valid email and sign-in operation are required." }, 400);
   }
 
-  const serverSecret = process.env.OWLSIDE_SERVER_SECRET;
+  const serverSecret = configuredServerSecret();
   if (!serverSecret) return authError(null);
   try {
     const client = createServerConvexClient();

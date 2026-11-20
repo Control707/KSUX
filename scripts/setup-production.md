@@ -44,6 +44,7 @@ marker.
 | --- | --- | --- |
 | `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_CONVEX_SITE_URL` | Yes | No |
 | `CONVEX_DEPLOY_KEY` (secret) | Yes | Used in the local CLI environment, not saved as a backend variable |
+| `OWLSIDE_SERVER_SECRET` (secret; same value in both services) | Yes | Yes |
 | `UPLOADTHING_TOKEN` (secret) | Yes | Yes |
 | Gmail sender(s), app password(s) (secret passwords) | No | Yes |
 | `GROQ_API_KEY`, optional `GEMINI_API_KEY` (secret) | No | Yes |
@@ -55,6 +56,20 @@ marker.
 Values are also retained in the local private state file for reruns. Moderator
 emails must preserve the actual `@students.kennesaw.edu` or `@kennesaw.edu`
 domain, lowercase the local part, and omit plus aliases.
+
+### Email sign-in returns 503
+
+Next.js requires `OWLSIDE_SERVER_SECRET` in Vercel **Production** before it can
+validate a code or contact Convex for sign-in. Convex must have the identical
+private value. After the rebrand, an old `KSUX_SERVER_SECRET` setting alone does
+not satisfy this requirement. Reuse the existing production secret under the new
+name in both services, then redeploy Vercel so its server receives the setting.
+The setup wizard now captures and applies this shared secret to both targets.
+
+If the credential is present but sign-in still fails, check the Vercel runtime
+logs and the matching Convex production deployment. Actual email delivery also
+requires `GMAIL_SMTP_USER` and `GMAIL_SMTP_APP_PASSWORD` in Convex. A developer
+console OTP is not an email delivery mechanism for production.
 
 ### Production safeguards
 

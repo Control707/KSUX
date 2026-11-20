@@ -34,6 +34,29 @@ describe("Student session route", () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
+  it("reports missing server configuration without contacting Convex or logging credentials", async () => {
+    vi.stubEnv("OWLSIDE_SERVER_SECRET", "");
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const response = await POST(new Request("http://localhost/api/auth/session", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ operation: "verify", email: "diagnostic@example.invalid", code: "12345" }),
+      }));
+      expect(response.status).toBe(503);
+      expect(log).toHaveBeenCalledWith("[OwlSide auth] OWLSIDE_SERVER_SECRET is missing from the server environment.");
+      expect(mocks.mutation).not.toHaveBeenCalled();
+    } finally { log.mockRestore(); }
+  });
+
+  it("validates malformed codes before contacting Convex when the server credential is configured", async () => {
+    const response = await POST(new Request("http://localhost/api/auth/session", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation: "verify", email: "diagnostic@example.invalid", code: "12345" }),
+    }));
+    expect(response.status).toBe(400);
+    expect(mocks.mutation).not.toHaveBeenCalled();
+  });
+
   it("exchanges a valid OTP for a credential and keeps the long-lived token in an HttpOnly cookie", async () => {
     const student = { handle: "alex_session" };
     const sessionExpiresAt = Date.UTC(2027, 0, 1);

@@ -252,6 +252,11 @@ set_vercel() {
   note "Set Vercel Production only: $key"
 }
 
+set_shared_server_secret() {
+  set_convex OWLSIDE_SERVER_SECRET
+  set_vercel OWLSIDE_SERVER_SECRET secret
+}
+
 run_wizard() {
 # Stop inherited xtrace before any secret is entered. Never run with bash -v.
 set +x
@@ -313,6 +318,9 @@ capture NEXT_PUBLIC_CONVEX_SITE_URL "Copy its HTTP Actions URL (https://...conve
 [[ "$NEXT_PUBLIC_CONVEX_SITE_URL" == "https://${prefix#prod:}.convex.site" ]] || fail "HTTP Actions URL does not match the same production deployment."
 say "Convex production target: $NEXT_PUBLIC_CONVEX_URL"
 confirm "Use this Convex production deployment for all remaining writes" || fail "Cancelled."
+step "Next.js and Convex must share one private server secret for email sign-in. Reuse the existing production value when one is already configured; do not use a local development secret."
+capture OWLSIDE_SERVER_SECRET "Shared OWLSIDE_SERVER_SECRET (hidden; at least 32 characters):" secret
+[[ "${#OWLSIDE_SERVER_SECRET}" -ge 32 ]] || fail "Use an existing strong production secret or generate a new random 32-byte value, then rerun."
 
 stage "UploadThing: shared production upload token"
 open_url "https://uploadthing.com/dashboard"
@@ -398,10 +406,11 @@ printf '%s' "$OWLSIDE_MAINTAINER_EMAILS" | node --input-type=module -e 'let s=""
 stage "Review targets and apply production environment"
 say "Vercel project: $VERCEL_PROJECT_ID; team: $VERCEL_TEAM_ID (Production only)."
 say "Convex: $NEXT_PUBLIC_CONVEX_URL"
-say "Required: Convex URLs/key, UploadThing, primary Gmail, Groq, OTP logging=false, maintainers."
+say "Required: shared server secret, Convex URLs/key, UploadThing, primary Gmail, Groq, OTP logging=false, maintainers."
 say "Optional selections: Gmail fallback=$SETUP_GMAIL_FALLBACK; Gemini=$SETUP_GEMINI; Cloudflare=$SETUP_CLOUDFLARE; Push=$SETUP_WEB_PUSH."
 warn "This replaces matching production environment values. Writes are sequential, not transactional; stop on failure and rerun."
 confirm "Apply these settings to BOTH verified production targets now" || fail "Nothing applied. Captured values remain in the private state file."
+set_shared_server_secret
 for key in GMAIL_SMTP_USER GMAIL_SMTP_APP_PASSWORD GROQ_API_KEY UPLOADTHING_TOKEN OWLSIDE_ALLOW_DEV_OTP_LOG OWLSIDE_MAINTAINER_EMAILS; do set_convex "$key"; done
 if [[ "$SETUP_GMAIL_FALLBACK" == yes ]]; then
   for key in GMAIL_SMTP_FALLBACK_USER GMAIL_SMTP_FALLBACK_APP_PASSWORD; do set_convex "$key"; done
