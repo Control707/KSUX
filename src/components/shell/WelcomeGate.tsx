@@ -29,7 +29,7 @@ export function WelcomeGate({
   };
 
   const pathButton =
-    "flex min-h-[var(--target)] w-full flex-wrap items-center justify-between gap-[var(--sp-2)] rounded-[var(--r-md)] px-[var(--sp-4)] py-[var(--sp-3)] text-left text-body font-bold";
+    "flex min-h-[var(--target)] w-full flex-col items-center justify-center gap-[var(--sp-2)] rounded-[var(--r-md)] px-[var(--sp-4)] py-[var(--sp-3)] text-center text-body font-bold";
 
   return (
     <main
@@ -75,7 +75,7 @@ export function WelcomeGate({
             }}
             className={`${pathButton} bg-[var(--accent)] text-[var(--on-accent)] hover:brightness-95`}
           >
-            <span className="flex min-w-0 items-center gap-[var(--sp-2)]">
+            <span className="flex w-full min-w-0 items-center justify-center gap-[var(--sp-2)]">
               <Mail aria-hidden="true" className="h-5 w-5 shrink-0" />
               <span>Sign in with your KSU .edu email</span>
             </span>
@@ -90,7 +90,7 @@ export function WelcomeGate({
             onClick={handleLaunchDemo}
             className={`${pathButton} border-2 border-[var(--line-strong)] bg-[var(--surface)] text-[var(--ink)] hover:bg-[var(--surface-2)] disabled:opacity-70`}
           >
-            <span className="flex min-w-0 items-center gap-[var(--sp-2)]">
+            <span className="flex w-full min-w-0 items-center justify-center gap-[var(--sp-2)]">
               <Zap aria-hidden="true" className="h-5 w-5 shrink-0" />
               <span>{launchingDemo ? "Starting Judge Demo Mode…" : "Enter Judge Demo Mode"}</span>
             </span>

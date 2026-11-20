@@ -137,7 +137,7 @@ export function AppShell({
 
       <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--header)] px-[var(--sp-3)] py-[var(--sp-2)] pt-[calc(var(--sp-2)+env(safe-area-inset-top,0px))]">
         <div className="mx-auto flex max-w-7xl flex-col gap-[var(--sp-2)]">
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-[var(--sp-2)]">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-[var(--sp-1)] sm:gap-[var(--sp-2)]">
             {focusedComposer ? (
               <button
                 type="button"
@@ -149,20 +149,20 @@ export function AppShell({
                 Back
               </button>
             ) : (
-              <Link href="/" className="inline-flex min-h-[var(--target)] items-center gap-[var(--sp-2)] font-display text-[length:var(--fs-xl)] font-bold">
-                <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-[var(--r-sm)] bg-[var(--accent)] text-base">
+              <Link href="/" className="inline-flex min-h-[var(--target)] shrink-0 items-center gap-[var(--sp-1)] font-display text-[length:var(--fs-lg)] font-bold sm:gap-[var(--sp-2)] sm:text-[length:var(--fs-xl)]">
+                <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--r-sm)] bg-[var(--accent)] text-base sm:h-8 sm:w-8">
                   🦉
                 </span>
                 OwlSide<span className="sr-only">, home</span>
               </Link>
             )}
 
-            <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-[var(--sp-2)] [overflow-wrap:anywhere]">
+            <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-[var(--sp-1)] [overflow-wrap:anywhere] sm:gap-[var(--sp-2)]">
               <Link
                 href="/search"
                 data-testid="header-search-link"
                 aria-current={pathname === "/search" ? "page" : undefined}
-                className="inline-flex min-h-[var(--target)] min-w-[var(--target)] items-center justify-center gap-[var(--sp-2)] rounded-[var(--r-pill)] border border-[var(--line-strong)] bg-[var(--surface)] px-[var(--sp-3)] text-sm font-bold"
+                className="inline-flex min-h-[var(--target)] w-[var(--target)] min-w-[var(--target)] shrink-0 items-center justify-center gap-[var(--sp-2)] rounded-[var(--r-pill)] border border-[var(--line-strong)] bg-[var(--surface)] text-sm font-bold sm:w-auto sm:px-[var(--sp-3)]"
               >
                 <Search aria-hidden="true" className="h-4 w-4" />
                 <span className="sr-only sm:not-sr-only">Search</span>
@@ -170,9 +170,10 @@ export function AppShell({
               {summary?.viewer.isModerator && auth.status !== "demo" && (
                 <Link
                   href={MODERATION_DESTINATION.href}
-                  className="inline-flex min-h-[var(--target)] items-center rounded-[var(--r-pill)] border border-[var(--line-strong)] px-[var(--sp-3)] text-sm font-bold"
+                  className="inline-flex min-h-[var(--target)] min-w-[var(--target)] items-center justify-center rounded-[var(--r-pill)] border border-[var(--line-strong)] px-[var(--sp-2)] text-sm font-bold sm:px-[var(--sp-3)]"
                 >
-                  Moderation
+                  <Shield aria-hidden="true" className="h-4 w-4 sm:hidden" />
+                  <span className="sr-only sm:not-sr-only">Moderation</span>
                 </Link>
               )}
               {auth.status === "demo" ? (
@@ -181,10 +182,10 @@ export function AppShell({
                 <Link
                   href="/profile"
                   aria-current={pathname === "/profile" ? "page" : undefined}
-                  className="inline-flex min-h-[var(--target)] items-center gap-[var(--sp-2)] rounded-[var(--r-pill)] border border-[var(--line-strong)] bg-[var(--surface)] px-[var(--sp-3)] text-sm font-bold"
+                  className="inline-flex min-h-[var(--target)] min-w-[var(--target)] max-w-[8rem] items-center gap-[var(--sp-1)] rounded-[var(--r-pill)] border border-[var(--line-strong)] bg-[var(--surface)] px-[var(--sp-2)] text-sm font-bold sm:max-w-full sm:gap-[var(--sp-2)] sm:px-[var(--sp-3)]"
                 >
-                  <span>@{student?.handle ?? "student"}</span>
-                  <span className="rounded-full bg-[var(--ok-bg)] px-[var(--sp-2)] text-[var(--ok-fg)]">
+                  <span className="min-w-0 truncate">@{student?.handle ?? "student"}</span>
+                  <span className="sr-only rounded-full bg-[var(--ok-bg)] px-[var(--sp-2)] text-[var(--ok-fg)] sm:not-sr-only">
                     {student?.emailDomainBadge === "faculty_staff" ? "KSU Faculty · Staff" : "Verified Student"}
                   </span>
                   <span className="sr-only">, Profile</span>
@@ -441,15 +442,15 @@ function DemoMenu({ displayName, homeCampus }: { displayName: string; homeCampus
         aria-expanded={open}
         aria-controls={menuId}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex min-h-[var(--target)] min-w-[var(--target)] max-w-full items-center justify-center gap-[var(--sp-1)] rounded-[var(--r-pill)] border-2 border-[var(--accent-ink)] bg-[var(--accent-soft)] px-[var(--sp-3)] text-sm font-bold text-[var(--ink)]"
+        className="inline-flex min-h-[var(--target)] min-w-[var(--target)] max-w-full items-center justify-center gap-[var(--sp-1)] rounded-[var(--r-pill)] border-2 border-[var(--accent-ink)] bg-[var(--accent-soft)] px-[var(--sp-2)] text-sm font-bold text-[var(--ink)] sm:px-[var(--sp-3)]"
       >
         <span aria-hidden="true">⚡</span>
         {/* Collapses to the icon in large-text mode; the name stays. */}
-        <span className="lt-hide-label min-w-0">
-          Demo · {displayName} ({homeCampus})
+        <span className="lt-hide-label min-w-0 truncate">
+          <span className="sr-only sm:not-sr-only">Demo · </span>{displayName}<span className="sr-only sm:not-sr-only"> ({homeCampus})</span>
         </span>
         <span className="sr-only">, Judge Demo Mode menu</span>
-        <ChevronDown aria-hidden="true" className="h-4 w-4" />
+        <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0" />
       </button>
 
       {open && (
