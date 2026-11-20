@@ -279,7 +279,7 @@ export function AppShell({
         <nav
           aria-label="Main"
           data-testid="mobile-bottom-nav"
-          className="fixed inset-x-[var(--sp-2)] bottom-[calc(var(--sp-2)+env(safe-area-inset-bottom,0px))] z-30 grid grid-cols-5 items-center rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] px-[var(--sp-1)] py-[var(--sp-1)] shadow-lg lg:hidden"
+          className="fixed inset-x-[var(--sp-2)] bottom-[calc(var(--sp-2)+env(safe-area-inset-bottom,0px))] z-30 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_minmax(0,1fr)_minmax(0,1fr)] items-center gap-[var(--sp-1)] rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--surface)] px-[var(--sp-1)] py-[var(--sp-1)] shadow-lg lg:hidden"
         >
           <BarLink href="/" label="Now" icon={<Home aria-hidden="true" className="h-5 w-5" />} active={pathname === "/"} />
           <BarLink href="/feed" label="Feed" icon={<Compass aria-hidden="true" className="h-5 w-5" />} active={pathname.startsWith("/feed")} />
@@ -288,10 +288,12 @@ export function AppShell({
             data-testid="center-quick-sheet-btn"
             aria-haspopup="dialog"
             onClick={() => setQuickSheetOpen(true)}
-            className="mx-auto inline-flex min-h-[var(--target)] items-center justify-center gap-[var(--sp-1)] rounded-[var(--r-pill)] bg-[var(--accent)] px-[var(--sp-2)] text-sm font-bold text-[var(--on-accent)]"
+            className="mx-auto inline-flex min-h-[var(--target)] shrink-0 items-center justify-center gap-[var(--sp-1)] whitespace-nowrap rounded-[var(--r-pill)] bg-[var(--accent)] px-[var(--sp-3)] text-sm font-bold text-[var(--on-accent)]"
           >
             <span aria-hidden="true">🦉</span>
-            <span className="lt-hide-label">Ask Scrappy</span>
+            <span className="lt-hide-label">
+              <span className="sr-only min-[400px]:not-sr-only">Ask </span>Scrappy
+            </span>
           </button>
           <BarLink href="/marketplace" label="Market" labelSuffix="place" icon={<ShoppingBag aria-hidden="true" className="h-5 w-5" />} active={pathname.startsWith("/marketplace")} />
           <BarLink
@@ -369,7 +371,7 @@ function BarLink({
       href={href}
       data-testid={testId}
       aria-current={active ? "page" : undefined}
-      className={`relative flex min-h-[var(--target)] flex-col items-center justify-center rounded-[var(--r-md)] text-[length:var(--fs-xs)] font-bold ${
+      className={`relative flex min-h-[var(--target)] min-w-0 flex-col items-center justify-center whitespace-nowrap rounded-[var(--r-md)] text-[length:var(--fs-xs)] font-bold ${
         active ? "bg-[var(--surface-2)] text-[var(--ink)]" : "text-[var(--muted)]"
       }`}
     >
